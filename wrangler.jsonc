@@ -1,0 +1,90 @@
+{
+  // =====================================================================
+  // MediaDNS - 图片外链转接 + 缓存 + 防盗链 Worker
+  //
+  // 部署前必做（替换下方 3 个 REPLACE）：
+  //   1. 创建 KV 命名空间：  wrangler kv namespace create MAPPINGS
+  //      把返回的 id 填入 kv_namespaces[0].id
+  //   2. 限流 namespace_id：不是命令/控制台创建的，而是你自己定义的
+  //      正整数（写成字符串，账户内唯一即可），比如 1001、1002 各填一个
+  //   3. 配置机密：          wrangler secret put PASSWORD          （管理密码）
+  //                         wrangler secret put SIGNING_SECRET    （HMAC 签名密钥）
+  //      PASSWORD 也可在部署后于控制台 Workers -> 设置 -> 变量和机密 中添加
+  //      （建议类型选"加密"即 Secret；普通 Variable 也可读取）
+  //   4. 本地调试：把同样的 PASSWORD 和 SIGNING_SECRET 写入 .dev.vars
+  //
+  // 限流数值（limit/period）由 Cloudflare 边缘执行，改动需重新部署；
+  // 其余所有设置均可在管理页（前端）运行时修改并即时生效。
+  // =====================================================================
+  "name": "media-dns-cdn",  // Worker 名称
+  "main": "src/index.js",
+  "compatibility_date": "2026-08-01",
+
+  // 开启 Workers Caching：缓存命中时由边缘直接返回，Worker 不执行
+  "cache": {
+    "enabled": true
+  },
+
+  // URL 映射 + 运行时设置都存这里
+  "kv_namespaces": [
+    {
+      "binding": "你的KV命名空间", // KV 命名空间绑定名
+      "id": "你的KV命名空间ID" // KV 命名空间 ID（部署前创建）
+    }
+  ],
+
+  // 官方 Rate Limit Binding（每IP / 每图），period 仅支持 10 或 60 秒
+  "ratelimits": [
+    {
+      "name": "RATE_LIMITER_IP",
+      "namespace_id": "1001", // 你自己定义的正整数，账户内唯一即可
+      "simple": {
+        "limit": 100, // 每IP访问次数限制
+        "period": 60  // 限制周期（秒），仅支持 10 或 60 秒
+      }
+    },
+    {
+      "name": "RATE_LIMITER_IMG",
+      "namespace_id": "1002", // 你自己定义的正整数，账户内唯一即可
+      "simple": {
+        "limit": 40, // 每图访问次数限制
+        "period": 10 // 限制周期（秒），仅支持 10 或 60 秒
+      }
+    }
+  ],
+
+  "vars": {
+    // ---- 首次部署时的默认设置（之后以管理页保存到 KV 的为准）----
+    // SSRF 白名单：允许代理的图床域名，逗号分隔。建议只留你信任的图床。
+    "ALLOWED_ORIGINS": "",
+    // 地区/IP/ASN 黑白名单（国家代码、IP、ASN 号，逗号分隔；空 = 不限制）
+    "ALLOWED_COUNTRIES": "",
+    "BLOCKED_COUNTRIES": "",
+    "ALLOWED_IPS": "",
+    "BLOCKED_IPS": "",
+    "ALLOWED_ASN": "",
+    "BLOCKED_ASN": "",
+    // Referer 白名单：允许引用的域名，逗号分隔；空 = 不限制（尽力而为，可伪造）
+    "ALLOWED_REFERERS": "",
+    // HMAC 签名链接：true 则生成的链接带过期签名，不可伪造（最强防外链）
+    "REQUIRE_SIGNATURE": false,
+    // 签名有效期（秒）
+    "SIGNATURE_TTL": 3600,
+    // 缓存 TTL（秒），30 天
+    "CACHE_TTL": 2592000,
+    // 单张图片大小上限（字节），50MB
+    "MAX_IMAGE_SIZE": 52428800,
+    // 默认链接类型：redirect(仅DNS 302直跳) / proxy(缓存代理+DNS)
+    "DEFAULT_MODE": "redirect",
+    // 转发到图床时携带的上游请求头（应对图床拦截/防盗链校验）
+    "ORIGIN_REFERER": "",
+    "ORIGIN_USER_AGENT": "",
+    // 管理页"限流"区块的只读展示文案
+    "RATE_LIMIT_IP_TEXT": "每 IP 100 次 / 60 秒（Cloudflare Rate Limit Binding，改值需重新部署）",
+    "RATE_LIMIT_IMG_TEXT": "每图 40 次 / 10 秒（Cloudflare Rate Limit Binding，改值需重新部署）"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}
