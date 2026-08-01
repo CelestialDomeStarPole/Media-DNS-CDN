@@ -21,3 +21,10 @@ Thumbs.db
 .pnpm-debug.log*
 npm-debug.log*
 yarn-error.log*
+
+# 本地验证产物 / 截图
+.playwright-mcp/
+*.png
+*.jpg
+*.jpeg
+*.webp

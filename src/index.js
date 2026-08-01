@@ -8,6 +8,8 @@ import {
   defaultSettings,
   splitList,
   numList,
+  getFolders,
+  saveFolders,
 } from "./lib/store.js";
 import {
   json,
@@ -34,6 +36,11 @@ function generateId() {
   const bytes = new Uint8Array(8);
   crypto.getRandomValues(bytes);
   return [...bytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function sanitizeField(v, max) {
+  if (typeof v !== "string") return "";
+  return v.replace(/[\u0000-\u001f]/g, "").trim().slice(0, max);
 }
 
 function requireAuth(request, env, handler) {
@@ -84,7 +91,16 @@ async function handleConvert(request, env) {
         ? "redirect"
         : settings.defaultMode;
   const id = generateId();
-  await putImage(env, id, { url: raw, mode, enabled: true, createdAt: Date.now() });
+  const name = sanitizeField(body.name, 60);
+  const folder = sanitizeField(body.folder, 30);
+  await putImage(env, id, { url: raw, mode, enabled: true, name, folder, createdAt: Date.now() });
+  if (folder) {
+    const folders = await getFolders(env);
+    if (!folders.includes(folder)) {
+      folders.push(folder);
+      await saveFolders(env, folders);
+    }
+  }
   const link = await makeLink(request, env, settings, id);
   return json({ id, mode, url: link });
 }
@@ -94,9 +110,69 @@ async function handleList(request, env) {
   const images = await listImages(env);
   const out = [];
   for (const img of images) {
-    out.push({ ...img, url: await makeLink(request, env, settings, img.id) });
+    out.push({ ...img, shortUrl: await makeLink(request, env, settings, img.id) });
   }
-  return json({ images: out });
+  return json({ images: out, folders: await getFolders(env) });
+}
+
+async function handleUpdateImage(request, env) {
+  const body = await request.json().catch(() => null);
+  const id = body && typeof body.id === "string" ? body.id : "";
+  if (!id || !IMAGE_ID_RE.test(id)) return json({ error: "ID 无效" }, 400);
+  const img = await getImage(env, id);
+  if (!img) return json({ error: "图片不存在" }, 404);
+  if (body.name !== undefined) img.name = sanitizeField(body.name, 60);
+  if (body.folder !== undefined) img.folder = sanitizeField(body.folder, 30);
+  await putImage(env, id, img);
+  return json({ ok: true });
+}
+
+async function handleCreateFolder(request, env) {
+  const body = await request.json().catch(() => null);
+  const name = sanitizeField(body && body.name, 30);
+  if (!name) return json({ error: "文件夹名称无效" }, 400);
+  const list = await getFolders(env);
+  if (!list.includes(name)) {
+    list.push(name);
+    await saveFolders(env, list);
+  }
+  return json({ ok: true });
+}
+
+async function handleRenameFolder(request, env) {
+  const body = await request.json().catch(() => null);
+  const from = body && typeof body.from === "string" ? body.from.trim() : "";
+  const to = body && typeof body.to === "string" ? sanitizeField(body.to, 30) : "";
+  if (!from) return json({ error: "文件夹无效" }, 400);
+  const list = await getFolders(env);
+  if (!list.includes(from)) return json({ error: "文件夹不存在" }, 404);
+  const next = list.filter((x) => x !== from);
+  if (to && !next.includes(to)) next.push(to);
+  await saveFolders(env, next);
+  const images = await listImages(env);
+  for (const img of images) {
+    if (img.folder === from) {
+      img.folder = to;
+      await putImage(env, img.id, img);
+    }
+  }
+  return json({ ok: true });
+}
+
+async function handleDeleteFolder(request, env) {
+  const body = await request.json().catch(() => null);
+  const name = body && typeof body.name === "string" ? body.name.trim() : "";
+  if (!name) return json({ error: "文件夹无效" }, 400);
+  const list = await getFolders(env);
+  await saveFolders(env, list.filter((x) => x !== name));
+  const images = await listImages(env);
+  for (const img of images) {
+    if (img.folder === name) {
+      img.folder = "";
+      await putImage(env, img.id, img);
+    }
+  }
+  return json({ ok: true });
 }
 
 async function handleDelete(request, env, ctx) {
@@ -279,6 +355,10 @@ export default {
     if (pathname === "/api/images") return requireAuth(request, env, () => handleList(request, env));
     if (pathname === "/api/image/delete") return requireAuth(request, env, () => handleDelete(request, env, ctx));
     if (pathname === "/api/image/toggle") return requireAuth(request, env, () => handleToggle(request, env, ctx));
+    if (pathname === "/api/image/update") return requireAuth(request, env, () => handleUpdateImage(request, env));
+    if (pathname === "/api/folder/create") return requireAuth(request, env, () => handleCreateFolder(request, env));
+    if (pathname === "/api/folder/rename") return requireAuth(request, env, () => handleRenameFolder(request, env));
+    if (pathname === "/api/folder/delete") return requireAuth(request, env, () => handleDeleteFolder(request, env));
     if (pathname === "/api/settings") {
       if (request.method === "GET") return requireAuth(request, env, () => handleGetSettings(request, env));
       if (request.method === "PUT") return requireAuth(request, env, () => handlePutSettings(request, env, ctx));

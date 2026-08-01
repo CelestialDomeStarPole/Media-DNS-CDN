@@ -1,6 +1,6 @@
 {
   // =====================================================================
-  // MediaDNS - 图片外链转接 + 缓存 + 防盗链 Worker
+  // MediaDNS-CDN - 图片外链转接 + 缓存 + 防盗链 Worker
   //
   // 部署前必做（替换下方 3 个 REPLACE）：
   //   1. 创建 KV 命名空间：  wrangler kv namespace create MAPPINGS
@@ -16,7 +16,7 @@
   // 限流数值（limit/period）由 Cloudflare 边缘执行，改动需重新部署；
   // 其余所有设置均可在管理页（前端）运行时修改并即时生效。
   // =====================================================================
-  "name": "media-dns-cdn",  // Worker 名称
+  "name": "media-dns-cdn",  // Worker 名称（Cloudflare 仅允许小写字母数字和连字符）
   "main": "src/index.js",
   "compatibility_date": "2026-08-01",
 

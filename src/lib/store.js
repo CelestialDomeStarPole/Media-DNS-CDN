@@ -1,5 +1,6 @@
 const SETTINGS_KEY = "settings:global";
 const IMG_PREFIX = "img:";
+const FOLDER_KEY = "folders:list";
 
 // isolate 内存微缓存 settings，避免每个请求都读 KV（免费版 KV 有读额度）
 const SETTINGS_CACHE_MS = 15000;
@@ -108,4 +109,19 @@ export async function listImages(env) {
   }
   images.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
   return images;
+}
+
+export async function getFolders(env) {
+  const raw = await env.MAPPINGS.get(FOLDER_KEY);
+  if (raw) {
+    try {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) return arr.filter((x) => typeof x === "string" && x);
+    } catch {}
+  }
+  return [];
+}
+
+export async function saveFolders(env, list) {
+  await env.MAPPINGS.put(FOLDER_KEY, JSON.stringify(list));
 }
