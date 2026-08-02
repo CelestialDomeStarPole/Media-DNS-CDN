@@ -1,6 +1,6 @@
 {
   // =====================================================================
-  // MediaDNS-CDN - 图片外链转接 + 缓存 + 防盗链 Worker
+  // MediaDNS-CDN - 图片/音频/视频外链转接 + 缓存 + 防盗链 Worker
   //
   // 部署前必做（替换下方 3 个 REPLACE）：
   //   1. 创建 KV 命名空间：  wrangler kv namespace create MAPPINGS
@@ -33,7 +33,7 @@
     }
   ],
 
-  // 官方 Rate Limit Binding（每IP / 每图），period 仅支持 10 或 60 秒
+  // 官方 Rate Limit Binding（每IP / 每图 / 每音视频），period 仅支持 10 或 60 秒
   "ratelimits": [
     {
       "name": "RATE_LIMITER_IP",
@@ -49,6 +49,14 @@
       "simple": {
         "limit": 40, // 每图访问次数限制
         "period": 10 // 限制周期（秒），仅支持 10 或 60 秒
+      }
+    },
+    {
+      "name": "RATE_LIMITER_AV",
+      "namespace_id": "1003", // 你自己定义的正整数，账户内唯一即可
+      "simple": {
+        "limit": 300, // 每音视频访问次数限制（播放会产生大量 Range 分片请求）
+        "period": 10  // 限制周期（秒），仅支持 10 或 60 秒
       }
     }
   ],
@@ -74,6 +82,10 @@
     "CACHE_TTL": 2592000,
     // 单张图片大小上限（字节），50MB
     "MAX_IMAGE_SIZE": 52428800,
+    // 单个音频大小上限（字节），100MB
+    "MAX_AUDIO_SIZE": 104857600,
+    // 单个视频大小上限（字节），500MB（Cloudflare 免费版单缓存对象上限 512MB）
+    "MAX_VIDEO_SIZE": 524288000,
     // 默认链接类型：redirect(仅DNS 302直跳) / proxy(缓存代理+DNS)
     "DEFAULT_MODE": "redirect",
     // 转发到图床时携带的上游请求头（应对图床拦截/防盗链校验）
@@ -83,7 +95,9 @@
     "RATE_LIMIT_IP_LIMIT": 100,
     "RATE_LIMIT_IP_PERIOD": 60,
     "RATE_LIMIT_IMG_LIMIT": 40,
-    "RATE_LIMIT_IMG_PERIOD": 10
+    "RATE_LIMIT_IMG_PERIOD": 10,
+    "RATE_LIMIT_AV_LIMIT": 300,
+    "RATE_LIMIT_AV_PERIOD": 10
   },
 
   "observability": {

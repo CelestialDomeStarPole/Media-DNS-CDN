@@ -43,6 +43,8 @@ export function defaultSettings(env) {
     signatureTtl: Number(env.SIGNATURE_TTL || 3600),
     cacheTtl: Number(env.CACHE_TTL || 2592000),
     maxImageSize: Number(env.MAX_IMAGE_SIZE || 52428800),
+    maxAudioSize: Number(env.MAX_AUDIO_SIZE || 104857600),
+    maxVideoSize: Number(env.MAX_VIDEO_SIZE || 524288000),
     defaultMode: env.DEFAULT_MODE === "proxy" ? "proxy" : "redirect",
     originReferer: env.ORIGIN_REFERER || "",
     originUserAgent: env.ORIGIN_USER_AGENT || "",

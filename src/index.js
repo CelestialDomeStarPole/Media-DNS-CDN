@@ -24,8 +24,10 @@ import {
 import {
   isAllowedUrl,
   fetchOrigin,
-  validateImage,
+  validateMedia,
   buildCachedResponse,
+  classifyType,
+  guessType,
 } from "./lib/proxy.js";
 import { renderUI } from "./lib/ui.js";
 
@@ -67,6 +69,23 @@ async function purgeTag(ctx, tag) {
   } catch {}
 }
 
+async function sniffType(targetUrl, settings) {
+  // 添加时用 HEAD 嗅探媒体类型（图片/音频/视频），失败则按扩展名推断
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 5000);
+  try {
+    const { response } = await fetchOrigin(settings, targetUrl, { method: "HEAD", signal: ctrl.signal });
+    if (response && response.status < 400) {
+      const t = classifyType(response.headers.get("Content-Type") || "");
+      if (t) return t;
+    }
+  } catch {
+  } finally {
+    clearTimeout(timer);
+  }
+  return guessType(targetUrl) || "unknown";
+}
+
 async function handleLogin(request, env) {
   const body = await request.json().catch(() => null);
   const token = body && typeof body.token === "string" ? body.token.trim() : "";
@@ -79,7 +98,7 @@ async function handleLogin(request, env) {
 async function handleConvert(request, env) {
   const body = await request.json().catch(() => null);
   const raw = body && typeof body.url === "string" ? body.url.trim() : "";
-  if (!raw) return json({ error: "请填写图片链接" }, 400);
+  if (!raw) return json({ error: "请填写媒体链接" }, 400);
   const settings = await getSettings(env);
   if (!isAllowedUrl(raw, settings)) {
     return json({ error: "该域名不在允许列表（SSRF 白名单）中，请先在设置中添加" }, 400);
@@ -93,7 +112,8 @@ async function handleConvert(request, env) {
   const id = generateId();
   const name = sanitizeField(body.name, 60);
   const folder = sanitizeField(body.folder, 30);
-  await putImage(env, id, { url: raw, mode, enabled: true, name, folder, createdAt: Date.now() });
+  const type = await sniffType(raw, settings);
+  await putImage(env, id, { url: raw, mode, enabled: true, name, folder, type, createdAt: Date.now() });
   if (folder) {
     const folders = await getFolders(env);
     if (!folders.includes(folder)) {
@@ -209,6 +229,10 @@ async function handleGetSettings(request, env) {
         limit: Number(env.RATE_LIMIT_IMG_LIMIT) || 40,
         period: Number(env.RATE_LIMIT_IMG_PERIOD) || 10,
       },
+      rateLimitAv: {
+        limit: Number(env.RATE_LIMIT_AV_LIMIT) || 300,
+        period: Number(env.RATE_LIMIT_AV_PERIOD) || 10,
+      },
     },
   });
 }
@@ -233,6 +257,8 @@ function normalizeSettings(raw, env) {
     signatureTtl: num(raw.signatureTtl, base.signatureTtl, 60, 31536000),
     cacheTtl: num(raw.cacheTtl, base.cacheTtl, 0, 31536000),
     maxImageSize: num(raw.maxImageSize, base.maxImageSize, 1024, 512 * 1024 * 1024),
+    maxAudioSize: num(raw.maxAudioSize, base.maxAudioSize, 1024, 512 * 1024 * 1024),
+    maxVideoSize: num(raw.maxVideoSize, base.maxVideoSize, 1024, 512 * 1024 * 1024),
     defaultMode: raw.defaultMode === "proxy" ? "proxy" : "redirect",
     originReferer: String(raw.originReferer ?? base.originReferer).trim(),
     originUserAgent: String(raw.originUserAgent ?? base.originUserAgent).trim(),
@@ -253,7 +279,17 @@ async function handleImage(request, env, id) {
   const settings = await getSettings(env);
   const url = new URL(request.url);
 
-  const rl = await checkRateLimit(request, env, id);
+  const image = await getImage(env, id);
+  if (!image || image.enabled === false) {
+    return new Response("Not Found", {
+      status: 404,
+      headers: { "Cache-Control": "no-store" },
+    });
+  }
+
+  const mediaType = image.type || guessType(image.url) || "unknown";
+
+  const rl = await checkRateLimit(request, env, id, mediaType);
   if (!rl.ok) {
     return new Response("请求过于频繁", {
       status: 429,
@@ -289,14 +325,6 @@ async function handleImage(request, env, id) {
     }
   }
 
-  const image = await getImage(env, id);
-  if (!image || image.enabled === false) {
-    return new Response("Not Found", {
-      status: 404,
-      headers: { "Cache-Control": "no-store" },
-    });
-  }
-
   const mode = image.mode || settings.defaultMode;
 
   // 仅DNS：校验通过后 302 直跳原图，不缓存，每次请求都过校验
@@ -318,7 +346,14 @@ async function handleImage(request, env, id) {
     });
   }
 
-  const { response, error } = await fetchOrigin(settings, image.url);
+  // 透传 Range/If-Range，支持浏览器音视频拖进度条
+  const extraHeaders = new Headers();
+  const range = request.headers.get("Range");
+  if (range) extraHeaders.set("Range", range);
+  const ifRange = request.headers.get("If-Range");
+  if (ifRange) extraHeaders.set("If-Range", ifRange);
+
+  const { response, error } = await fetchOrigin(settings, image.url, { headers: extraHeaders });
   if (error || !response) {
     return new Response("Forbidden", {
       status: 403,
@@ -332,7 +367,7 @@ async function handleImage(request, env, id) {
     });
   }
 
-  const v = validateImage(response, settings);
+  const v = validateMedia(response, settings, mediaType);
   if (!v.ok) {
     try {
       await response.body?.cancel();
@@ -343,7 +378,7 @@ async function handleImage(request, env, id) {
     });
   }
 
-  return buildCachedResponse(response, settings, id);
+  return buildCachedResponse(response, settings, id, v.partial);
 }
 
 export default {

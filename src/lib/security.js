@@ -3,7 +3,7 @@ const enc = new TextEncoder();
 export function json(body, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json; charset=utf-8" },
+    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
   });
 }
 
@@ -93,11 +93,14 @@ export async function verifySignature(id, exp, sig, secret) {
   return timingSafeEqual(sig.toLowerCase(), expected);
 }
 
-export async function checkRateLimit(request, env, imageId) {
+export async function checkRateLimit(request, env, imageId, mediaType) {
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
   const ipRes = await env.RATE_LIMITER_IP.limit({ key: ip });
   if (!ipRes.success) return { ok: false, key: "ip" };
-  const imgRes = await env.RATE_LIMITER_IMG.limit({ key: imageId });
+  // 音视频播放会产生大量分片 Range 请求，走独立的高配额限流器
+  const isMedia = mediaType === "audio" || mediaType === "video";
+  const limiter = isMedia ? env.RATE_LIMITER_AV || env.RATE_LIMITER_IMG : env.RATE_LIMITER_IMG;
+  const imgRes = await limiter.limit({ key: imageId });
   if (!imgRes.success) return { ok: false, key: "image" };
   return { ok: true };
 }

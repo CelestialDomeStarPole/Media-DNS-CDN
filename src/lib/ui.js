@@ -198,6 +198,8 @@ a{color:var(--accent)}
 .mode-option em{font-style:normal;color:var(--muted);font-size:12px}
 .preview{margin-top:16px;display:flex;gap:14px;align-items:center;border:1px dashed rgba(0,0,0,.18);border-radius:9px;padding:10px}
 .preview img{max-width:120px;max-height:90px;border-radius:6px;object-fit:contain;background:rgba(255,255,255,.7)}
+.preview video{max-width:260px;max-height:140px;border-radius:6px;background:rgba(0,0,0,.05)}
+.preview audio{width:260px}
 .preview .muted{font-size:12px;word-break:break-all}
 
 /* 文件夹栏 */
@@ -246,6 +248,10 @@ a{color:var(--accent)}
 .badge{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:600}
 .badge-proxy{background:color-mix(in srgb,var(--c1) 16%,#fff);color:var(--c1)}
 .badge-dns{background:rgba(255,255,255,.72);color:#4b5563;border:1px solid rgba(0,0,0,.08)}
+.badge-type{background:rgba(255,255,255,.72);color:#4b5563;border:1px solid rgba(0,0,0,.1)}
+.badge-type-image{background:color-mix(in srgb,#3b82f6 14%,#fff);color:#2563eb;border-color:transparent}
+.badge-type-audio{background:color-mix(in srgb,#10b981 14%,#fff);color:#059669;border-color:transparent}
+.badge-type-video{background:color-mix(in srgb,#f59e0b 14%,#fff);color:#d97706;border-color:transparent}
 .img-name{font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;word-break:break-all}
 .img-name .pen{font-size:11px;color:var(--muted);opacity:0;transition:opacity .15s}
 .img-name:hover .pen{opacity:1}
@@ -309,7 +315,8 @@ a{color:var(--accent)}
 
 /* 灯箱预览 */
 .lightbox{position:fixed;inset:0;background:rgba(10,14,22,.86);display:flex;align-items:center;justify-content:center;z-index:2100;padding:24px;animation:viewIn .18s ease both}
-.lightbox img{max-width:94vw;max-height:86vh;object-fit:contain;border-radius:8px;box-shadow:0 10px 60px rgba(0,0,0,.5)}
+.lightbox img,.lightbox video{max-width:94vw;max-height:86vh;object-fit:contain;border-radius:8px;box-shadow:0 10px 60px rgba(0,0,0,.5)}
+.lightbox audio{width:min(560px,92vw)}
 .lightbox .close{position:absolute;top:16px;right:24px;color:#fff;font-size:36px;line-height:1;cursor:pointer;opacity:.85;transition:opacity .15s}
 .lightbox .close:hover{opacity:1}
 .lightbox .openlink{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);color:#fff;text-decoration:none;background:rgba(255,255,255,.16);padding:8px 16px;border-radius:8px;font-size:13px;transition:background .15s;display:flex;align-items:center;gap:6px}
@@ -401,7 +408,7 @@ a{color:var(--accent)}
           <label class="mode-option"><input type="radio" name="mode" value="proxy" /><span data-i18n="mode.proxy"></span><em data-i18n="mode.proxy.em"></em></label>
         </div>
         <div id="add-preview" class="preview hidden">
-          <img id="preview-img" alt="预览" />
+          <div id="preview-media"></div>
           <div id="preview-info" class="muted"></div>
         </div>
       </div>
@@ -443,6 +450,8 @@ a{color:var(--accent)}
           <h3 data-i18n="set.group.cache"></h3>
           <label><span data-i18n="set.cacheTtl"></span><input id="cacheTtl" type="number" min="0" max="31536000" /><small data-i18n="set.cacheTtl.hint"></small></label>
           <label><span data-i18n="set.maxImageSize"></span><input id="maxImageSize" type="number" min="1024" /></label>
+          <label><span data-i18n="set.maxAudioSize"></span><input id="maxAudioSize" type="number" min="1024" /></label>
+          <label><span data-i18n="set.maxVideoSize"></span><input id="maxVideoSize" type="number" min="1024" /><small data-i18n="set.maxVideoSize.hint"></small></label>
           <label><span data-i18n="set.defaultMode"></span>
             <span class="mode-radio-row">
               <label><input type="radio" name="defaultMode" id="defaultModeRedirect" value="redirect" /><span data-i18n="mode.redirect.short"></span></label>
@@ -462,6 +471,7 @@ a{color:var(--accent)}
           <h3 data-i18n="set.group.rate"></h3>
           <label><span data-i18n="set.rateIp"></span><div id="rateLimitIp" class="readonly-box">-</div></label>
           <label><span data-i18n="set.rateImg"></span><div id="rateLimitImg" class="readonly-box">-</div></label>
+          <label><span data-i18n="set.rateAv"></span><div id="rateLimitAv" class="readonly-box">-</div></label>
           <label><span data-i18n="set.rateNote"></span><div class="readonly-box" data-i18n="set.rateNoteText"></div></label>
         </div>
 
@@ -475,7 +485,7 @@ a{color:var(--accent)}
 
 <div id="toast" class="toast"></div>
 <div id="lightbox" class="lightbox hidden">
-  <img id="lightbox-img" alt="" />
+  <div id="lightbox-media"></div>
   <a id="lightbox-open" class="openlink" href="#" target="_blank" rel="noopener" data-i18n="lightbox.open"></a>
   <span class="close" data-i18n-aria="lightbox.close" aria-label="关闭">&times;</span>
 </div>
@@ -512,9 +522,9 @@ a{color:var(--accent)}
 
   var I18N = {
     zh: {
-      "app.title": "MediaDNS-CDN · 图床管理",
+      "app.title": "MediaDNS-CDN · 媒体管理",
       "lang.aria": "切换语言",
-      "login.sub": "图片外链转接 · 缓存 · 防盗链",
+      "login.sub": "媒体外链转接 · 缓存 · 防盗链",
       "login.ph": "请输入管理密码（PASSWORD）",
       "login.btn": "登录",
       "login.hint": "密码仅保存在当前浏览器",
@@ -522,32 +532,35 @@ a{color:var(--accent)}
       "login.err": "登录失败：PASSWORD 错误",
       "net.err": "网络错误",
       "auth.invalid": "未登录或登录已失效",
-      "nav.images": "图片管理",
+      "nav.images": "媒体管理",
       "nav.settings": "设置",
       "nav.logout": "退出登录",
-      "add.title": "添加图片",
-      "add.url.ph": "粘贴图片直链地址，如 https://img.example.com/a/b.jpg（回车也可添加）",
+      "add.title": "添加媒体",
+      "add.url.ph": "粘贴图片/音视频直链地址，如 https://img.example.com/a/b.mp4（回车也可添加）",
       "add.name.ph": "名称（选填，默认用文件名）",
       "add.folder.new": "新建文件夹…",
       "add.folder.newPh": "输入新文件夹名称",
       "add.btn": "添加",
       "add.busy": "添加中…",
-      "add.err.empty": "请粘贴图片链接",
+      "add.err.empty": "请粘贴媒体链接",
       "add.err": "添加失败",
       "add.ok": "已添加，链接已复制到剪贴板",
       "add.src": "来源",
+      "type.image": "图片",
+      "type.audio": "音频",
+      "type.video": "视频",
       "mode.redirect": "仅DNS",
       "mode.proxy": "缓存代理+DNS",
       "mode.redirect.em": "302直跳原图，不占用带宽",
       "mode.proxy.em": "Worker 缓存转发",
       "mode.redirect.short": "仅DNS（302直跳）",
       "mode.proxy.short": "缓存代理+DNS",
-      "list.title": "图片列表",
-      "list.count": "{n} 张",
+      "list.title": "媒体列表",
+      "list.count": "{n} 条",
       "search.ph": "搜索名称 / ID / 地址…",
       "search.clear": "清空搜索",
-      "empty": "还没有图片，粘贴一个链接开始吧。",
-      "empty.filtered": "没有匹配的图片。",
+      "empty": "还没有媒体，粘贴一个链接开始吧。",
+      "empty.filtered": "没有匹配的媒体。",
       "all": "全部",
       "folder.uncat": "未分类",
       "folder.new": "新建文件夹",
@@ -568,8 +581,8 @@ a{color:var(--accent)}
       "card.toggle": "启用/停用",
       "card.folderAria": "移动文件夹",
       "card.renameTitle": "点击重命名",
-      "confirm.title": "删除图片",
-      "confirm.text": "确定删除图片「{name}」吗？删除后链接将立即失效。",
+      "confirm.title": "删除媒体",
+      "confirm.text": "确定删除媒体「{name}」吗？删除后链接将立即失效。",
       "confirm.cancel": "取消",
       "confirm.ok": "删除",
       "op.toggleOn": "已启用",
@@ -613,8 +626,11 @@ a{color:var(--accent)}
       "set.signatureTtl": "签名有效期（秒）",
       "set.group.cache": "缓存与限制",
       "set.cacheTtl": "缓存 TTL（秒，0 = 不缓存）",
-      "set.cacheTtl.hint": "仅「缓存代理+DNS」模式的图片走缓存；缓存命中时由边缘直接返回。",
+      "set.cacheTtl.hint": "仅「缓存代理+DNS」模式的媒体走缓存；缓存命中时由边缘直接返回。",
       "set.maxImageSize": "单张图片大小上限（字节）",
+      "set.maxAudioSize": "单个音频大小上限（字节）",
+      "set.maxVideoSize": "单个视频大小上限（字节）",
+      "set.maxVideoSize.hint": "Cloudflare 免费版单个缓存对象上限 512MB，超过此值的视频不会被缓存。",
       "set.defaultMode": "默认链接类型",
       "set.group.origin": "上游（图床）",
       "set.allowedOrigins": "允许代理的域名（SSRF 白名单，逗号分隔）",
@@ -627,15 +643,17 @@ a{color:var(--accent)}
       "set.group.rate": "限流（只读）",
       "set.rateIp": "每 IP 限流",
       "set.rateImg": "每图限流",
+      "set.rateAv": "每媒体限流（音视频）",
       "set.rateNote": "说明",
       "set.rateIpVal": "每 IP {limit} 次 / {period} 秒",
       "set.rateImgVal": "每图 {limit} 次 / {period} 秒",
+      "set.rateAvVal": "每媒体 {limit} 次 / {period} 秒",
       "set.rateNoteText": "限流由 Cloudflare Rate Limit Binding 在边缘执行，数值需在 wrangler.jsonc 中修改后重新部署，此处仅展示当前配置。"
     },
     en: {
-      "app.title": "MediaDNS-CDN · Image Manager",
+      "app.title": "MediaDNS-CDN · Media Manager",
       "lang.aria": "Switch language",
-      "login.sub": "Image hotlink proxy · Cache · Anti-leech",
+      "login.sub": "Media hotlink proxy · Cache · Anti-leech",
       "login.ph": "Enter admin password (PASSWORD)",
       "login.btn": "Log in",
       "login.hint": "Password is stored only in this browser",
@@ -643,32 +661,35 @@ a{color:var(--accent)}
       "login.err": "Login failed: wrong PASSWORD",
       "net.err": "Network error",
       "auth.invalid": "Not logged in or session expired",
-      "nav.images": "Images",
+      "nav.images": "Media",
       "nav.settings": "Settings",
       "nav.logout": "Log out",
-      "add.title": "Add image",
-      "add.url.ph": "Paste image direct link, e.g. https://img.example.com/a/b.jpg (Enter to add)",
+      "add.title": "Add media",
+      "add.url.ph": "Paste image/audio/video direct link, e.g. https://img.example.com/a/b.mp4 (Enter to add)",
       "add.name.ph": "Name (optional, defaults to filename)",
       "add.folder.new": "New folder…",
       "add.folder.newPh": "Enter new folder name",
       "add.btn": "Add",
       "add.busy": "Adding…",
-      "add.err.empty": "Please paste an image link",
+      "add.err.empty": "Please paste a media link",
       "add.err": "Add failed",
       "add.ok": "Added, link copied to clipboard",
       "add.src": "Source",
+      "type.image": "Image",
+      "type.audio": "Audio",
+      "type.video": "Video",
       "mode.redirect": "DNS only",
       "mode.proxy": "Cache proxy + DNS",
       "mode.redirect.em": "302 direct, no bandwidth cost",
       "mode.proxy.em": "Worker cache & forward",
       "mode.redirect.short": "DNS only (302)",
       "mode.proxy.short": "Cache proxy + DNS",
-      "list.title": "Images",
+      "list.title": "Media",
       "list.count": "{n} items",
       "search.ph": "Search name / ID / URL…",
       "search.clear": "Clear search",
-      "empty": "No images yet. Paste a link to start.",
-      "empty.filtered": "No matching images.",
+      "empty": "No media yet. Paste a link to start.",
+      "empty.filtered": "No matching media.",
       "all": "All",
       "folder.uncat": "Uncategorized",
       "folder.new": "New folder",
@@ -689,8 +710,8 @@ a{color:var(--accent)}
       "card.toggle": "Enable/Disable",
       "card.folderAria": "Move to folder",
       "card.renameTitle": "Click to rename",
-      "confirm.title": "Delete image",
-      "confirm.text": "Delete image ‘{name}’? The link will stop working immediately.",
+      "confirm.title": "Delete media",
+      "confirm.text": "Delete media ‘{name}’? The link will stop working immediately.",
       "confirm.cancel": "Cancel",
       "confirm.ok": "Delete",
       "op.toggleOn": "Enabled",
@@ -734,8 +755,11 @@ a{color:var(--accent)}
       "set.signatureTtl": "Signature TTL (seconds)",
       "set.group.cache": "Cache & limits",
       "set.cacheTtl": "Cache TTL (seconds, 0 = off)",
-      "set.cacheTtl.hint": "Only images in “Cache proxy + DNS” mode are cached; hits return from the edge.",
+      "set.cacheTtl.hint": "Only media in “Cache proxy + DNS” mode are cached; hits return from the edge.",
       "set.maxImageSize": "Max image size (bytes)",
+      "set.maxAudioSize": "Max audio size (bytes)",
+      "set.maxVideoSize": "Max video size (bytes)",
+      "set.maxVideoSize.hint": "Cloudflare free plan caches objects up to 512MB; larger videos won't be cached.",
       "set.defaultMode": "Default link type",
       "set.group.origin": "Upstream (image host)",
       "set.allowedOrigins": "Allowed proxy domains (SSRF whitelist, comma separated)",
@@ -748,9 +772,11 @@ a{color:var(--accent)}
       "set.group.rate": "Rate limit (read-only)",
       "set.rateIp": "Per-IP limit",
       "set.rateImg": "Per-image limit",
+      "set.rateAv": "Per-media limit (audio/video)",
       "set.rateNote": "Note",
       "set.rateIpVal": "{limit} requests per IP / {period}s",
       "set.rateImgVal": "{limit} requests per image / {period}s",
+      "set.rateAvVal": "{limit} requests per media / {period}s",
       "set.rateNoteText": "Rate limiting runs at the edge via Cloudflare Rate Limit Binding; change values in wrangler.jsonc and re-deploy. This is read-only."
     }
   };
@@ -879,6 +905,30 @@ a{color:var(--accent)}
     var f = fileNameFromUrl(img.url);
     return f || img.id;
   }
+  function guessTypeClient(u) {
+    try {
+      var path = new URL(u).pathname.toLowerCase();
+      var ext = path.split(".").pop() || "";
+      if (["jpg", "jpeg", "png", "gif", "webp", "avif", "bmp", "svg", "ico", "tiff", "tif"].indexOf(ext) !== -1) return "image";
+      if (["mp3", "wav", "ogg", "oga", "aac", "flac", "m4a", "opus", "wma", "amr", "weba"].indexOf(ext) !== -1) return "audio";
+      if (["mp4", "webm", "mov", "avi", "mkv", "m4v", "ts", "3gp", "mpg", "mpeg", "wmv", "flv", "ogv", "m3u8", "mpd"].indexOf(ext) !== -1) return "video";
+    } catch (e) {}
+    return "";
+  }
+  function typeBadge(tp) {
+    if (tp === "video") return '<span class="badge badge-type badge-type-video">' + esc(t("type.video")) + "</span>";
+    if (tp === "audio") return '<span class="badge badge-type badge-type-audio">' + esc(t("type.audio")) + "</span>";
+    if (tp === "image") return '<span class="badge badge-type badge-type-image">' + esc(t("type.image")) + "</span>";
+    return "";
+  }
+  function thumbHtml(img) {
+    var tp = img.type || guessTypeClient(img.url);
+    if (tp === "video")
+      return '<div class="thumb-fallback"><span class="tf-icon">▶</span><span class="tf-id">' + esc(t("type.video")) + "</span></div>";
+    if (tp === "audio")
+      return '<div class="thumb-fallback"><span class="tf-icon">♪</span><span class="tf-id">' + esc(t("type.audio")) + "</span></div>";
+    return '<img src="' + esc(img.url) + '" loading="lazy" alt="' + esc(img.id) + '" />';
+  }
 
   function filterImages(images) {
     var q = searchQuery.toLowerCase();
@@ -927,10 +977,10 @@ a{color:var(--accent)}
       card.className = "card img-card" + (img.enabled ? "" : " disabled");
       card.style.animationDelay = Math.min(i * 45, 360) + "ms";
       card.innerHTML =
-        '<div class="thumb"><img src="' + esc(img.url) + '" loading="lazy" alt="' + esc(img.id) + '" />' +
-        '<button class="zoom" data-url="' + esc(img.url) + '" aria-label="' + esc(t("card.preview")) + '">' + esc(t("card.preview.short")) + "</button></div>" +
+        '<div class="thumb">' + thumbHtml(img) +
+        '<button class="zoom" data-url="' + esc(img.url) + '" data-type="' + esc(img.type || "") + '" aria-label="' + esc(t("card.preview")) + '">' + esc(t("card.preview.short")) + "</button></div>" +
         '<div class="card-body">' +
-        '<div class="card-top">' + modeBadge(img.mode) + '<span class="muted">' + fmtTime(img.createdAt) + "</span></div>" +
+        '<div class="card-top">' + modeBadge(img.mode) + typeBadge(img.type || guessTypeClient(img.url)) + '<span class="muted">' + fmtTime(img.createdAt) + "</span></div>" +
         '<div class="img-name" data-id="' + esc(img.id) + '" data-name="' + esc(img.name || "") + '" title="' + esc(t("card.renameTitle")) + '">' + esc(displayName(img)) + '<span class="pen">✎</span></div>' +
         '<div class="img-id" title="' + esc(img.id) + '">' + esc(img.id) + "</div>" +
         '<div class="img-url" title="' + esc(img.shortUrl || img.url) + '">' + esc(img.shortUrl || img.url) + "</div>" +
@@ -972,12 +1022,23 @@ a{color:var(--accent)}
   }
 
   var addPreviewTimer = null;
+  function setPreviewMedia(url) {
+    var box = $("preview-media");
+    box.innerHTML = "";
+    var tp = guessTypeClient(url);
+    var el;
+    if (tp === "video") { el = document.createElement("video"); el.controls = true; el.muted = true; el.preload = "metadata"; }
+    else if (tp === "audio") { el = document.createElement("audio"); el.controls = true; el.preload = "metadata"; }
+    else { el = document.createElement("img"); el.alt = "预览"; }
+    el.src = url;
+    box.appendChild(el);
+  }
   $("add-url").addEventListener("input", function () {
     var v = this.value.trim();
     clearTimeout(addPreviewTimer);
     if (!v) { $("add-preview").classList.add("hidden"); return; }
     addPreviewTimer = setTimeout(function () {
-      $("preview-img").src = v;
+      setPreviewMedia(v);
       var host = "";
       try { host = new URL(v).hostname; } catch (e) { host = t("add.err"); }
       lastPreviewHost = host;
@@ -1099,7 +1160,7 @@ a{color:var(--accent)}
       $("confirm-modal").classList.remove("hidden");
       $("confirm-ok").focus();
     } else if (el.classList.contains("zoom")) {
-      openLightbox(el.getAttribute("data-url"));
+      openLightbox(el.getAttribute("data-url"), el.getAttribute("data-type"));
     } else if (el.closest(".img-name")) {
       enterNameEdit(el.closest(".img-name"));
     }
@@ -1168,20 +1229,32 @@ a{color:var(--accent)}
     closeConfirm();
     if (!id) return;
     api("/api/image/delete", { method: "POST", body: JSON.stringify({ id: id }) })
-      .then(function () { toast(t("op.del")); loadImages(); })
+      .then(function () {
+        toast(t("op.del"));
+        // KV 删除是最终一致性的，本地立即移除，避免列表要等 KV 传播才消失
+        lastImages = (lastImages || []).filter(function (x) { return x.id !== id; });
+        renderGrid(lastImages);
+      })
       .catch(function (err) { toast(err.message || t("op.delFail"), "error"); });
   });
   $("confirm-modal").addEventListener("click", function (e) { if (e.target === this) closeConfirm(); });
   function closeConfirm() { pendingDelete = null; $("confirm-modal").classList.add("hidden"); }
 
-  function openLightbox(url) {
-    $("lightbox-img").src = url;
+  function openLightbox(url, type) {
+    var box = $("lightbox-media");
+    box.innerHTML = "";
+    var el;
+    if (type === "video") { el = document.createElement("video"); el.controls = true; }
+    else if (type === "audio") { el = document.createElement("audio"); el.controls = true; }
+    else { el = document.createElement("img"); el.alt = ""; }
+    el.src = url;
+    box.appendChild(el);
     $("lightbox-open").href = url;
     $("lightbox").classList.remove("hidden");
   }
   function closeLightbox() {
     $("lightbox").classList.add("hidden");
-    $("lightbox-img").src = "";
+    $("lightbox-media").innerHTML = "";
   }
   $("lightbox").addEventListener("click", function (e) {
     if (e.target === $("lightbox") || e.target.classList.contains("close")) closeLightbox();
@@ -1258,7 +1331,7 @@ a{color:var(--accent)}
   });
 
   var LIST_KEYS = ["allowedOrigins", "allowedCountries", "blockedCountries", "allowedIps", "blockedIps", "allowedAsn", "blockedAsn", "allowedReferers"];
-  var NUM_KEYS = ["signatureTtl", "cacheTtl", "maxImageSize"];
+  var NUM_KEYS = ["signatureTtl", "cacheTtl", "maxImageSize", "maxAudioSize", "maxVideoSize"];
 
   function loadSettings() {
     api("/api/settings").then(function (data) {
@@ -1289,10 +1362,13 @@ a{color:var(--accent)}
     if (!rateMeta) return;
     var ip = rateMeta.rateLimitIp;
     var img = rateMeta.rateLimitImg;
+    var av = rateMeta.rateLimitAv;
     var ipEl = $("rateLimitIp");
     var imgEl = $("rateLimitImg");
+    var avEl = $("rateLimitAv");
     if (ipEl) ipEl.textContent = t("set.rateIpVal", { limit: ip && ip.limit, period: ip && ip.period });
     if (imgEl) imgEl.textContent = t("set.rateImgVal", { limit: img && img.limit, period: img && img.period });
+    if (avEl) avEl.textContent = t("set.rateAvVal", { limit: av && av.limit, period: av && av.period });
   }
 
   $("save-settings").addEventListener("click", function () {
