@@ -46,7 +46,8 @@ body{
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
   color:var(--text);font-size:14px;line-height:1.5;overflow-x:hidden;
   background-color:#f4f2fb;
-  background-image:linear-gradient(160deg,color-mix(in srgb,var(--c1) 14%,#fff),color-mix(in srgb,var(--c2) 14%,#fff),color-mix(in srgb,var(--c3) 14%,#fff));
+  background-image:linear-gradient(160deg,color-mix(in srgb,var(--c1) 20%,#fff),color-mix(in srgb,var(--c2) 20%,#fff),color-mix(in srgb,var(--c3) 20%,#fff));
+  background-size:260% 260%;animation:bgFlow 40s ease-in-out infinite
 }
 button{font-family:inherit;cursor:pointer;border:none;background:none}
 input,select{font-family:inherit;font-size:14px}
@@ -56,14 +57,21 @@ a{color:var(--accent)}
 
 /* 动态背景光斑 */
 .bg-blob{position:fixed;border-radius:50%;filter:blur(80px);opacity:.55;z-index:-2;pointer-events:none}
-.b1{width:44vmax;height:44vmax;top:-14vmax;left:-10vmax;background:radial-gradient(circle,var(--c1),transparent 66%);animation:float1 26s ease-in-out infinite}
-.b2{width:40vmax;height:40vmax;top:16%;right:-12vmax;background:radial-gradient(circle,var(--c2),transparent 66%);animation:float2 34s ease-in-out infinite}
-.b3{width:46vmax;height:46vmax;bottom:-16vmax;left:28%;background:radial-gradient(circle,var(--c3),transparent 66%);animation:float3 30s ease-in-out infinite}
-@keyframes float1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(6vmax,4vmax) scale(1.14)}}
-@keyframes float2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-5vmax,3vmax) scale(1.08)}}
-@keyframes float3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(4vmax,-5vmax) scale(1.1)}}
+.b1{width:44vmax;height:44vmax;top:-14vmax;left:-10vmax;background:radial-gradient(circle,var(--c1),transparent 66%);animation:float1 22s ease-in-out infinite}
+.b2{width:40vmax;height:40vmax;top:16%;right:-12vmax;background:radial-gradient(circle,var(--c2),transparent 66%);animation:float2 28s ease-in-out infinite}
+.b3{width:46vmax;height:46vmax;bottom:-16vmax;left:28%;background:radial-gradient(circle,var(--c3),transparent 66%);animation:float3 24s ease-in-out infinite}
+@keyframes float1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(9vmax,6vmax) scale(1.18)}}
+@keyframes float2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-8vmax,5vmax) scale(1.12)}}
+@keyframes float3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(6vmax,-7vmax) scale(1.15)}}
 @keyframes shift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+@keyframes bgFlow{0%,100%{background-position:0% 50%}25%{background-position:100% 50%}50%{background-position:100% 100%}75%{background-position:0% 100%}}
 #particles{position:fixed;inset:0;z-index:-1;pointer-events:none}
+
+/* 点击星火 */
+#clickfx{position:fixed;inset:0;z-index:2300;pointer-events:none}
+.cfx-spark{position:absolute;width:var(--size);height:var(--size);border-radius:50%;background:var(--color);box-shadow:0 0 8px var(--color);opacity:0;transform:translate(0,0) scale(.35);animation:cfxFly .7s cubic-bezier(.2,0,1,1) forwards,cfxFade .7s ease-out forwards}
+@keyframes cfxFly{0%{transform:translate(0,0) scale(.35)}40%{transform:translate(calc(var(--dx)*.22),calc(var(--dy)*.22)) scale(.7)}100%{transform:translate(var(--dx),var(--dy)) scale(.12)}}
+@keyframes cfxFade{0%{opacity:1}55%{opacity:.95}100%{opacity:0}}
 
 /* 语言切换按钮：中 / EN 双显胶囊 */
 .lang-toggle{
@@ -325,6 +333,7 @@ a{color:var(--accent)}
 <div class="bg-blob b2"></div>
 <div class="bg-blob b3"></div>
 <canvas id="particles" aria-hidden="true"></canvas>
+<div id="clickfx" aria-hidden="true"></div>
 
 <div id="login" class="login-screen hidden">
   <form id="login-form" class="login-card">
@@ -1324,6 +1333,47 @@ a{color:var(--accent)}
   });
 
   if (!REDUCED) startParticles();
+
+  var CFX_COLORS = null;
+  function cfxColors() {
+    if (CFX_COLORS) return CFX_COLORS;
+    var s = getComputedStyle(document.documentElement);
+    var pick = function (v) { return s.getPropertyValue(v).trim() || "#a855f7"; };
+    CFX_COLORS = [pick("--c1"), pick("--c2"), pick("--c3"), pick("--accent")];
+    return CFX_COLORS;
+  }
+  function spawnClickFx(x, y) {
+    var box = $("clickfx");
+    if (!box) return;
+    var colors = cfxColors();
+    var n = 15 + Math.floor(Math.random() * 7);
+    for (var i = 0; i < n; i++) {
+      var el = document.createElement("span");
+      el.className = "cfx-spark";
+      var a = Math.random() * 6.2832;
+      var d = 45 + Math.random() * 70;
+      var size = (10 + Math.random() * 8).toFixed(1);
+      el.style.left = x + "px";
+      el.style.top = y + "px";
+      el.style.setProperty("--dx", (Math.cos(a) * d).toFixed(1) + "px");
+      el.style.setProperty("--dy", (Math.sin(a) * d).toFixed(1) + "px");
+      el.style.setProperty("--size", size + "px");
+      el.style.setProperty("--color", colors[Math.floor(Math.random() * colors.length)]);
+      el.addEventListener("animationend", function () { var p = this.parentNode; if (p) p.removeChild(this); });
+      box.appendChild(el);
+    }
+    setTimeout(function () {
+      var kids = box.children;
+      for (var k = kids.length - 1; k >= 0; k--) kids[k].remove();
+    }, 800);
+  }
+  document.addEventListener("click", function (e) {
+    if (REDUCED) return;
+    var t = e.target;
+    if (!t || t === document) return;
+    if (t.closest("button,a,input,select,textarea,label,[data-act],.fchip,.fchip-menu,.fchip-wrap,.lt-seg-opt,.tgl,.fsel,.img-name,.copy,.del,.zoom,.close,.primary,.mini,.nav-btn,.logout,.lang-toggle,.chip-pop,.lightbox,.modal,.search-clear,.openlink")) return;
+    spawnClickFx(e.clientX, e.clientY);
+  });
 
   function startParticles() {
     var cv = $("particles");

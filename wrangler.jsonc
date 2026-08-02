@@ -28,8 +28,8 @@
   // URL 映射 + 运行时设置都存这里
   "kv_namespaces": [
     {
-      "binding": "你的KV空间绑定名",  // KV 命名空间绑定名
-      "id": "你的KV空间ID"  // KV 命名空间 ID（部署前创建）
+      "binding": "你的KV空间绑定名", // KV 命名空间绑定名
+      "id": "你的KV空间ID" // KV 命名空间 ID（部署前创建）
     }
   ],
 
