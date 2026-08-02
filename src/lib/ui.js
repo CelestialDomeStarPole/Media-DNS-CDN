@@ -469,6 +469,7 @@ a{color:var(--accent)}
   var searchQuery = "";
   var addPendingFolder = "";
   var lastPreviewHost = "";
+  var rateMeta = null;
 
   var I18N = {
     zh: {
@@ -588,6 +589,8 @@ a{color:var(--accent)}
       "set.rateIp": "每 IP 限流",
       "set.rateImg": "每图限流",
       "set.rateNote": "说明",
+      "set.rateIpVal": "每 IP {limit} 次 / {period} 秒",
+      "set.rateImgVal": "每图 {limit} 次 / {period} 秒",
       "set.rateNoteText": "限流由 Cloudflare Rate Limit Binding 在边缘执行，数值需在 wrangler.jsonc 中修改后重新部署，此处仅展示当前配置。"
     },
     en: {
@@ -707,6 +710,8 @@ a{color:var(--accent)}
       "set.rateIp": "Per-IP limit",
       "set.rateImg": "Per-image limit",
       "set.rateNote": "Note",
+      "set.rateIpVal": "{limit} requests per IP / {period}s",
+      "set.rateImgVal": "{limit} requests per image / {period}s",
       "set.rateNoteText": "Rate limiting runs at the edge via Cloudflare Rate Limit Binding; change values in wrangler.jsonc and re-deploy. This is read-only."
     }
   };
@@ -1226,12 +1231,22 @@ a{color:var(--accent)}
       $("originReferer").value = s.originReferer || "";
       $("originUserAgent").value = s.originUserAgent || "";
       if (data.meta) {
-        $("rateLimitIp").textContent = data.meta.rateLimitIp || "-";
-        $("rateLimitImg").textContent = data.meta.rateLimitImg || "-";
+        rateMeta = data.meta;
+        renderRateLimits();
       }
     }).catch(function (err) {
       if (err.message && err.message.indexOf("未登录") === -1) toast(err.message, "error");
     });
+  }
+
+  function renderRateLimits() {
+    if (!rateMeta) return;
+    var ip = rateMeta.rateLimitIp;
+    var img = rateMeta.rateLimitImg;
+    var ipEl = $("rateLimitIp");
+    var imgEl = $("rateLimitImg");
+    if (ipEl) ipEl.textContent = t("set.rateIpVal", { limit: ip && ip.limit, period: ip && ip.period });
+    if (imgEl) imgEl.textContent = t("set.rateImgVal", { limit: img && img.limit, period: img && img.period });
   }
 
   $("save-settings").addEventListener("click", function () {
@@ -1275,6 +1290,7 @@ a{color:var(--accent)}
     renderFolders();
     if (lastImages !== null) renderGrid(lastImages);
     refreshPreview();
+    renderRateLimits();
   }
   function setLang(lang) {
     LANG = lang;
@@ -1359,7 +1375,7 @@ a{color:var(--accent)}
       cv.style.width = W + "px";
       cv.style.height = H + "px";
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      var n = Math.max(27, Math.min(81, Math.round((W * H) / 28888)));
+      var n = Math.max(24, Math.min(72, Math.round((W * H) / 32098)));
       pts = [];
       for (var i = 0; i < n; i++) pts.push(newParticle());
       streaks = [];

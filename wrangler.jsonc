@@ -28,8 +28,8 @@
   // URL 映射 + 运行时设置都存这里
   "kv_namespaces": [
     {
-      "binding": "你的KV命名空间", // KV 命名空间绑定名
-      "id": "你的KV命名空间ID" // KV 命名空间 ID（部署前创建）
+      "binding": "你的KV空间绑定名",  // KV 命名空间绑定名
+      "id": "你的KV空间ID"  // KV 命名空间 ID（部署前创建）
     }
   ],
 
@@ -79,9 +79,11 @@
     // 转发到图床时携带的上游请求头（应对图床拦截/防盗链校验）
     "ORIGIN_REFERER": "",
     "ORIGIN_USER_AGENT": "",
-    // 管理页"限流"区块的只读展示文案
-    "RATE_LIMIT_IP_TEXT": "每 IP 100 次 / 60 秒（Cloudflare Rate Limit Binding，改值需重新部署）",
-    "RATE_LIMIT_IMG_TEXT": "每图 40 次 / 10 秒（Cloudflare Rate Limit Binding，改值需重新部署）"
+    // 管理页"限流"区块展示用数值（与上面 ratelimits 保持一致）
+    "RATE_LIMIT_IP_LIMIT": 100,
+    "RATE_LIMIT_IP_PERIOD": 60,
+    "RATE_LIMIT_IMG_LIMIT": 40,
+    "RATE_LIMIT_IMG_PERIOD": 10
   },
 
   "observability": {

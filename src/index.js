@@ -201,8 +201,14 @@ async function handleGetSettings(request, env) {
   return json({
     settings,
     meta: {
-      rateLimitIp: env.RATE_LIMIT_IP_TEXT || "由 Cloudflare Rate Limit Binding 执行（配置于 wrangler.jsonc）",
-      rateLimitImg: env.RATE_LIMIT_IMG_TEXT || "由 Cloudflare Rate Limit Binding 执行（配置于 wrangler.jsonc）",
+      rateLimitIp: {
+        limit: Number(env.RATE_LIMIT_IP_LIMIT) || 100,
+        period: Number(env.RATE_LIMIT_IP_PERIOD) || 60,
+      },
+      rateLimitImg: {
+        limit: Number(env.RATE_LIMIT_IMG_LIMIT) || 40,
+        period: Number(env.RATE_LIMIT_IMG_PERIOD) || 10,
+      },
     },
   });
 }
