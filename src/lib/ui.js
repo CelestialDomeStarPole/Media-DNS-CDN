@@ -5,7 +5,7 @@ export function renderUI() {
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>MediaDNS-CDN · 图床管理</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236366f1'/%3E%3Cstop offset='.5' stop-color='%23a855f7'/%3E%3Cstop offset='1' stop-color='%23ec4899'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='7' fill='url(%23g)'/%3E%3Ctext x='16' y='22' font-family='Arial,sans-serif' font-size='16' font-weight='700' fill='%23fff' text-anchor='middle'%3EMD%3C/text%3E%3C/svg%3E" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236366f1'/%3E%3Cstop offset='.5' stop-color='%23a855f7'/%3E%3Cstop offset='1' stop-color='%23ec4899'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='7' y='8' width='18' height='16' rx='2.5'/%3E%3Cpath d='M9.5 20.5l4.2-5 3.3 3.8 2.7-3 2.8 4.2'/%3E%3C/g%3E%3Ccircle cx='20.5' cy='12' r='1.6' fill='%23fff'/%3E%3C/svg%3E" />
 <script>
 (function () {
   var P = [
@@ -21,12 +21,38 @@ export function renderUI() {
     ["#3b82f6", "#06b6d4", "#22d3ee"]
   ];
   var p = P[Math.floor(Math.random() * P.length)];
+  (function () {
+    var KEY = "mdn_theme";
+    var idx = Array.apply(null, new Array(P.length)).map(function (_, i) { return i; });
+    function shuffle(a) {
+      for (var i = a.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var t = a[i]; a[i] = a[j]; a[j] = t;
+      }
+      return a;
+    }
+    try {
+      var st = JSON.parse(localStorage.getItem(KEY) || "null");
+      var deck = st && Array.isArray(st.deck) && st.deck.length === P.length ? st.deck : shuffle(idx.slice());
+      var pos = (st && typeof st.i === "number") ? st.i : 0;
+      if (pos >= deck.length) { deck = shuffle(idx.slice()); pos = 0; }
+      p = P[deck[pos]];
+      pos++;
+      if (pos >= deck.length) { deck = shuffle(idx.slice()); pos = 0; }
+      localStorage.setItem(KEY, JSON.stringify({ deck: deck, i: pos }));
+    } catch (e) { /* 隐私模式等：保持初始真随机 */ }
+  })();
   var s = document.documentElement.style;
   s.setProperty("--c1", p[0]);
   s.setProperty("--c2", p[1]);
   s.setProperty("--c3", p[2]);
   s.setProperty("--accent", p[1]);
   s.setProperty("--accent2", p[2]);
+  var icon = document.querySelector("link[rel='icon']");
+  if (icon) {
+    var enc = function (c) { return "%23" + c.slice(1); };
+    icon.href = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='" + enc(p[0]) + "'/%3E%3Cstop offset='.5' stop-color='" + enc(p[1]) + "'/%3E%3Cstop offset='1' stop-color='" + enc(p[2]) + "'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='7' y='8' width='18' height='16' rx='2.5'/%3E%3Cpath d='M9.5 20.5l4.2-5 3.3 3.8 2.7-3 2.8 4.2'/%3E%3C/g%3E%3Ccircle cx='20.5' cy='12' r='1.6' fill='%23fff'/%3E%3C/svg%3E";
+  }
 })();
 </script>
 <style>
@@ -69,7 +95,11 @@ a{color:var(--accent)}
 
 /* 点击星火 */
 #clickfx{position:fixed;inset:0;z-index:2300;pointer-events:none}
-.cfx-spark{position:absolute;width:var(--size);height:var(--size);border-radius:50%;background:var(--color);box-shadow:0 0 8px var(--color);opacity:0;transform:translate(0,0) scale(.35);animation:cfxFly .7s cubic-bezier(.2,0,1,1) forwards,cfxFade .7s ease-out forwards}
+.cfx-spark{position:absolute;width:var(--size);height:var(--size);opacity:0;transform:translate(0,0) scale(.35);filter:drop-shadow(0 0 6px var(--color));animation:cfxFly .7s cubic-bezier(.2,0,1,1) forwards,cfxFade .7s ease-out forwards}
+.cfx-spark::before{content:"";position:absolute;inset:0;background:var(--color);transform:rotate(var(--rot,0deg))}
+.cfx-star::before{border-radius:50%;background:conic-gradient(var(--color) 0 13deg,transparent 13deg 77deg,var(--color) 77deg 103deg,transparent 103deg 167deg,var(--color) 167deg 193deg,transparent 193deg 257deg,var(--color) 257deg 283deg,transparent 283deg 347deg,var(--color) 347deg 360deg)}
+.cfx-diamond::before{clip-path:polygon(50% 0,100% 50%,50% 100%,0 50%)}
+.cfx-cross::before{clip-path:polygon(35% 0,65% 0,65% 35%,100% 35%,100% 65%,65% 65%,65% 100%,35% 100%,35% 65%,0 65%,0 35%,35% 35%)}
 @keyframes cfxFly{0%{transform:translate(0,0) scale(.35)}40%{transform:translate(calc(var(--dx)*.22),calc(var(--dy)*.22)) scale(.7)}100%{transform:translate(var(--dx),var(--dy)) scale(.12)}}
 @keyframes cfxFade{0%{opacity:1}55%{opacity:.95}100%{opacity:0}}
 
@@ -1178,14 +1208,21 @@ a{color:var(--accent)}
       pop.classList.remove("hidden");
     } else if (el.classList.contains("fchip") && el.id !== "folder-add") {
       currentFolder = el.getAttribute("data-f");
-      loadImages();
+      if (lastImages !== null) {
+        renderFolders();
+        renderGrid(lastImages);
+      } else {
+        loadImages();
+      }
     } else if (el.id === "folder-add") {
       var name = (window.prompt(t("folder.newPh")) || "").trim();
       if (!name) return;
       apiCreateFolder(name).then(function () {
         currentFolder = name;
+        if (lastFolders.indexOf(name) === -1) lastFolders.push(name);
         toast(t("folder.createOk"), "success");
-        loadImages();
+        renderFolders();
+        renderGrid(lastImages === null ? [] : lastImages);
       }).catch(function (err) { toast(err.message, "error"); });
     }
   });
@@ -1346,26 +1383,27 @@ a{color:var(--accent)}
     var box = $("clickfx");
     if (!box) return;
     var colors = cfxColors();
-    var n = 15 + Math.floor(Math.random() * 7);
+    var shapes = ["cfx-star", "cfx-diamond", "cfx-cross"];
+    var n = 18 + Math.floor(Math.random() * 9);
     for (var i = 0; i < n; i++) {
       var el = document.createElement("span");
-      el.className = "cfx-spark";
+      el.className = "cfx-spark " + shapes[Math.floor(Math.random() * shapes.length)];
       var a = Math.random() * 6.2832;
       var d = 45 + Math.random() * 70;
-      var size = (10 + Math.random() * 8).toFixed(1);
+      var size = (9 + Math.random() * 7.2).toFixed(1);
       el.style.left = x + "px";
       el.style.top = y + "px";
       el.style.setProperty("--dx", (Math.cos(a) * d).toFixed(1) + "px");
       el.style.setProperty("--dy", (Math.sin(a) * d).toFixed(1) + "px");
       el.style.setProperty("--size", size + "px");
       el.style.setProperty("--color", colors[Math.floor(Math.random() * colors.length)]);
+      el.style.setProperty("--rot", (Math.floor(Math.random() * 90)) + "deg");
       el.addEventListener("animationend", function () { var p = this.parentNode; if (p) p.removeChild(this); });
+      (function (node) {
+        setTimeout(function () { if (node.parentNode) node.parentNode.removeChild(node); }, 1000);
+      })(el);
       box.appendChild(el);
     }
-    setTimeout(function () {
-      var kids = box.children;
-      for (var k = kids.length - 1; k >= 0; k--) kids[k].remove();
-    }, 800);
   }
   document.addEventListener("click", function (e) {
     if (REDUCED) return;

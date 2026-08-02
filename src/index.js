@@ -353,7 +353,7 @@ export default {
 
     if (pathname === "/") {
       return new Response(renderUI(), {
-        headers: { "Content-Type": "text/html; charset=utf-8" },
+        headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
       });
     }
     if (pathname === "/api/login") return handleLogin(request, env);
