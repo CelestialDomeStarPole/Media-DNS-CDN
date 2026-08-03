@@ -180,6 +180,15 @@ a{color:var(--accent)}
 .nav-btn.active{background:rgba(255,255,255,.24);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}
 .logout{margin-top:8px;padding:9px 12px;border-radius:9px;color:rgba(255,255,255,.78);font-size:13px;text-align:left;transition:background .15s}
 .logout:hover{background:rgba(255,255,255,.16);color:#fff}
+.group-nav{display:flex;flex-direction:column;gap:3px;margin-top:14px;max-height:34vh;overflow-y:auto;padding:2px}
+.group-nav .g-title{font-size:11px;color:rgba(255,255,255,.6);padding:2px 8px 4px;text-transform:uppercase;letter-spacing:.4px}
+.group-nav .g-btn{padding:5px 12px;border-radius:8px;color:rgba(255,255,255,.75);font-size:12px;text-align:left;transition:background .15s,color .15s}
+.group-nav .g-btn:hover{background:rgba(255,255,255,.14);color:#fff}
+.group-nav .g-btn.active{background:rgba(255,255,255,.26);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.28)}
+.group-nav:empty{display:none}
+.logout-in-settings{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 22px;border-radius:10px;font-size:14px;color:#fff;background:linear-gradient(160deg,#f43f5e,#ef4444);box-shadow:0 6px 18px rgba(239,68,68,.3);transition:transform .1s,box-shadow .15s,opacity .15s}
+.logout-in-settings:hover{box-shadow:0 8px 24px rgba(239,68,68,.4)}
+.logout-in-settings:active{transform:scale(.97)}
 .main{flex:1;padding:28px 34px;width:100%;min-width:0}
 .view{display:none}
 .view.active{display:block;animation:viewIn .28s ease both}
@@ -246,12 +255,15 @@ a{color:var(--accent)}
 .img-card:hover{transform:translateY(-3px);box-shadow:0 14px 34px color-mix(in srgb,var(--accent) 28%,rgba(31,41,55,.10))}
 .img-card:active{cursor:grabbing}
 .img-card.drag-pickup{transition:transform .18s ease,opacity .18s ease,box-shadow .18s ease}
-.img-card.dragging{opacity:.65;z-index:40;pointer-events:none;will-change:transform;box-shadow:0 16px 38px color-mix(in srgb,var(--accent) 24%,rgba(15,23,42,.20))}
-.img-card.disabled{opacity:.55}
+.img-card.dragging{opacity:.65;z-index:40;pointer-events:none;will-change:transform;box-shadow:0 16px 38px color-mix(in srgb,var(--accent) 24%,rgba(15,23,42,.20));border-radius:14px}
+.drop-placeholder{position:relative;display:flex;align-items:center;justify-content:center;border:2px dashed color-mix(in srgb,var(--accent) 62%,transparent);border-radius:14px;background:color-mix(in srgb,var(--accent) 10%,transparent);pointer-events:none;color:color-mix(in srgb,var(--accent) 80%,#fff);font-size:13px;font-weight:600;animation:phPulse 1.3s ease-in-out infinite;transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+@keyframes phPulse{0%,100%{box-shadow:inset 0 0 0 0 color-mix(in srgb,var(--accent) 30%,transparent)}50%{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}}
 @keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .thumb{position:relative;background:linear-gradient(160deg,color-mix(in srgb,var(--c1) 12%,#fff),color-mix(in srgb,var(--c3) 12%,#fff));aspect-ratio:16/10}
 .thumb img,.thumb video{-webkit-user-drag:none;user-select:none}
 .thumb img{width:100%;height:100%;object-fit:contain;display:block}
+.thumb img.thumb-pending{opacity:0;position:absolute;inset:0;pointer-events:none}
+.grid-sentinel{height:1px}
 .thumb video{width:100%;height:100%;object-fit:contain;display:block;background:rgba(255,255,255,.7)}
 .thumb .zoom{position:absolute;right:8px;bottom:8px;background:rgba(15,23,42,.72);color:#fff;font-size:12px;padding:5px 10px;border-radius:6px;transition:background .15s}
 .thumb .zoom:hover{background:rgba(15,23,42,.92)}
@@ -355,6 +367,7 @@ a{color:var(--accent)}
   .toolbar input{width:160px}
   .add-row,.add-row2{flex-direction:column}
   .add-row2 select{max-width:100%}
+  .group-nav{display:none}
 }
 @media (prefers-reduced-motion: reduce){
   *,*:before,*:after{animation:none!important;transition:none!important}
@@ -404,7 +417,7 @@ a{color:var(--accent)}
       <button class="nav-btn active" data-view="images" data-i18n="nav.images"></button>
       <button class="nav-btn" data-view="settings" data-i18n="nav.settings"></button>
     </nav>
-    <button id="logout" class="logout" data-i18n="nav.logout"></button>
+    <div id="group-nav" class="group-nav"></div>
   </aside>
   <main class="main">
     <section id="view-images" class="view active">
@@ -490,8 +503,14 @@ a{color:var(--accent)}
           <label><span data-i18n="set.rateNote"></span><div class="readonly-box" data-i18n="set.rateNoteText"></div></label>
         </div>
 
+        <div class="card group">
+          <h3 data-i18n="set.group.ui"></h3>
+          <label><span data-i18n="set.thumbCache"></span><input id="thumbCache" type="number" min="8" max="1000" step="4" data-i18n-ph="set.thumbCache.ph" /><small data-i18n="set.thumbCache.hint"></small></label>
+        </div>
+
         <div class="save-row">
           <button id="save-settings" class="primary" data-i18n="set.save"></button>
+          <button id="logout-in-settings" class="logout-in-settings" data-i18n="nav.logout"></button>
         </div>
       </div>
     </section>
@@ -534,6 +553,16 @@ a{color:var(--accent)}
   var addPendingFolder = "";
   var lastPreviewHost = "";
   var rateMeta = null;
+  var THUMB_CACHE_KEY = "media_dns_thumb_cache";
+  var thumbCacheMax = parseInt(localStorage.getItem(THUMB_CACHE_KEY), 10);
+  if (!thumbCacheMax || thumbCacheMax < 8) { thumbCacheMax = 40; localStorage.setItem(THUMB_CACHE_KEY, "40"); }
+  var gridState = { cols: 1, rowH: 320, groupSize: 20, rendered: 0, vis: null };
+  var gridSentinel = null;
+  var gridObserver = null;
+  var thumbObserver2 = null;
+  var thumbObsTargets = [];
+  var thumbLoaded = 0;
+  var thumbManageTimer = null;
 
   var I18N = {
     zh: {
@@ -665,7 +694,13 @@ a{color:var(--accent)}
       "set.rateIpVal": "每 IP {limit} 次 / {period} 秒",
       "set.rateImgVal": "每图 {limit} 次 / {period} 秒",
       "set.rateAvVal": "每媒体 {limit} 次 / {period} 秒",
-      "set.rateNoteText": "限流由 Cloudflare Rate Limit Binding 在边缘执行，数值需在 wrangler.jsonc 中修改后重新部署，此处仅展示当前配置。"
+      "set.rateNoteText": "限流由 Cloudflare Rate Limit Binding 在边缘执行，数值需在 wrangler.jsonc 中修改后重新部署，此处仅展示当前配置。",
+      "set.group.ui": "界面",
+      "set.thumbCache": "缩略图缓存上限（个）",
+      "set.thumbCache.ph": "如 40",
+      "set.thumbCache.hint": "超过上限时自动释放距离当前位置最远、且超过最小释放距离的缩略图，滑到附近时重新加载。仅存在本浏览器。",
+      "nav.groups": "分组",
+      "nav.group.go": "跳到第 {n} 组"
     },
     en: {
       "app.title": "MediaDNS-CDN · Media Manager",
@@ -796,7 +831,13 @@ a{color:var(--accent)}
       "set.rateIpVal": "{limit} requests per IP / {period}s",
       "set.rateImgVal": "{limit} requests per image / {period}s",
       "set.rateAvVal": "{limit} requests per media / {period}s",
-      "set.rateNoteText": "Rate limiting runs at the edge via Cloudflare Rate Limit Binding; change values in wrangler.jsonc and re-deploy. This is read-only."
+      "set.rateNoteText": "Rate limiting runs at the edge via Cloudflare Rate Limit Binding; change values in wrangler.jsonc and re-deploy. This is read-only.",
+      "set.group.ui": "Interface",
+      "set.thumbCache": "Thumbnail cache cap",
+      "set.thumbCache.ph": "e.g. 40",
+      "set.thumbCache.hint": "When the cap is exceeded, thumbnails farthest from the viewport (beyond a minimum eviction distance) are released and reload when scrolled back. Stored in this browser only.",
+      "nav.groups": "Groups",
+      "nav.group.go": "Jump to group {n}"
     }
   };
 
@@ -886,7 +927,7 @@ a{color:var(--accent)}
       .finally(function () { setBusy(btn, false); });
   });
 
-  $("logout").addEventListener("click", logout);
+  $("logout-in-settings").addEventListener("click", logout);
 
   var navBtns = document.querySelectorAll(".nav-btn");
   navBtns.forEach(function (btn) {
@@ -949,7 +990,7 @@ a{color:var(--accent)}
     }
     if (tp === "audio")
       return '<div class="thumb-fallback"><span class="tf-icon">♪</span><span class="tf-id">' + esc(t("type.audio")) + "</span></div>";
-    return '<img src="' + esc(img.url) + '" loading="lazy" draggable="false" alt="' + esc(img.id) + '" />';
+    return '<img data-src="' + esc(img.url) + '" class="thumb-img" draggable="false" alt="' + esc(img.id) + '" />';
   }
   var thumbObserver = null;
   function observeVideoThumb(v) {
@@ -1024,8 +1065,82 @@ a{color:var(--accent)}
     }
   }
 
-  /* 拖拽排序：仅从卡片的非交互区域（空白处）发起；拖拽时卡片缩小淡化跟随鼠标，放下时飞回槽位 + 兄弟卡片 FLIP 归位 */
+  /* 缩略图缓存：统一 IntersectionObserver 近视口才加载，超出上限时释放最远（超过最小距离）的缩略图 */
+  function loadThumbImg(img) {
+    var src = img.getAttribute("data-src");
+    if (!src || img.getAttribute("src") === src) return;
+    img.classList.remove("thumb-pending");
+    img.setAttribute("src", src);
+    img.dataset.loaded = "1";
+    thumbLoaded++;
+    if (thumbObserver2) { try { thumbObserver2.unobserve(img); } catch (e) {} }
+    scheduleCacheManage();
+  }
+  function thumbObsUnobserve(el) {
+    var idx = thumbObsTargets.indexOf(el);
+    if (idx !== -1) {
+      thumbObsTargets.splice(idx, 1);
+      if (thumbObserver2) { try { thumbObserver2.unobserve(el); } catch (e) {} }
+    }
+  }
+  function observeThumbs() {
+    if (!("IntersectionObserver" in window)) {
+      var imgs = $("grid").querySelectorAll("img.thumb-img");
+      for (var i = 0; i < imgs.length; i++) loadThumbImg(imgs[i]);
+      return;
+    }
+    if (!thumbObserver2) {
+      thumbObserver2 = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          if (en.isIntersecting && en.target.tagName === "IMG") loadThumbImg(en.target);
+        });
+        scheduleCacheManage();
+      }, { rootMargin: "600px 0px" });
+    }
+    var nodes = $("grid").querySelectorAll("img.thumb-img");
+    for (var i = 0; i < nodes.length; i++) {
+      if (!nodes[i].dataset.loaded && thumbObsTargets.indexOf(nodes[i]) === -1) {
+        thumbObsTargets.push(nodes[i]);
+        thumbObserver2.observe(nodes[i]);
+      }
+    }
+  }
+  function scheduleCacheManage() {
+    if (thumbCacheMax <= 0) return;
+    if (thumbManageTimer) return;
+    thumbManageTimer = setTimeout(function () { thumbManageTimer = null; manageThumbCache(); }, 300);
+  }
+  function manageThumbCache() {
+    if (thumbLoaded <= thumbCacheMax) return;
+    var vh = window.innerHeight;
+    var sy = window.pageYOffset || document.documentElement.scrollTop;
+    var vc = sy + vh / 2;
+    var minDist = Math.max(vh * 2, 1400);
+    var imgs = $("grid").querySelectorAll("img.thumb-img[data-loaded]");
+    var cand = [];
+    for (var i = 0; i < imgs.length; i++) {
+      var r = imgs[i].getBoundingClientRect();
+      var center = r.top + r.height / 2 + sy;
+      var d = Math.abs(center - vc);
+      if (d > minDist) cand.push({ img: imgs[i], d: d });
+    }
+    if (!cand.length) return;
+    cand.sort(function (a, b) { return b.d - a.d; });
+    for (var i = 0; i < cand.length && thumbLoaded > thumbCacheMax; i++) {
+      cand[i].img.removeAttribute("src");
+      cand[i].img.classList.add("thumb-pending");
+      delete cand[i].img.dataset.loaded;
+      thumbLoaded--;
+      if (thumbObserver2) {
+        try { thumbObserver2.observe(cand[i].img); } catch (e) {}
+        thumbObsTargets.push(cand[i].img);
+      }
+    }
+  }
+
+  /* 拖拽排序：仅从卡片的非交互区域发起；拖拽时卡片缩小淡化跟随鼠标，实时让位 + 虚线占位预览，放下时飞回槽位 */
   var dnd = null;
+  var flipTimer = null;
   function dragBlocked(el) {
     return !!el.closest("button, a, input, select, textarea, label, .zoom, .copy, .del, .tgl, .switch, .fsel, .img-name, .pen");
   }
@@ -1039,7 +1154,14 @@ a{color:var(--accent)}
     var k = newVisible.indexOf(dragId);
     var after = k >= 0 && k + 1 < newVisible.length ? newVisible[k + 1] : null;
     var rest = fullIds.filter(function (id) { return id !== dragId; });
-    if (after === null) return rest.concat([dragId]);
+    if (after === null) {
+      // 末尾落点：把拖拽卡片放到"最后一张已渲染卡片"之后（其后尚未渲染的全序卡片保持在后），避免误插到全序末端
+      var lastRendered = newVisible[newVisible.length - 1];
+      var li = rest.indexOf(lastRendered);
+      var target = li >= 0 && li + 1 < rest.length ? rest[li + 1] : null;
+      if (target === null) return rest.concat([dragId]);
+      return rest.slice(0, li + 1).concat([dragId], rest.slice(li + 1));
+    }
     var ai = rest.indexOf(after);
     return rest.slice(0, ai).concat([dragId], rest.slice(ai));
   }
@@ -1048,51 +1170,94 @@ a{color:var(--accent)}
     images.forEach(function (im) { map[im.id] = im; });
     return ids.map(function (id) { return map[id]; }).filter(Boolean);
   }
-  function settleCard(card) {
-    card.style.transition = "transform .32s cubic-bezier(.2,.8,.2,1),opacity .32s ease,box-shadow .32s ease";
-    card.style.transform = "";
-    card.classList.remove("dragging");
-    card.classList.remove("drag-pickup");
-    window.setTimeout(function () { card.style.transition = ""; card.style.zIndex = ""; }, 350);
+  function gridImageNodes() {
+    return $("grid").querySelectorAll(".img-card");
   }
-  function flipOthers(fromRects, exclude) {
-    var cards = $("grid").querySelectorAll(".img-card");
+  function forceReflow() { void $("grid").offsetHeight; }
+  function dropIndexAt(x, y) {
+    var el = document.elementFromPoint(x, y);
+    var target = el && el.closest ? el.closest(".img-card") : null;
+    var nodes = gridImageNodes();
+    if (!target) {
+      var best = null, bestD = Infinity;
+      for (var i = 0; i < nodes.length; i++) {
+        var r0 = nodes[i].getBoundingClientRect();
+        var dd = Math.abs(x - (r0.left + r0.width / 2)) + 1.5 * Math.abs(y - (r0.top + r0.height / 2));
+        if (dd < bestD) { bestD = dd; best = nodes[i]; }
+      }
+      if (!best) return null;
+      target = best;
+    }
+    var rect = target.getBoundingClientRect();
+    var dx = x - (rect.left + rect.width / 2);
+    var dy = y - (rect.top + rect.height / 2);
+    var before = Math.abs(dx) > Math.abs(dy) ? dx < 0 : dy < 0;
+    var idx = -1;
+    for (var i = 0; i < nodes.length; i++) { if (nodes[i] === target) { idx = i; break; } }
+    return before ? idx : idx + 1;
+  }
+  function runFlip(from) {
     var changed = [];
-    for (var i = 0; i < cards.length; i++) {
-      var c = cards[i];
-      if (c === exclude) continue;
-      var r0 = fromRects.get(c);
-      if (!r0) continue;
+    from.forEach(function (r0, c) {
       var r1 = c.getBoundingClientRect();
       if (Math.round(r0.left) !== Math.round(r1.left) || Math.round(r0.top) !== Math.round(r1.top)) {
         c.style.transition = "none";
         c.style.transform = "translate(" + (r0.left - r1.left) + "px," + (r0.top - r1.top) + "px)";
         changed.push(c);
       }
-    }
-    if (!changed.length) return;
-    requestAnimationFrame(function () {
-      requestAnimationFrame(function () {
-        for (var i = 0; i < changed.length; i++) {
-          changed[i].style.transition = "transform .3s cubic-bezier(.2,.8,.2,1)";
-          changed[i].style.transform = "";
-        }
-        window.setTimeout(function () {
-          for (var i = 0; i < changed.length; i++) changed[i].style.transition = "";
-        }, 340);
-      });
     });
-  }
-  function nearestCard(x, y, exclude) {
-    var cards = $("grid").querySelectorAll(".img-card");
-    var best = null, bestD = Infinity;
-    for (var i = 0; i < cards.length; i++) {
-      if (cards[i] === exclude) continue;
-      var r = cards[i].getBoundingClientRect();
-      var d = Math.abs(x - (r.left + r.width / 2)) + 1.5 * Math.abs(y - (r.top + r.height / 2));
-      if (d < bestD) { bestD = d; best = cards[i]; }
+    if (!changed.length) return;
+    forceReflow();
+    for (var i = 0; i < changed.length; i++) {
+      changed[i].style.transition = "transform .28s cubic-bezier(.2,.8,.2,1)";
+      changed[i].style.transform = "";
     }
-    return best;
+    if (flipTimer) window.clearTimeout(flipTimer);
+    flipTimer = window.setTimeout(function () {
+      for (var i = 0; i < changed.length; i++) changed[i].style.transition = "";
+    }, 320);
+  }
+  function movePlaceholderTo(d, p) {
+    var grid = $("grid");
+    var nodes = gridImageNodes();
+    var from = new Map();
+    for (var i = 0; i < nodes.length; i++) from.set(nodes[i], nodes[i].getBoundingClientRect());
+    from.set(d.ph, d.ph.getBoundingClientRect());
+    var node = p < nodes.length ? nodes[p] : null;
+    if (node) grid.insertBefore(d.ph, node); else grid.appendChild(d.ph);
+    runFlip(from);
+    d.lastIndex = p;
+  }
+  function finishDrag(d, commit) {
+    var grid = $("grid");
+    var ghost = d.card.getBoundingClientRect();
+    var p = d.lastIndex;
+    var nodes = gridImageNodes();
+    grid.insertBefore(d.card, p < nodes.length ? nodes[p] : null);
+    grid.removeChild(d.ph);
+    d.card.style.position = "";
+    d.card.style.left = "";
+    d.card.style.top = "";
+    d.card.style.width = "";
+    d.card.style.height = "";
+    d.card.style.margin = "";
+    var slot = d.card.getBoundingClientRect();
+    d.card.style.transition = "none";
+    d.card.style.transform = "translate(" + (ghost.left - slot.left) + "px," + (ghost.top - slot.top) + "px) scale(.92)";
+    forceReflow();
+    d.card.style.transition = "transform .32s cubic-bezier(.2,.8,.2,1),opacity .32s ease,box-shadow .32s ease";
+    d.card.style.transform = "";
+    d.card.classList.remove("dragging");
+    d.card.classList.remove("drag-pickup");
+    window.setTimeout(function () { d.card.style.transition = ""; }, 350);
+    if (!commit) return;
+    var newVisible = gridVisibleIds();
+    if (newVisible.join(",") === d.visibleBefore.join(",")) return;
+    var newFull = applyOrderToFull(d.fullBefore, d.id, newVisible);
+    lastImages = reorderImageList(lastImages, newFull);
+    api("/api/images/order", { method: "POST", body: JSON.stringify({ ids: newFull }) })
+      .then(function () { toast(t("op.sorted"), "success"); })
+      .catch(function (err) { toast(err.message || t("op.fail"), "error"); loadImages(); });
   }
   $("grid").addEventListener("pointerdown", function (e) {
     if (dnd) return;
@@ -1108,6 +1273,9 @@ a{color:var(--accent)}
       lastX: e.clientX,
       lastY: e.clientY,
       active: false,
+      ph: null,
+      lastIndex: -1,
+      origIndex: -1,
       visibleBefore: gridVisibleIds(),
       fullBefore: lastImages.map(function (im) { return im.id; }),
     };
@@ -1120,63 +1288,54 @@ a{color:var(--accent)}
       if (Math.abs(e.clientX - dnd.startX) + Math.abs(e.clientY - dnd.startY) < 7) return;
       dnd.active = true;
       try { dnd.card.setPointerCapture(e.pointerId); } catch (err) {}
+      var grid = $("grid");
+      var imgs = gridImageNodes();
+      var idx0 = -1;
+      for (var i = 0; i < imgs.length; i++) { if (imgs[i] === dnd.card) { idx0 = i; break; } }
+      var rect = dnd.card.getBoundingClientRect();
       dnd.card.classList.add("drag-pickup");
       dnd.card.classList.add("dragging");
+      dnd.card.style.animation = "none";
+      grid.removeChild(dnd.card);
+      document.body.appendChild(dnd.card);
+      dnd.card.style.position = "fixed";
+      dnd.card.style.left = rect.left + "px";
+      dnd.card.style.top = rect.top + "px";
+      dnd.card.style.width = rect.width + "px";
+      dnd.card.style.height = rect.height + "px";
+      dnd.card.style.margin = "0";
       dnd.card.style.transform = "translate(0px,0px) scale(.92)";
       dnd.card.style.touchAction = "none";
+      var ph = document.createElement("div");
+      ph.className = "drop-placeholder";
+      ph.style.height = rect.height + "px";
+      dnd.ph = ph;
+      var nodes2 = gridImageNodes();
+      if (idx0 < nodes2.length) grid.insertBefore(ph, nodes2[idx0]); else grid.appendChild(ph);
+      dnd.lastIndex = idx0;
+      dnd.origIndex = idx0;
     } else {
       dnd.card.classList.remove("drag-pickup");
       dnd.card.style.transition = "none";
     }
     e.preventDefault();
     dnd.card.style.transform = "translate(" + (e.clientX - dnd.startX) + "px," + (e.clientY - dnd.startY) + "px) scale(.92)";
+    var p = dropIndexAt(e.clientX, e.clientY);
+    if (p !== null && p !== dnd.lastIndex) movePlaceholderTo(dnd, p);
   }, { passive: false });
   function endCardDrag(e) {
     if (!dnd) return;
     var d = dnd;
     dnd = null;
+    if (!d.active) return;
     var x = e && e.clientX != null ? e.clientX : d.lastX;
     var y = e && e.clientY != null ? e.clientY : d.lastY;
-    if (!d.active) return;
     d.card.classList.remove("drag-pickup");
     d.card.style.touchAction = "";
     try { d.card.releasePointerCapture(d.pointerId); } catch (err) {}
-    var el = document.elementFromPoint(x, y);
-    var target = el && el.closest ? el.closest(".img-card") : null;
-    if (!target || target === d.card) target = nearestCard(x, y, d.card);
-    var grid = $("grid");
-    var vis = gridVisibleIds();
-    var c = vis.indexOf(d.id);
-    var p = c;
-    if (target && target !== d.card) {
-      var rect = target.getBoundingClientRect();
-      var dx = x - (rect.left + rect.width / 2);
-      var dy = y - (rect.top + rect.height / 2);
-      var before = Math.abs(dx) > Math.abs(dy) ? dx < 0 : dy < 0;
-      var ti = vis.indexOf(target.dataset.id);
-      p = before ? ti : ti + 1;
-      if (c < p) p--;
-    }
-    if (p === c) { settleCard(d.card); return; }
-    var fromRects = new Map();
-    var cards = grid.querySelectorAll(".img-card");
-    for (var i = 0; i < cards.length; i++) fromRects.set(cards[i], cards[i].getBoundingClientRect());
-    var tgtNode = null, seen = 0;
-    for (var i = 0; i < cards.length; i++) {
-      if (cards[i] === d.card) continue;
-      if (seen === p) { tgtNode = cards[i]; break; }
-      seen++;
-    }
-    if (tgtNode) grid.insertBefore(d.card, tgtNode); else grid.appendChild(d.card);
-    settleCard(d.card);
-    flipOthers(fromRects, d.card);
-    var newVisible = gridVisibleIds();
-    if (newVisible.join(",") === d.visibleBefore.join(",")) return;
-    var newFull = applyOrderToFull(d.fullBefore, d.id, newVisible);
-    lastImages = reorderImageList(lastImages, newFull);
-    api("/api/images/order", { method: "POST", body: JSON.stringify({ ids: newFull }) })
-      .then(function () { toast(t("op.sorted"), "success"); })
-      .catch(function (err) { toast(err.message || t("op.fail"), "error"); loadImages(); });
+    var p = dropIndexAt(x, y);
+    if (p !== null && p !== d.lastIndex) movePlaceholderTo(d, p);
+    finishDrag(d, p !== null && p !== d.origIndex);
   }
   window.addEventListener("pointerup", endCardDrag);
   window.addEventListener("pointercancel", endCardDrag);
@@ -1210,42 +1369,172 @@ a{color:var(--accent)}
     var html = "";
     for (var i = 0; i < 6; i++) html += '<div class="skeleton"></div>';
     grid.innerHTML = html;
+    resetSentinel();
+    thumbLoaded = 0;
+    thumbObsTargets = [];
+    renderGroupNav([]);
   }
 
-  function renderGrid(images) {
+  function computeGridMetrics() {
     var grid = $("grid");
-    var vis = filterImages(images);
+    var w = grid.clientWidth || Math.max(1, document.documentElement.clientWidth - 300);
+    var cols = Math.max(1, Math.round((w + 16) / (240 + 16)));
+    var cardW = (w - 16 * (cols - 1)) / cols;
+    gridState.cols = cols;
+    gridState.rowH = (cardW / 16) * 10 + 152;
+    var rows = Math.max(2, Math.round(window.innerHeight / gridState.rowH));
+    gridState.groupSize = cols * rows;
+    return cols;
+  }
+  function buildCard(img, i) {
+    var card = document.createElement("div");
+    card.className = "card img-card" + (img.enabled ? "" : " disabled");
+    card.dataset.id = img.id;
+    card.style.animationDelay = Math.min(i * 45, 360) + "ms";
+    card.innerHTML =
+      '<div class="thumb">' + thumbHtml(img) +
+      '<button class="zoom" data-url="' + esc(img.url) + '" data-type="' + esc(img.type || "") + '" aria-label="' + esc(t("card.preview")) + '">' + esc(t("card.preview.short")) + "</button></div>" +
+      '<div class="card-body">' +
+      '<div class="card-top">' + modeBadge(img.mode) + typeBadge(img.type || guessTypeClient(img.url)) + '<span class="muted">' + fmtTime(img.createdAt) + "</span></div>" +
+      '<div class="img-name" data-id="' + esc(img.id) + '" data-name="' + esc(img.name || "") + '" title="' + esc(t("card.renameTitle")) + '">' + esc(displayName(img)) + '<span class="pen">✎</span></div>' +
+      '<div class="img-id" title="' + esc(img.id) + '">' + esc(img.id) + "</div>" +
+      '<div class="img-url" title="' + esc(img.shortUrl || img.url) + '">' + esc(img.shortUrl || img.url) + "</div>" +
+      '<select class="fsel" data-id="' + esc(img.id) + '" aria-label="' + esc(t("card.folderAria")) + '">' + folderOptions(img.folder || "") + "</select>" +
+      '<div class="actions">' +
+      '<label class="switch" title="' + esc(t("card.toggle")) + '"><input type="checkbox" class="tgl" data-id="' + esc(img.id) + '"' + (img.enabled ? " checked" : "") + ' /><span></span></label>' +
+      '<button class="mini copy" data-url="' + esc(img.shortUrl || img.url) + '" aria-label="' + esc(t("card.copy.aria")) + '">' + esc(t("card.copy")) + "</button>" +
+      '<button class="mini danger del" data-id="' + esc(img.id) + '" aria-label="' + esc(t("card.del")) + '">' + esc(t("card.del")) + "</button>" +
+      "</div></div>";
+    return card;
+  }
+  function resetSentinel() {
+    if (gridSentinel) {
+      if (gridObserver) { try { gridObserver.unobserve(gridSentinel); } catch (e) {} }
+      if (gridSentinel.parentNode) gridSentinel.parentNode.removeChild(gridSentinel);
+      gridSentinel = null;
+    }
+  }
+  function resetGridNodes() {
+    var grid = $("grid");
+    var nodes = grid.querySelectorAll(".thumb-img, video.tv-thumb");
+    for (var i = 0; i < nodes.length; i++) thumbObsUnobserve(nodes[i]);
     grid.innerHTML = "";
+    resetSentinel();
+    thumbLoaded = 0;
+  }
+  function ensureSentinel() {
+    if (gridSentinel) return;
+    if (!gridState.vis || gridState.rendered >= gridState.vis.length) return;
+    var grid = $("grid");
+    gridSentinel = document.createElement("div");
+    gridSentinel.className = "grid-sentinel";
+    grid.appendChild(gridSentinel);
+    if (!gridObserver) {
+      gridObserver = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) {
+          if (en.isIntersecting) appendMore();
+        });
+      }, { rootMargin: "800px 0px" });
+    }
+    gridObserver.observe(gridSentinel);
+  }
+  function appendMore() {
+    var vis = gridState.vis;
+    if (!vis || gridState.rendered >= vis.length) { resetSentinel(); return; }
+    var grid = $("grid");
+    var end = Math.min(vis.length, gridState.rendered + gridState.groupSize);
+    for (var i = gridState.rendered; i < end; i++) grid.insertBefore(buildCard(vis[i], i), gridSentinel);
+    gridState.rendered = end;
+    setupVideoThumbs();
+    observeThumbs();
+    if (gridState.rendered >= vis.length) resetSentinel();
+  }
+  function renderWindow(vis, start) {
+    var grid = $("grid");
+    resetGridNodes();
+    gridState.vis = vis;
+    var s0 = Math.max(0, start - 2 * gridState.cols);
+    var end = Math.min(vis.length, start + gridState.groupSize + 2 * gridState.cols);
+    for (var i = s0; i < end; i++) grid.appendChild(buildCard(vis[i], i));
+    gridState.rendered = end;
+    ensureSentinel();
+    setupVideoThumbs();
+    observeThumbs();
+  }
+  function renderGrid(images, opts) {
+    opts = opts || {};
+    var vis = filterImages(images);
     $("img-count").textContent = t("list.count", { n: vis.length });
     if (!vis.length) {
       $("empty").classList.remove("hidden");
       $("empty").textContent = images.length ? t("empty.filtered") : t("empty");
+      resetGridNodes();
+      gridState.vis = null;
+      renderGroupNav([]);
       return;
     }
     $("empty").classList.add("hidden");
-    vis.forEach(function (img, i) {
-      var card = document.createElement("div");
-      card.className = "card img-card" + (img.enabled ? "" : " disabled");
-      card.dataset.id = img.id;
-      card.style.animationDelay = Math.min(i * 45, 360) + "ms";
-      card.innerHTML =
-        '<div class="thumb">' + thumbHtml(img) +
-        '<button class="zoom" data-url="' + esc(img.url) + '" data-type="' + esc(img.type || "") + '" aria-label="' + esc(t("card.preview")) + '">' + esc(t("card.preview.short")) + "</button></div>" +
-        '<div class="card-body">' +
-        '<div class="card-top">' + modeBadge(img.mode) + typeBadge(img.type || guessTypeClient(img.url)) + '<span class="muted">' + fmtTime(img.createdAt) + "</span></div>" +
-        '<div class="img-name" data-id="' + esc(img.id) + '" data-name="' + esc(img.name || "") + '" title="' + esc(t("card.renameTitle")) + '">' + esc(displayName(img)) + '<span class="pen">✎</span></div>' +
-        '<div class="img-id" title="' + esc(img.id) + '">' + esc(img.id) + "</div>" +
-        '<div class="img-url" title="' + esc(img.shortUrl || img.url) + '">' + esc(img.shortUrl || img.url) + "</div>" +
-        '<select class="fsel" data-id="' + esc(img.id) + '" aria-label="' + esc(t("card.folderAria")) + '">' + folderOptions(img.folder || "") + "</select>" +
-        '<div class="actions">' +
-        '<label class="switch" title="' + esc(t("card.toggle")) + '"><input type="checkbox" class="tgl" data-id="' + esc(img.id) + '"' + (img.enabled ? " checked" : "") + ' /><span></span></label>' +
-        '<button class="mini copy" data-url="' + esc(img.shortUrl || img.url) + '" aria-label="' + esc(t("card.copy.aria")) + '">' + esc(t("card.copy")) + "</button>" +
-        '<button class="mini danger del" data-id="' + esc(img.id) + '" aria-label="' + esc(t("card.del")) + '">' + esc(t("card.del")) + "</button>" +
-        "</div></div>";
-      grid.appendChild(card);
-    });
-    setupVideoThumbs();
+    computeGridMetrics();
+    var start = 0;
+    if (opts.anchor) {
+      var sy = window.pageYOffset || document.documentElement.scrollTop;
+      if (gridState.rowH > 0) start = Math.floor(sy / gridState.rowH) * gridState.cols;
+    }
+    renderWindow(vis, start);
+    renderGroupNav(vis);
   }
+
+  function gridDocTop() {
+    var grid = $("grid");
+    var r = grid.getBoundingClientRect();
+    return r.top + (window.pageYOffset || document.documentElement.scrollTop);
+  }
+  function updateGroupHighlight(g) {
+    var box = $("group-nav");
+    if (!box) return;
+    var btns = box.querySelectorAll(".g-btn");
+    for (var i = 0; i < btns.length; i++) btns[i].classList.toggle("active", i === g);
+  }
+  function updateCurrentGroup() {
+    if (!gridState.vis || !gridState.groupSize) return;
+    var top = window.pageYOffset || document.documentElement.scrollTop;
+    var g = Math.floor((top - gridDocTop()) / (gridState.rowH * (gridState.groupSize / gridState.cols)));
+    if (g < 0) g = 0;
+    var last = Math.ceil(gridState.vis.length / gridState.groupSize) - 1;
+    if (g > last) g = last;
+    updateGroupHighlight(g);
+  }
+  function renderGroupNav(vis) {
+    var box = $("group-nav");
+    if (!box) return;
+    if (!vis || !gridState.groupSize) { box.innerHTML = ""; return; }
+    var n = Math.max(1, Math.ceil(vis.length / gridState.groupSize));
+    var h = '<span class="g-title">' + esc(t("nav.groups")) + "</span>";
+    for (var g = 0; g < n; g++) {
+      h += '<button class="g-btn" data-g="' + g + '" aria-label="' + esc(t("nav.group.go", { n: g + 1 })) + '">' + (g + 1) + "</button>";
+    }
+    box.innerHTML = h;
+  }
+  $("group-nav").addEventListener("click", function (e) {
+    var b = e.target.closest(".g-btn");
+    if (!b) return;
+    var g = parseInt(b.getAttribute("data-g"), 10);
+    var vis = gridState.vis || [];
+    if (!vis.length) return;
+    var start = Math.min(g * gridState.groupSize, Math.max(0, vis.length - 1));
+    renderWindow(vis, start);
+    var top = gridDocTop() + (start / gridState.cols) * gridState.rowH;
+    window.scrollTo({ top: top, behavior: "smooth" });
+    updateCurrentGroup();
+  });
+  window.addEventListener("scroll", function () { requestAnimationFrame(updateCurrentGroup); }, { passive: true });
+  window.addEventListener("resize", debounce(function () {
+    if (lastImages === null) return;
+    var old = gridState.cols;
+    computeGridMetrics();
+    if (gridState.cols === old) return;
+    renderGrid(lastImages, { anchor: true });
+  }, 250));
 
   function renderFolders() {
     var bar = $("folder-bar");
@@ -1261,13 +1550,13 @@ a{color:var(--accent)}
     if (sel) sel.innerHTML = folderOptions(addPendingFolder);
   }
 
-  function loadImages() {
+  function loadImages(opts) {
     if (lastImages === null) renderSkeleton();
     api("/api/images").then(function (data) {
       lastImages = data.images || [];
       lastFolders = data.folders || [];
       renderFolders();
-      renderGrid(lastImages);
+      renderGrid(lastImages, opts || {});
     }).catch(function (err) {
       if (lastImages === null) $("grid").innerHTML = "";
       if (err.message && err.message.indexOf("未登录") === -1) toast(err.message, "error");
@@ -1357,7 +1646,7 @@ a{color:var(--accent)}
   }
   function setFolder(id, folder) {
     api("/api/image/update", { method: "POST", body: JSON.stringify({ id: id, folder: folder }) })
-      .then(function () { toast(t("op.moved"), "success"); loadImages(); })
+      .then(function () { toast(t("op.moved"), "success"); loadImages({ anchor: true }); })
       .catch(function (err) { toast(err.message, "error"); });
   }
   function enterNameEdit(span) {
@@ -1378,10 +1667,10 @@ a{color:var(--accent)}
       var v = input.value.trim();
       if (save && v !== prev) {
         api("/api/image/update", { method: "POST", body: JSON.stringify({ id: id, name: v }) })
-          .then(function () { toast(t("op.saved"), "success"); loadImages(); })
+          .then(function () { toast(t("op.saved"), "success"); loadImages({ anchor: true }); })
           .catch(function (err) { toast(err.message, "error"); });
       } else {
-        loadImages();
+        loadImages({ anchor: true });
       }
     }
     input.addEventListener("keydown", function (e) {
@@ -1454,13 +1743,13 @@ a{color:var(--accent)}
   $("search").addEventListener("input", function () {
     searchQuery = this.value.trim();
     $("search-clear").classList.toggle("hidden", !searchQuery);
-    if (lastImages !== null) renderGrid(lastImages);
+    if (lastImages !== null) { window.scrollTo(0, 0); renderGrid(lastImages); }
   });
   $("search-clear").addEventListener("click", function () {
     searchQuery = "";
     $("search").value = "";
     this.classList.add("hidden");
-    if (lastImages !== null) renderGrid(lastImages);
+    if (lastImages !== null) { window.scrollTo(0, 0); renderGrid(lastImages); }
     $("search").focus();
   });
 
@@ -1486,7 +1775,7 @@ a{color:var(--accent)}
         toast(t("op.del"));
         // KV 删除是最终一致性的，本地立即移除，避免列表要等 KV 传播才消失
         lastImages = (lastImages || []).filter(function (x) { return x.id !== id; });
-        renderGrid(lastImages);
+        renderGrid(lastImages, { anchor: true });
       })
       .catch(function (err) { toast(err.message || t("op.delFail"), "error"); });
   });
@@ -1535,6 +1824,7 @@ a{color:var(--accent)}
     } else if (el.classList.contains("fchip") && el.id !== "folder-add") {
       currentFolder = el.getAttribute("data-f");
       if (lastImages !== null) {
+        window.scrollTo(0, 0);
         renderFolders();
         renderGrid(lastImages);
       } else {
@@ -1602,6 +1892,7 @@ a{color:var(--accent)}
       else { $("defaultModeRedirect").checked = true; }
       $("originReferer").value = s.originReferer || "";
       $("originUserAgent").value = s.originUserAgent || "";
+      if ($("thumbCache")) $("thumbCache").value = thumbCacheMax;
       if (data.meta) {
         rateMeta = data.meta;
         renderRateLimits();
@@ -1638,6 +1929,10 @@ a{color:var(--accent)}
     body.defaultMode = $("defaultModeProxy").checked ? "proxy" : "redirect";
     body.originReferer = $("originReferer").value.trim();
     body.originUserAgent = $("originUserAgent").value.trim();
+    var tc = parseInt($("thumbCache") ? $("thumbCache").value : "", 10);
+    thumbCacheMax = tc >= 0 ? tc : 0;
+    localStorage.setItem(THUMB_CACHE_KEY, String(thumbCacheMax));
+    scheduleCacheManage();
     var btn = this;
     setBusy(btn, true, t("set.busy"));
     api("/api/settings", { method: "PUT", body: JSON.stringify(body) })
@@ -1663,7 +1958,7 @@ a{color:var(--accent)}
       seg[s].classList.toggle("inactive", !seg[s].classList.contains(LANG === "zh" ? "is-zh" : "is-en"));
     }
     renderFolders();
-    if (lastImages !== null) renderGrid(lastImages);
+    if (lastImages !== null) renderGrid(lastImages, { anchor: true });
     refreshPreview();
     renderRateLimits();
   }
@@ -1919,11 +2214,9 @@ a{color:var(--accent)}
 
   applyLang();
   if (token) {
-    api("/api/images").then(function () {
-      hideLogin();
-      loadImages();
-      loadSettings();
-    }).catch(function () { showLogin(); });
+    hideLogin();
+    loadImages();
+    loadSettings();
   } else {
     showLogin();
   }
