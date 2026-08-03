@@ -68,10 +68,19 @@ export function renderUI() {
   --grad:linear-gradient(135deg,var(--c1),var(--c2),var(--c3));
 }
 html,body{height:100%}
+html{background-color:#f4f2fb}
 body{
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
   color:var(--text);font-size:14px;line-height:1.5;overflow-x:hidden;
-  background-color:#f4f2fb;
+  background:transparent
+}
+/* 页面渐变背景改为固定层：位置:fixed 且尺寸恰好等于视口，
+   260% 的渐变图在任何滚动位置、任何浏览器（含 Safari 等按视口
+   解析 canvas 背景尺寸的实现）下都必然完整盖住视口，
+   从根上消除"渐变带边缘 + 底色交界"的移动分割线 */
+body::before{
+  content:"";position:fixed;top:0;left:0;width:100%;height:100%;
+  z-index:-3;pointer-events:none;
   background-image:linear-gradient(160deg,color-mix(in srgb,var(--c1) 20%,#fff),color-mix(in srgb,var(--c2) 20%,#fff),color-mix(in srgb,var(--c3) 20%,#fff));
   background-size:260% 260%;animation:bgFlow 40s ease-in-out infinite
 }
@@ -238,6 +247,7 @@ a{color:var(--accent)}
 @keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .thumb{position:relative;background:linear-gradient(160deg,color-mix(in srgb,var(--c1) 12%,#fff),color-mix(in srgb,var(--c3) 12%,#fff));aspect-ratio:16/10}
 .thumb img{width:100%;height:100%;object-fit:contain;display:block}
+.thumb video{width:100%;height:100%;object-fit:contain;display:block;background:rgba(255,255,255,.7)}
 .thumb .zoom{position:absolute;right:8px;bottom:8px;background:rgba(15,23,42,.72);color:#fff;font-size:12px;padding:5px 10px;border-radius:6px;transition:background .15s}
 .thumb .zoom:hover{background:rgba(15,23,42,.92)}
 .thumb-fallback{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:8px;text-align:center;color:var(--muted)}
@@ -923,11 +933,85 @@ a{color:var(--accent)}
   }
   function thumbHtml(img) {
     var tp = img.type || guessTypeClient(img.url);
-    if (tp === "video")
-      return '<div class="thumb-fallback"><span class="tf-icon">▶</span><span class="tf-id">' + esc(t("type.video")) + "</span></div>";
+    if (tp === "video") {
+      // 用代理链接（带 CORS）加载视频，进入视口后截帧生成封面缩略图
+      var src = img.mode === "proxy" ? (img.shortUrl || img.url) : img.url;
+      return '<video class="tv-thumb" data-src="' + esc(src) + '" data-alt="' + esc(img.id) + '" muted playsinline crossorigin="anonymous" preload="metadata"></video>';
+    }
     if (tp === "audio")
       return '<div class="thumb-fallback"><span class="tf-icon">♪</span><span class="tf-id">' + esc(t("type.audio")) + "</span></div>";
     return '<img src="' + esc(img.url) + '" loading="lazy" alt="' + esc(img.id) + '" />';
+  }
+  var thumbObserver = null;
+  function observeVideoThumb(v) {
+    if (v.dataset.visible === "1") { startVideoThumb(v); return; }
+    if ("IntersectionObserver" in window) {
+      if (!thumbObserver) {
+        thumbObserver = new IntersectionObserver(function (entries) {
+          entries.forEach(function (en) {
+            if (en.isIntersecting) {
+              startVideoThumb(en.target);
+              thumbObserver.unobserve(en.target);
+            }
+          });
+        }, { rootMargin: "400px" });
+      }
+      thumbObserver.observe(v);
+    } else {
+      startVideoThumb(v);
+    }
+  }
+  function startVideoThumb(v) {
+    v.dataset.visible = "1";
+    var src = v.getAttribute("data-src");
+    if (src && !v.getAttribute("src")) v.setAttribute("src", src);
+  }
+  function videoFallback(v) {
+    if (!v.parentNode) return;
+    var fb = document.createElement("div");
+    fb.className = "thumb-fallback";
+    fb.innerHTML = '<span class="tf-icon">▶</span><span class="tf-id">' + esc(t("type.video")) + "</span>";
+    v.parentNode.replaceChild(fb, v);
+    try { v.removeAttribute("src"); v.load(); } catch (e) {}
+  }
+  function captureVideoFrame(v) {
+    if (!v.videoWidth || !v.videoHeight) { videoFallback(v); return; }
+    try {
+      var canvas = document.createElement("canvas");
+      canvas.width = v.videoWidth;
+      canvas.height = v.videoHeight;
+      canvas.getContext("2d").drawImage(v, 0, 0, canvas.width, canvas.height);
+      var img = document.createElement("img");
+      img.src = canvas.toDataURL("image/jpeg", 0.72);
+      img.alt = v.getAttribute("data-alt") || "";
+      img.loading = "lazy";
+      v.parentNode.replaceChild(img, v);
+      try { v.removeAttribute("src"); v.load(); } catch (e) {}
+    } catch (e) { videoFallback(v); }
+  }
+  function wireVideoThumb(v) {
+    var failTimer = setTimeout(function () { videoFallback(v); }, 12000);
+    v.addEventListener("loadedmetadata", function () {
+      var dur = v.duration;
+      if (!isFinite(dur) || dur <= 0) { clearTimeout(failTimer); videoFallback(v); return; }
+      // 跳到片头偏后的位置，避免首帧黑屏
+      v.currentTime = Math.min(1 + dur * 0.1, 5);
+    });
+    v.addEventListener("seeked", function () {
+      clearTimeout(failTimer);
+      captureVideoFrame(v);
+    });
+    v.addEventListener("error", function () {
+      clearTimeout(failTimer);
+      videoFallback(v);
+    });
+    observeVideoThumb(v);
+  }
+  function setupVideoThumbs() {
+    var vids = $("grid").querySelectorAll("video.tv-thumb");
+    for (var i = 0; i < vids.length; i++) {
+      if (!vids[i].dataset.hooked) { vids[i].dataset.hooked = "1"; wireVideoThumb(vids[i]); }
+    }
   }
 
   function filterImages(images) {
@@ -992,6 +1076,7 @@ a{color:var(--accent)}
         "</div></div>";
       grid.appendChild(card);
     });
+    setupVideoThumbs();
   }
 
   function renderFolders() {

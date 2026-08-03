@@ -16,6 +16,18 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+.env.local
+.env.*.local
+.dev.vars.local
+
+# 备份 / 补丁文件
+*.bak
+*.orig
+*.rej
+*~
+
+# opencode 权限配置（不提交）
+opencode.json
 
 # 依赖缓存 / 临时文件
 .pnpm-debug.log*
