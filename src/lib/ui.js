@@ -261,7 +261,7 @@ a{color:var(--accent)}
 @keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .thumb{position:relative;background:linear-gradient(160deg,color-mix(in srgb,var(--c1) 12%,#fff),color-mix(in srgb,var(--c3) 12%,#fff));aspect-ratio:16/10}
 .thumb img,.thumb video{-webkit-user-drag:none;user-select:none}
-.thumb img{width:100%;height:100%;object-fit:contain;display:block}
+.thumb img{width:100%;height:100%;object-fit:contain;display:block;transition:opacity .25s ease}
 .thumb img.thumb-pending{opacity:0;position:absolute;inset:0;pointer-events:none}
 .grid-sentinel{height:1px}
 .thumb video{width:100%;height:100%;object-fit:contain;display:block;background:rgba(255,255,255,.7)}
@@ -562,6 +562,11 @@ a{color:var(--accent)}
   var thumbObserver2 = null;
   var thumbObsTargets = [];
   var thumbLoaded = 0;
+
+  /* 卡片本体分批渲染：每帧插入一小批，配合递增动画延迟逐个浮现（与缩略图加载一致的体感） */
+  var CARD_BATCH = 5;
+  var cardQueue = [];
+  var cardQueueTimer = null;
   var thumbManageTimer = null;
 
   var I18N = {
@@ -990,7 +995,7 @@ a{color:var(--accent)}
     }
     if (tp === "audio")
       return '<div class="thumb-fallback"><span class="tf-icon">♪</span><span class="tf-id">' + esc(t("type.audio")) + "</span></div>";
-    return '<img data-src="' + esc(img.url) + '" class="thumb-img" draggable="false" alt="' + esc(img.id) + '" />';
+    return '<img data-src="' + esc(img.url) + '" class="thumb-img thumb-pending" draggable="false" alt="' + esc(img.id) + '" />';
   }
   var thumbObserver = null;
   function observeVideoThumb(v) {
@@ -1065,16 +1070,54 @@ a{color:var(--accent)}
     }
   }
 
-  /* 缩略图缓存：统一 IntersectionObserver 近视口才加载，超出上限时释放最远（超过最小距离）的缩略图 */
-  function loadThumbImg(img) {
+  /* 缩略图缓存：统一 IntersectionObserver 近视口才加载；
+     按文件顺序排队 + 限并发加载，加载完成一个淡入显示一个（槽位固定，顺序不受网络完成先后影响） */
+  var THUMB_CONCURRENCY = 5;
+  var thumbQueue = [];
+  var thumbInFlight = 0;
+  function enqueueThumb(img) {
+    if (img.dataset.loading || img.dataset.loaded) return;
+    img.dataset.loading = "1";
+    thumbQueue.push(img);
+    pumpThumbs();
+  }
+  function pumpThumbs() {
+    while (thumbInFlight < THUMB_CONCURRENCY && thumbQueue.length) {
+      var img = thumbQueue.shift();
+      thumbInFlight++;
+      startThumbLoad(img);
+    }
+  }
+  function startThumbLoad(img) {
     var src = img.getAttribute("data-src");
-    if (!src || img.getAttribute("src") === src) return;
-    img.classList.remove("thumb-pending");
+    function done() {
+      delete img.dataset.loading;
+      thumbInFlight--;
+      pumpThumbs();
+    }
+    if (!src) { done(); return; }
     img.setAttribute("src", src);
     img.dataset.loaded = "1";
     thumbLoaded++;
-    if (thumbObserver2) { try { thumbObserver2.unobserve(img); } catch (e) {} }
+    thumbObsUnobserve(img);
     scheduleCacheManage();
+    if (img.complete) {
+      img.classList.remove("thumb-pending");
+      done();
+      return;
+    }
+    var finished = false;
+    function reveal() {
+      if (finished) return;
+      finished = true;
+      img.classList.remove("thumb-pending");
+      done();
+    }
+    img.addEventListener("load", reveal, { once: true });
+    img.addEventListener("error", reveal, { once: true });
+  }
+  function loadThumbImg(img) {
+    enqueueThumb(img);
   }
   function thumbObsUnobserve(el) {
     var idx = thumbObsTargets.indexOf(el);
@@ -1086,7 +1129,7 @@ a{color:var(--accent)}
   function observeThumbs() {
     if (!("IntersectionObserver" in window)) {
       var imgs = $("grid").querySelectorAll("img.thumb-img");
-      for (var i = 0; i < imgs.length; i++) loadThumbImg(imgs[i]);
+      for (var i = 0; i < imgs.length; i++) enqueueThumb(imgs[i]);
       return;
     }
     if (!thumbObserver2) {
@@ -1130,6 +1173,7 @@ a{color:var(--accent)}
       cand[i].img.removeAttribute("src");
       cand[i].img.classList.add("thumb-pending");
       delete cand[i].img.dataset.loaded;
+      delete cand[i].img.dataset.loading;
       thumbLoaded--;
       if (thumbObserver2) {
         try { thumbObserver2.observe(cand[i].img); } catch (e) {}
@@ -1418,9 +1462,44 @@ a{color:var(--accent)}
     var grid = $("grid");
     var nodes = grid.querySelectorAll(".thumb-img, video.tv-thumb");
     for (var i = 0; i < nodes.length; i++) thumbObsUnobserve(nodes[i]);
+    if (cardQueueTimer) { clearTimeout(cardQueueTimer); cardQueueTimer = null; }
+    cardQueue = [];
     grid.innerHTML = "";
     resetSentinel();
     thumbLoaded = 0;
+    thumbQueue = [];
+    thumbInFlight = 0;
+  }
+  function enqueueCardRange(start, end, before) {
+    var vis = gridState.vis;
+    if (!vis || start >= end) { if (!cardQueue.length) finishCardQueue(); return; }
+    for (var i = start; i < end; i++) {
+      cardQueue.push({ card: buildCard(vis[i], i), before: before });
+    }
+    if (!cardQueueTimer) cardQueueTimer = setTimeout(pumpCardQueue, 16);
+  }
+  function pumpCardQueue() {
+    cardQueueTimer = null;
+    var grid = $("grid");
+    var done = 0;
+    while (cardQueue.length && done < CARD_BATCH) {
+      var item = cardQueue.shift();
+      if (item.before && gridSentinel) grid.insertBefore(item.card, gridSentinel);
+      else grid.appendChild(item.card);
+      gridState.rendered++;
+      done++;
+    }
+    if (cardQueue.length) {
+      cardQueueTimer = setTimeout(pumpCardQueue, 16);
+      return;
+    }
+    finishCardQueue();
+  }
+  function finishCardQueue() {
+    if (gridState.vis && gridState.rendered >= gridState.vis.length) resetSentinel();
+    else ensureSentinel();
+    setupVideoThumbs();
+    observeThumbs();
   }
   function ensureSentinel() {
     if (gridSentinel) return;
@@ -1441,25 +1520,18 @@ a{color:var(--accent)}
   function appendMore() {
     var vis = gridState.vis;
     if (!vis || gridState.rendered >= vis.length) { resetSentinel(); return; }
-    var grid = $("grid");
-    var end = Math.min(vis.length, gridState.rendered + gridState.groupSize);
-    for (var i = gridState.rendered; i < end; i++) grid.insertBefore(buildCard(vis[i], i), gridSentinel);
-    gridState.rendered = end;
-    setupVideoThumbs();
-    observeThumbs();
-    if (gridState.rendered >= vis.length) resetSentinel();
+    var start = gridState.rendered + cardQueue.length;
+    var end = Math.min(vis.length, start + gridState.groupSize);
+    if (start >= end) { resetSentinel(); return; }
+    enqueueCardRange(start, end, true);
   }
   function renderWindow(vis, start) {
-    var grid = $("grid");
     resetGridNodes();
     gridState.vis = vis;
     var s0 = Math.max(0, start - 2 * gridState.cols);
     var end = Math.min(vis.length, start + gridState.groupSize + 2 * gridState.cols);
-    for (var i = s0; i < end; i++) grid.appendChild(buildCard(vis[i], i));
-    gridState.rendered = end;
-    ensureSentinel();
-    setupVideoThumbs();
-    observeThumbs();
+    gridState.rendered = s0;
+    enqueueCardRange(s0, end, false);
   }
   function renderGrid(images, opts) {
     opts = opts || {};

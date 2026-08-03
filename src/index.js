@@ -36,6 +36,15 @@ import { renderUI } from "./lib/ui.js";
 const IMAGE_PATH = /^\/i\/([A-Za-z0-9_-]+)\/?$/;
 const IMAGE_ID_RE = /^[A-Za-z0-9_-]+$/;
 
+async function hashBody(str) {
+  const data = new TextEncoder().encode(str);
+  const digest = await crypto.subtle.digest("SHA-1", data);
+  const hex = Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return hex;
+}
+
 function generateId() {
   const bytes = new Uint8Array(8);
   crypto.getRandomValues(bytes);
@@ -412,8 +421,18 @@ export default {
     const { pathname } = url;
 
     if (pathname === "/") {
-      return new Response(renderUI(), {
-        headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" },
+      const body = renderUI();
+      const etag = `"${await hashBody(body)}"`;
+      const ifNoneMatch = request.headers.get("If-None-Match");
+      if (ifNoneMatch && ifNoneMatch === etag) {
+        return new Response(null, { status: 304 });
+      }
+      return new Response(body, {
+        headers: {
+          "Content-Type": "text/html; charset=utf-8",
+          "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+          "ETag": etag,
+        },
       });
     }
     if (pathname === "/api/login") return handleLogin(request, env);
