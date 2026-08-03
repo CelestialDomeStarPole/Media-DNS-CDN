@@ -232,6 +232,7 @@ a{color:var(--accent)}
 .toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px;flex-wrap:wrap}
 .toolbar h2{font-size:16px}
 .count{color:var(--muted);font-size:13px;font-weight:400;margin-left:6px}
+.sort-hint{color:var(--muted);font-size:12px;font-weight:400;margin-left:10px}
 .search-wrap{position:relative}
 .toolbar input{width:250px;padding:8px 12px;border:1px solid rgba(0,0,0,.12);border-radius:9px;outline:none;background:rgba(255,255,255,.85)}
 .toolbar input:focus{border-color:var(--accent)}
@@ -241,11 +242,15 @@ a{color:var(--accent)}
 
 /* 图片网格 */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
-.img-card{overflow:hidden;display:flex;flex-direction:column;transition:transform .14s ease,box-shadow .14s ease;animation:cardIn .4s ease both}
+.img-card{overflow:hidden;display:flex;flex-direction:column;transition:transform .14s ease,box-shadow .14s ease;animation:cardIn .4s ease;cursor:grab}
 .img-card:hover{transform:translateY(-3px);box-shadow:0 14px 34px color-mix(in srgb,var(--accent) 28%,rgba(31,41,55,.10))}
+.img-card:active{cursor:grabbing}
+.img-card.drag-pickup{transition:transform .18s ease,opacity .18s ease,box-shadow .18s ease}
+.img-card.dragging{opacity:.65;z-index:40;pointer-events:none;will-change:transform;box-shadow:0 16px 38px color-mix(in srgb,var(--accent) 24%,rgba(15,23,42,.20))}
 .img-card.disabled{opacity:.55}
 @keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
 .thumb{position:relative;background:linear-gradient(160deg,color-mix(in srgb,var(--c1) 12%,#fff),color-mix(in srgb,var(--c3) 12%,#fff));aspect-ratio:16/10}
+.thumb img,.thumb video{-webkit-user-drag:none;user-select:none}
 .thumb img{width:100%;height:100%;object-fit:contain;display:block}
 .thumb video{width:100%;height:100%;object-fit:contain;display:block;background:rgba(255,255,255,.7)}
 .thumb .zoom{position:absolute;right:8px;bottom:8px;background:rgba(15,23,42,.72);color:#fff;font-size:12px;padding:5px 10px;border-radius:6px;transition:background .15s}
@@ -426,7 +431,7 @@ a{color:var(--accent)}
       <div id="folder-bar" class="folder-bar"></div>
 
       <div class="toolbar">
-        <h2><span data-i18n="list.title"></span> <span id="img-count" class="count"></span></h2>
+        <h2><span data-i18n="list.title"></span> <span id="img-count" class="count"></span><small class="sort-hint" data-i18n="list.sortHint"></small></h2>
         <div class="search-wrap">
           <input id="search" type="search" data-i18n-ph="search.ph" />
           <button id="search-clear" class="search-clear hidden" data-i18n-aria="search.clear" aria-label="清空搜索">&times;</button>
@@ -567,6 +572,7 @@ a{color:var(--accent)}
       "mode.proxy.short": "缓存代理+DNS",
       "list.title": "媒体列表",
       "list.count": "{n} 条",
+      "list.sortHint": "按住卡片空白处拖动可排序",
       "search.ph": "搜索名称 / ID / 地址…",
       "search.clear": "清空搜索",
       "empty": "还没有媒体，粘贴一个链接开始吧。",
@@ -605,6 +611,7 @@ a{color:var(--accent)}
       "op.copyOk": "链接已复制",
       "op.saved": "已保存",
       "op.moved": "已移动",
+      "op.sorted": "已更新排序",
       "op.updated": "已更新",
       "lightbox.open": "在新标签打开原图",
       "lightbox.close": "关闭",
@@ -696,6 +703,7 @@ a{color:var(--accent)}
       "mode.proxy.short": "Cache proxy + DNS",
       "list.title": "Media",
       "list.count": "{n} items",
+      "list.sortHint": "Drag a card's empty area to reorder",
       "search.ph": "Search name / ID / URL…",
       "search.clear": "Clear search",
       "empty": "No media yet. Paste a link to start.",
@@ -734,6 +742,7 @@ a{color:var(--accent)}
       "op.copyOk": "Link copied",
       "op.saved": "Saved",
       "op.moved": "Moved",
+      "op.sorted": "Order updated",
       "op.updated": "Updated",
       "lightbox.open": "Open original in new tab",
       "lightbox.close": "Close",
@@ -940,7 +949,7 @@ a{color:var(--accent)}
     }
     if (tp === "audio")
       return '<div class="thumb-fallback"><span class="tf-icon">♪</span><span class="tf-id">' + esc(t("type.audio")) + "</span></div>";
-    return '<img src="' + esc(img.url) + '" loading="lazy" alt="' + esc(img.id) + '" />';
+    return '<img src="' + esc(img.url) + '" loading="lazy" draggable="false" alt="' + esc(img.id) + '" />';
   }
   var thumbObserver = null;
   function observeVideoThumb(v) {
@@ -985,6 +994,7 @@ a{color:var(--accent)}
       img.src = canvas.toDataURL("image/jpeg", 0.72);
       img.alt = v.getAttribute("data-alt") || "";
       img.loading = "lazy";
+      img.draggable = false;
       v.parentNode.replaceChild(img, v);
       try { v.removeAttribute("src"); v.load(); } catch (e) {}
     } catch (e) { videoFallback(v); }
@@ -1013,6 +1023,163 @@ a{color:var(--accent)}
       if (!vids[i].dataset.hooked) { vids[i].dataset.hooked = "1"; wireVideoThumb(vids[i]); }
     }
   }
+
+  /* 拖拽排序：仅从卡片的非交互区域（空白处）发起；拖拽时卡片缩小淡化跟随鼠标，放下时飞回槽位 + 兄弟卡片 FLIP 归位 */
+  var dnd = null;
+  function dragBlocked(el) {
+    return !!el.closest("button, a, input, select, textarea, label, .zoom, .copy, .del, .tgl, .switch, .fsel, .img-name, .pen");
+  }
+  function gridVisibleIds() {
+    var cards = $("grid").querySelectorAll(".img-card");
+    var out = [];
+    for (var i = 0; i < cards.length; i++) out.push(cards[i].dataset.id);
+    return out;
+  }
+  function applyOrderToFull(fullIds, dragId, newVisible) {
+    var k = newVisible.indexOf(dragId);
+    var after = k >= 0 && k + 1 < newVisible.length ? newVisible[k + 1] : null;
+    var rest = fullIds.filter(function (id) { return id !== dragId; });
+    if (after === null) return rest.concat([dragId]);
+    var ai = rest.indexOf(after);
+    return rest.slice(0, ai).concat([dragId], rest.slice(ai));
+  }
+  function reorderImageList(images, ids) {
+    var map = {};
+    images.forEach(function (im) { map[im.id] = im; });
+    return ids.map(function (id) { return map[id]; }).filter(Boolean);
+  }
+  function settleCard(card) {
+    card.style.transition = "transform .32s cubic-bezier(.2,.8,.2,1),opacity .32s ease,box-shadow .32s ease";
+    card.style.transform = "";
+    card.classList.remove("dragging");
+    card.classList.remove("drag-pickup");
+    window.setTimeout(function () { card.style.transition = ""; card.style.zIndex = ""; }, 350);
+  }
+  function flipOthers(fromRects, exclude) {
+    var cards = $("grid").querySelectorAll(".img-card");
+    var changed = [];
+    for (var i = 0; i < cards.length; i++) {
+      var c = cards[i];
+      if (c === exclude) continue;
+      var r0 = fromRects.get(c);
+      if (!r0) continue;
+      var r1 = c.getBoundingClientRect();
+      if (Math.round(r0.left) !== Math.round(r1.left) || Math.round(r0.top) !== Math.round(r1.top)) {
+        c.style.transition = "none";
+        c.style.transform = "translate(" + (r0.left - r1.left) + "px," + (r0.top - r1.top) + "px)";
+        changed.push(c);
+      }
+    }
+    if (!changed.length) return;
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        for (var i = 0; i < changed.length; i++) {
+          changed[i].style.transition = "transform .3s cubic-bezier(.2,.8,.2,1)";
+          changed[i].style.transform = "";
+        }
+        window.setTimeout(function () {
+          for (var i = 0; i < changed.length; i++) changed[i].style.transition = "";
+        }, 340);
+      });
+    });
+  }
+  function nearestCard(x, y, exclude) {
+    var cards = $("grid").querySelectorAll(".img-card");
+    var best = null, bestD = Infinity;
+    for (var i = 0; i < cards.length; i++) {
+      if (cards[i] === exclude) continue;
+      var r = cards[i].getBoundingClientRect();
+      var d = Math.abs(x - (r.left + r.width / 2)) + 1.5 * Math.abs(y - (r.top + r.height / 2));
+      if (d < bestD) { bestD = d; best = cards[i]; }
+    }
+    return best;
+  }
+  $("grid").addEventListener("pointerdown", function (e) {
+    if (dnd) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    var card = e.target.closest ? e.target.closest(".img-card") : null;
+    if (!card || !card.dataset.id || dragBlocked(e.target)) return;
+    dnd = {
+      card: card,
+      id: card.dataset.id,
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      lastX: e.clientX,
+      lastY: e.clientY,
+      active: false,
+      visibleBefore: gridVisibleIds(),
+      fullBefore: lastImages.map(function (im) { return im.id; }),
+    };
+  });
+  window.addEventListener("pointermove", function (e) {
+    if (!dnd || e.pointerId !== dnd.pointerId) return;
+    dnd.lastX = e.clientX;
+    dnd.lastY = e.clientY;
+    if (!dnd.active) {
+      if (Math.abs(e.clientX - dnd.startX) + Math.abs(e.clientY - dnd.startY) < 7) return;
+      dnd.active = true;
+      try { dnd.card.setPointerCapture(e.pointerId); } catch (err) {}
+      dnd.card.classList.add("drag-pickup");
+      dnd.card.classList.add("dragging");
+      dnd.card.style.transform = "translate(0px,0px) scale(.92)";
+      dnd.card.style.touchAction = "none";
+    } else {
+      dnd.card.classList.remove("drag-pickup");
+      dnd.card.style.transition = "none";
+    }
+    e.preventDefault();
+    dnd.card.style.transform = "translate(" + (e.clientX - dnd.startX) + "px," + (e.clientY - dnd.startY) + "px) scale(.92)";
+  }, { passive: false });
+  function endCardDrag(e) {
+    if (!dnd) return;
+    var d = dnd;
+    dnd = null;
+    var x = e && e.clientX != null ? e.clientX : d.lastX;
+    var y = e && e.clientY != null ? e.clientY : d.lastY;
+    if (!d.active) return;
+    d.card.classList.remove("drag-pickup");
+    d.card.style.touchAction = "";
+    try { d.card.releasePointerCapture(d.pointerId); } catch (err) {}
+    var el = document.elementFromPoint(x, y);
+    var target = el && el.closest ? el.closest(".img-card") : null;
+    if (!target || target === d.card) target = nearestCard(x, y, d.card);
+    var grid = $("grid");
+    var vis = gridVisibleIds();
+    var c = vis.indexOf(d.id);
+    var p = c;
+    if (target && target !== d.card) {
+      var rect = target.getBoundingClientRect();
+      var dx = x - (rect.left + rect.width / 2);
+      var dy = y - (rect.top + rect.height / 2);
+      var before = Math.abs(dx) > Math.abs(dy) ? dx < 0 : dy < 0;
+      var ti = vis.indexOf(target.dataset.id);
+      p = before ? ti : ti + 1;
+      if (c < p) p--;
+    }
+    if (p === c) { settleCard(d.card); return; }
+    var fromRects = new Map();
+    var cards = grid.querySelectorAll(".img-card");
+    for (var i = 0; i < cards.length; i++) fromRects.set(cards[i], cards[i].getBoundingClientRect());
+    var tgtNode = null, seen = 0;
+    for (var i = 0; i < cards.length; i++) {
+      if (cards[i] === d.card) continue;
+      if (seen === p) { tgtNode = cards[i]; break; }
+      seen++;
+    }
+    if (tgtNode) grid.insertBefore(d.card, tgtNode); else grid.appendChild(d.card);
+    settleCard(d.card);
+    flipOthers(fromRects, d.card);
+    var newVisible = gridVisibleIds();
+    if (newVisible.join(",") === d.visibleBefore.join(",")) return;
+    var newFull = applyOrderToFull(d.fullBefore, d.id, newVisible);
+    lastImages = reorderImageList(lastImages, newFull);
+    api("/api/images/order", { method: "POST", body: JSON.stringify({ ids: newFull }) })
+      .then(function () { toast(t("op.sorted"), "success"); })
+      .catch(function (err) { toast(err.message || t("op.fail"), "error"); loadImages(); });
+  }
+  window.addEventListener("pointerup", endCardDrag);
+  window.addEventListener("pointercancel", endCardDrag);
 
   function filterImages(images) {
     var q = searchQuery.toLowerCase();
@@ -1059,6 +1226,7 @@ a{color:var(--accent)}
     vis.forEach(function (img, i) {
       var card = document.createElement("div");
       card.className = "card img-card" + (img.enabled ? "" : " disabled");
+      card.dataset.id = img.id;
       card.style.animationDelay = Math.min(i * 45, 360) + "ms";
       card.innerHTML =
         '<div class="thumb">' + thumbHtml(img) +

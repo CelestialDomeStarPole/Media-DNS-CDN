@@ -1,6 +1,7 @@
 const SETTINGS_KEY = "settings:global";
 const IMG_PREFIX = "img:";
 const FOLDER_KEY = "folders:list";
+const ORDER_KEY = "images:order";
 
 // isolate 内存微缓存 settings，避免每个请求都读 KV（免费版 KV 有读额度）
 const SETTINGS_CACHE_MS = 15000;
@@ -97,6 +98,20 @@ export async function deleteImage(env, id) {
   await env.MAPPINGS.delete(IMG_PREFIX + id);
 }
 
+export async function getOrder(env) {
+  const raw = await env.MAPPINGS.get(ORDER_KEY);
+  if (!raw) return null;
+  try {
+    const arr = JSON.parse(raw);
+    if (Array.isArray(arr)) return arr.filter((x) => typeof x === "string" && x);
+  } catch {}
+  return null;
+}
+
+export async function saveOrder(env, ids) {
+  await env.MAPPINGS.put(ORDER_KEY, JSON.stringify(ids));
+}
+
 export async function listImages(env) {
   const result = await env.MAPPINGS.list({ prefix: IMG_PREFIX });
   const images = [];
@@ -109,7 +124,21 @@ export async function listImages(env) {
       images.push(data);
     } catch {}
   }
-  images.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  // 有拖拽排序记录时按记录排序，否则按创建时间倒序（新在前）
+  const order = await getOrder(env);
+  if (order && order.length) {
+    const idx = new Map(order.map((id, i) => [id, i]));
+    images.sort((a, b) => {
+      const ia = idx.get(a.id);
+      const ib = idx.get(b.id);
+      if (ia !== undefined && ib !== undefined) return ia - ib;
+      if (ia !== undefined) return -1;
+      if (ib !== undefined) return 1;
+      return (b.createdAt || 0) - (a.createdAt || 0);
+    });
+  } else {
+    images.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  }
   return images;
 }
 

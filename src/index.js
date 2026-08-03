@@ -10,6 +10,8 @@ import {
   numList,
   getFolders,
   saveFolders,
+  getOrder,
+  saveOrder,
 } from "./lib/store.js";
 import {
   json,
@@ -114,6 +116,10 @@ async function handleConvert(request, env) {
   const folder = sanitizeField(body.folder, 30);
   const type = await sniffType(raw, settings);
   await putImage(env, id, { url: raw, mode, enabled: true, name, folder, type, createdAt: Date.now() });
+  // 新条目排在列表最前（与默认"新在前"一致）
+  const order = (await getOrder(env)) || [];
+  order.unshift(id);
+  await saveOrder(env, order);
   if (folder) {
     const folders = await getFolders(env);
     if (!folders.includes(folder)) {
@@ -200,7 +206,26 @@ async function handleDelete(request, env, ctx) {
   const id = body && typeof body.id === "string" ? body.id : "";
   if (!id || !IMAGE_ID_RE.test(id)) return json({ error: "ID 无效" }, 400);
   await deleteImage(env, id);
+  const order = (await getOrder(env)) || [];
+  if (order.includes(id)) await saveOrder(env, order.filter((x) => x !== id));
   await purgeTag(ctx, `img-${id}`);
+  return json({ ok: true });
+}
+
+async function handleReorder(request, env) {
+  const body = await request.json().catch(() => null);
+  const ids = body && Array.isArray(body.ids) ? body.ids : null;
+  if (!ids) return json({ error: "参数无效" }, 400);
+  const clean = [];
+  const seen = new Set();
+  for (const id of ids) {
+    if (typeof id === "string" && IMAGE_ID_RE.test(id) && !seen.has(id)) {
+      seen.add(id);
+      clean.push(id);
+      if (clean.length >= 5000) break;
+    }
+  }
+  await saveOrder(env, clean);
   return json({ ok: true });
 }
 
@@ -397,6 +422,7 @@ export default {
     if (pathname === "/api/image/delete") return requireAuth(request, env, () => handleDelete(request, env, ctx));
     if (pathname === "/api/image/toggle") return requireAuth(request, env, () => handleToggle(request, env, ctx));
     if (pathname === "/api/image/update") return requireAuth(request, env, () => handleUpdateImage(request, env));
+    if (pathname === "/api/images/order") return requireAuth(request, env, () => handleReorder(request, env));
     if (pathname === "/api/folder/create") return requireAuth(request, env, () => handleCreateFolder(request, env));
     if (pathname === "/api/folder/rename") return requireAuth(request, env, () => handleRenameFolder(request, env));
     if (pathname === "/api/folder/delete") return requireAuth(request, env, () => handleDeleteFolder(request, env));
