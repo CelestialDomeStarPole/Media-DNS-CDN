@@ -18,7 +18,7 @@
   // =====================================================================
   "name": "media-dns-cdn",  // Worker 名称（Cloudflare 仅允许小写字母数字和连字符）
   "main": "src/index.js",
-  "compatibility_date": "2026-08-01",
+  "compatibility_date": "2026-08-03",
 
   // 开启 Workers Caching：缓存命中时由边缘直接返回，Worker 不执行
   "cache": {
@@ -28,8 +28,8 @@
   // URL 映射 + 运行时设置都存这里
   "kv_namespaces": [
     {
-    "binding": "你的KV空间绑定名", // KV 命名空间绑定名
-    "id": "你的KV空间ID" // KV 命名空间 ID（部署前创建）
+    "binding": "MAPPINGS", // KV 命名空间绑定名
+    "id": "REPLACE_WITH_YOUR_KV_NAMESPACE_ID" // KV 命名空间 ID（部署前创建）
     }
   ],
 
