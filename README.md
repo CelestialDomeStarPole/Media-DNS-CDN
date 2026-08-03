@@ -1,8 +1,12 @@
+<div align="center">
+
 # MediaDNS-CDN
 
 图片 / 音频 / 视频外链转接 · 缓存 · 防盗链 Cloudflare Worker
 
 [English](README.en.md)
+
+</div>
 
 > 一个部署在 Cloudflare Workers 上的媒体外链转接 + 缓存 + 防盗链服务。给任意图片 / 音频 / 视频直链生成带防护的短链接：支持 302 直跳（仅 DNS）与缓存代理（Worker 缓存 + DNS）两种模式，内置地区 / IP / ASN / Referer 黑白名单、HMAC 签名链接、多级限流与视频缩略图自动截帧。
 

@@ -1,8 +1,12 @@
+<div align="center">
+
 # MediaDNS-CDN
 
 Image / Audio / Video hotlink relay · Cache · Anti-leech Cloudflare Worker
 
 [中文](README.md)
+
+</div>
 
 > A media hotlink relay + cache + anti-leech service deployed on Cloudflare Workers. Generate protected short links for any image / audio / video direct URL: supports both 302 redirect (DNS-only) and cached proxy (Worker cache + DNS) modes, with built-in country / IP / ASN / Referer allow & block lists, HMAC signed links, multi-level rate limiting, and automatic video thumbnail frame capture.
 
