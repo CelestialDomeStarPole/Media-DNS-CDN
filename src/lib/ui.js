@@ -305,6 +305,16 @@ a{color:var(--accent)}
 .skeleton{height:210px;border-radius:var(--radius);background:linear-gradient(100deg,rgba(255,255,255,.45) 20%,rgba(255,255,255,.85) 45%,rgba(255,255,255,.45) 70%);background-size:200% 100%;animation:shimmer 1.3s infinite;border:1px solid var(--glass-line)}
 @keyframes shimmer{to{background-position:-200% 0}}
 
+/* 占位卡：基本信息未就绪时的骨架 */
+.img-card .thumb-loading{display:flex;align-items:center;justify-content:center;background:linear-gradient(160deg,color-mix(in srgb,var(--c1) 10%,#fff),color-mix(in srgb,var(--c3) 10%,#fff))}
+.thumb-loading .thumb-spin{width:26px;height:26px;border-radius:50%;border:3px solid color-mix(in srgb,var(--accent) 18%,transparent);border-top-color:var(--accent);animation:spin .8s linear infinite;opacity:.7}
+@keyframes spin{to{transform:rotate(360deg)}}
+.body-skeleton{display:flex;flex-direction:column;gap:9px}
+.sk-line{height:10px;border-radius:6px;background:linear-gradient(100deg,rgba(255,255,255,.4) 20%,rgba(255,255,255,.8) 45%,rgba(255,255,255,.4) 70%);background-size:200% 100%;animation:shimmer 1.3s infinite}
+.sk-line.ht{height:14px}
+.img-card.fill-done .thumb img{animation:cardFade .35s ease both}
+@keyframes cardFade{from{opacity:0}to{opacity:1}}
+
 /* 设置 */
 .page-title{font-size:18px;margin-bottom:18px}
 .settings-form{display:flex;flex-direction:column;gap:18px;max-width:900px;margin:0 auto}
@@ -568,6 +578,15 @@ a{color:var(--accent)}
   var cardQueue = [];
   var cardQueueTimer = null;
   var thumbManageTimer = null;
+
+  /* 基本信息增量加载：有界并发逐卡拉取 /api/image/detail，就绪即填充占位卡 */
+  var INFO_CONCURRENCY = 6;
+  var infoQueue = [];
+  var infoInFlight = 0;
+  var infoRunning = false;
+  var infoActive = {}; // id -> true（已入队或在途，防止重复入队）
+  var infoFailed = {}; // id -> true（本轮加载失败，跳过重试；下次 loadImages 重置）
+  var loadGen = 0;
 
   var I18N = {
     zh: {
@@ -1299,9 +1318,29 @@ a{color:var(--accent)}
     if (newVisible.join(",") === d.visibleBefore.join(",")) return;
     var newFull = applyOrderToFull(d.fullBefore, d.id, newVisible);
     lastImages = reorderImageList(lastImages, newFull);
+    // 拖拽期间该卡信息可能已异步填充（fillCardInfo 找到 body 上的 ghost）：
+    // 1) 回到网格后重新接管缩略图/视频帧懒加载观察；
+    // 2) 按当前筛选补齐隐藏（拖拽中为防 ghost 消失而跳过了隐藏）
+    if (d.card && d.card.querySelector("img.thumb-img, video.tv-thumb")) {
+      setupVideoThumbs();
+      observeThumbs();
+    }
+    if (!d.card.dataset.loading) {
+      for (var fi = 0; fi < lastImages.length; fi++) {
+        if (lastImages[fi].id === d.id) {
+          if (!cardMatchesFilter(lastImages[fi])) d.card.style.display = "none";
+          break;
+        }
+      }
+    }
     api("/api/images/order", { method: "POST", body: JSON.stringify({ ids: newFull }) })
-      .then(function () { toast(t("op.sorted"), "success"); })
-      .catch(function (err) { toast(err.message || t("op.fail"), "error"); loadImages(); });
+      .then(function () { /* 拖拽本身已即时反馈，成功静默，避免打扰 */ })
+      .catch(function (err) {
+        toast(err.message || t("op.fail"), "error");
+        // 失败回滚为拖拽前顺序（本地重排 + 就地重建，不再全量重拉网络）
+        lastImages = reorderImageList(lastImages, d.fullBefore);
+        renderGrid(lastImages, { anchor: true });
+      });
   }
   $("grid").addEventListener("pointerdown", function (e) {
     if (dnd) return;
@@ -1387,6 +1426,8 @@ a{color:var(--accent)}
   function filterImages(images) {
     var q = searchQuery.toLowerCase();
     return images.filter(function (img) {
+      // 占位卡信息未就绪，暂不过滤，先以占位显示
+      if (img && img._loading) return true;
       if (currentFolder === "__uncat__") { if (img.folder) return false; }
       else if (currentFolder && img.folder !== currentFolder) return false;
       if (q) {
@@ -1395,6 +1436,17 @@ a{color:var(--accent)}
       }
       return true;
     });
+  }
+  // 单卡过滤判断，用于增量加载后即时隐藏不匹配当前筛选的卡片
+  function cardMatchesFilter(img) {
+    if (img && img._loading) return true;
+    if (currentFolder === "__uncat__") { if (img.folder) return false; }
+    else if (currentFolder && img.folder !== currentFolder) return false;
+    if (searchQuery) {
+      var hay = ((img.name || "") + " " + img.id + " " + (img.url || "")).toLowerCase();
+      if (hay.indexOf(searchQuery.toLowerCase()) === -1) return false;
+    }
+    return true;
   }
 
   function folderOptions(selected) {
@@ -1430,15 +1482,12 @@ a{color:var(--accent)}
     gridState.groupSize = cols * rows;
     return cols;
   }
-  function buildCard(img, i) {
-    var card = document.createElement("div");
-    card.className = "card img-card" + (img.enabled ? "" : " disabled");
-    card.dataset.id = img.id;
-    card.style.animationDelay = Math.min(i * 45, 360) + "ms";
-    card.innerHTML =
-      '<div class="thumb">' + thumbHtml(img) +
-      '<button class="zoom" data-url="' + esc(img.url) + '" data-type="' + esc(img.type || "") + '" aria-label="' + esc(t("card.preview")) + '">' + esc(t("card.preview.short")) + "</button></div>" +
-      '<div class="card-body">' +
+  function thumbWrapHtml(img) {
+    return '<div class="thumb">' + thumbHtml(img) +
+      '<button class="zoom" data-url="' + esc(img.url) + '" data-type="' + esc(img.type || "") + '" aria-label="' + esc(t("card.preview")) + '">' + esc(t("card.preview.short")) + "</button></div>";
+  }
+  function cardBodyHtml(img) {
+    return '<div class="card-body">' +
       '<div class="card-top">' + modeBadge(img.mode) + typeBadge(img.type || guessTypeClient(img.url)) + '<span class="muted">' + fmtTime(img.createdAt) + "</span></div>" +
       '<div class="img-name" data-id="' + esc(img.id) + '" data-name="' + esc(img.name || "") + '" title="' + esc(t("card.renameTitle")) + '">' + esc(displayName(img)) + '<span class="pen">✎</span></div>' +
       '<div class="img-id" title="' + esc(img.id) + '">' + esc(img.id) + "</div>" +
@@ -1449,6 +1498,27 @@ a{color:var(--accent)}
       '<button class="mini copy" data-url="' + esc(img.shortUrl || img.url) + '" aria-label="' + esc(t("card.copy.aria")) + '">' + esc(t("card.copy")) + "</button>" +
       '<button class="mini danger del" data-id="' + esc(img.id) + '" aria-label="' + esc(t("card.del")) + '">' + esc(t("card.del")) + "</button>" +
       "</div></div>";
+  }
+  function buildCard(img, i) {
+    var card = document.createElement("div");
+    card.className = "card img-card" + (img.enabled ? "" : " disabled");
+    card.dataset.id = img.id;
+    card.style.animationDelay = Math.min(i * 45, 360) + "ms";
+    if (img._loading) {
+      // 占位卡：基本信息未就绪，保持固定尺寸与顺序，待信息到达后再填充
+      card.dataset.loading = "1";
+      card.innerHTML =
+        '<div class="thumb thumb-loading"><span class="thumb-spin"></span></div>' +
+        '<div class="card-body body-skeleton">' +
+        '<div class="sk-line ht" style="width:55%"></div>' +
+        '<div class="sk-line" style="width:35%"></div>' +
+        '<div class="sk-line" style="width:85%"></div>' +
+        '<div class="sk-line" style="width:60%"></div>' +
+        '<div class="sk-line" style="width:70%"></div>' +
+        "</div>";
+      return card;
+    }
+    card.innerHTML = thumbWrapHtml(img) + cardBodyHtml(img);
     return card;
   }
   function resetSentinel() {
@@ -1554,6 +1624,8 @@ a{color:var(--accent)}
     }
     renderWindow(vis, start);
     renderGroupNav(vis);
+    // 重建网格后续载未就绪的基本信息（删除/搜索/重命名/切语言等场景）
+    ensureInfoLoads();
   }
 
   function gridDocTop() {
@@ -1623,16 +1695,298 @@ a{color:var(--accent)}
   }
 
   function loadImages(opts) {
+    var gen = ++loadGen;
+    // 取消上一轮未完成的增量加载，避免过期数据回填
+    infoQueue = [];
+    infoActive = {};
+    infoFailed = {};
+    infoRunning = false;
     if (lastImages === null) renderSkeleton();
-    api("/api/images").then(function (data) {
-      lastImages = data.images || [];
+    api("/api/images/ids").then(function (data) {
+      if (gen !== loadGen) return;
+      var ids = data.ids || [];
       lastFolders = data.folders || [];
+      // 先按序用占位对象建卡，锁定顺序；详情后续逐卡异步填充（renderGrid 内自动续载）
+      lastImages = ids.map(function (id) { return { id: id, _loading: true }; });
       renderFolders();
       renderGrid(lastImages, opts || {});
     }).catch(function (err) {
+      if (gen !== loadGen) return;
       if (lastImages === null) $("grid").innerHTML = "";
       if (err.message && err.message.indexOf("未登录") === -1) toast(err.message, "error");
     });
+  }
+
+  /* 基本信息增量加载：有界并发逐卡请求，就绪即填充对应占位卡。
+     renderGrid 每次重建网格后都会调用 ensureInfoLoads，保证删除/搜索/重命名等
+     操作重建占位卡后，尚未加载的卡能继续异步续载。 */
+  function ensureInfoLoads() {
+    if (!lastImages || !lastImages.length) return;
+    var need = false;
+    for (var i = 0; i < lastImages.length; i++) {
+      var im = lastImages[i];
+      if (im && im._loading && !infoActive[im.id] && !infoFailed[im.id]) {
+        infoActive[im.id] = true;
+        infoQueue.push(im.id);
+        need = true;
+      }
+    }
+    if (need && !infoRunning) {
+      infoRunning = true;
+      pumpInfo(loadGen);
+    }
+  }
+  function pumpInfo(gen) {
+    while (infoInFlight < INFO_CONCURRENCY && infoQueue.length) {
+      if (gen !== loadGen) { infoRunning = false; return; }
+      var id = infoQueue.shift();
+      infoInFlight++;
+      loadCardInfo(gen, id);
+    }
+    // 队列耗尽且无在途请求时复位，避免 infoRunning 永久占用
+    if (!infoInFlight && !infoQueue.length) infoRunning = false;
+  }
+  function loadCardInfo(gen, id) {
+    api("/api/image/detail?id=" + encodeURIComponent(id)).then(function (data) {
+      if (gen === loadGen) fillCardInfo(id, data);
+    }).catch(function () {
+      // 失败保留占位，本轮跳过重试（避免重试风暴）；下次 loadImages 会清空重试
+      infoFailed[id] = true;
+    }).then(function () {
+      delete infoActive[id];
+      infoInFlight--;
+      if (gen === loadGen) pumpInfo(gen);
+      else infoRunning = false;
+    });
+  }
+  // 仅填充卡片 DOM 内容（不含缩略图接管/计数），供 fillCardInfo 与拖拽结束复用。
+  // skipHide=true 用于拖拽中的 ghost：此时隐藏会让卡片从鼠标下消失、拖拽中断，改由 finishDrag 收尾时隐藏
+  function fillCardDom(card, img, skipHide) {
+    delete card.dataset.loading;
+    card.classList.add("fill-done");
+    card.classList.toggle("disabled", img.enabled === false);
+    var thumb = card.querySelector(".thumb");
+    if (thumb) thumb.outerHTML = thumbWrapHtml(img);
+    var body = card.querySelector(".card-body");
+    if (body) body.outerHTML = cardBodyHtml(img);
+    // 不匹配当前筛选则隐藏（占位时无法过滤，加载后再按需隐藏）
+    if (!skipHide && !cardMatchesFilter(img)) card.style.display = "none";
+  }
+  function fillCardInfo(id, img) {
+    var full = { ...img, id: id };
+    // 原地更新 lastImages：占位对象替换为完整对象
+    if (lastImages) {
+      for (var i = 0; i < lastImages.length; i++) {
+        if (lastImages[i] && lastImages[i].id === id) { lastImages[i] = full; break; }
+      }
+    }
+    // 同步更新虚拟列表快照，避免滚动重建时仍用旧占位对象生成骨架卡
+    if (gridState.vis) {
+      for (var j = 0; j < gridState.vis.length; j++) {
+        if (gridState.vis[j] && gridState.vis[j].id === id) { gridState.vis[j] = full; break; }
+      }
+    }
+    // 用 document 范围查找：拖拽中的卡挂在 body 上（ghost），grid 内查不到
+    var card = document.querySelector('.img-card[data-id="' + id + '"]');
+    if (!card || !card.dataset.loading) return; // 不在当前渲染窗口或已填充
+    // 拖拽中的卡不在此刻按筛选隐藏，避免 ghost 突然消失导致拖拽中断，由 finishDrag 收尾补齐
+    fillCardDom(card, full, !!(dnd && dnd.card === card));
+    setupVideoThumbs();
+    observeThumbs();
+    updateImgCount();
+  }
+
+  /* ===== 就地更新辅助层：写操作乐观更新 + 局部 DOM 刷新 + 失败回滚 =====
+     目标：避免每次写操作后全量 loadImages/renderGrid 重建网格（缩略图/滚动位置丢失），
+     改为只在受影响单卡上做 DOM 更新，并同步 lastImages / lastFolders / gridState.vis。 */
+
+  // 查找 lastImages 中的对象（就地引用更新，避免替换导致渲染层丢失）
+  function findInLast(id) {
+    if (!lastImages) return null;
+    for (var i = 0; i < lastImages.length; i++) {
+      if (lastImages[i] && lastImages[i].id === id) return lastImages[i];
+    }
+    return null;
+  }
+  function findInVis(id) {
+    if (gridState.vis) {
+      for (var i = 0; i < gridState.vis.length; i++) {
+        if (gridState.vis[i] && gridState.vis[i].id === id) return gridState.vis[i];
+      }
+    }
+    return null;
+  }
+  // 按当前筛选决定某卡是否应可见；forceHidden 用于显式强制隐藏（如文件夹删除把卡移出）
+  function cardShouldShow(img) {
+    if (!img || img._loading) return true;
+    return cardMatchesFilter(img);
+  }
+  // 就地重建单个卡 DOM（数据已变更后调用）。跳过缩略图接管，由调用方决定是否重建。
+  function updateCardDom(id, opts) {
+    opts = opts || {};
+    var img = findInLast(id);
+    var card = document.querySelector('.img-card[data-id="' + id + '"]');
+    if (!img || !card) return;
+    // 保持数据与快照一致
+    var visObj = findInVis(id);
+    var src = img;
+    // 重建 .thumb 与 .card-body（如仍是占位则走占位骨架）
+    if (img._loading) {
+      card.dataset.loading = "1";
+      card.classList.remove("fill-done");
+      var phThumb = document.querySelector('.img-card[data-id="' + id + '"] .thumb');
+      var phBody = document.querySelector('.img-card[data-id="' + id + '"] .card-body');
+      if (phThumb) phThumb.outerHTML = '<div class="thumb thumb-loading"><span class="thumb-spin"></span></div>';
+      if (phBody) phBody.outerHTML = '<div class="card-body body-skeleton">' +
+        '<div class="sk-line ht" style="width:55%"></div>' +
+        '<div class="sk-line" style="width:35%"></div>' +
+        '<div class="sk-line" style="width:85%"></div>' +
+        '<div class="sk-line" style="width:60%"></div>' +
+        '<div class="sk-line" style="width:70%"></div>' +
+        "</div>";
+      card.classList.toggle("disabled", img.enabled === false);
+    } else {
+      delete card.dataset.loading;
+      card.classList.add("fill-done");
+      card.classList.toggle("disabled", img.enabled === false);
+      var th = document.querySelector('.img-card[data-id="' + id + '"] .thumb');
+      var bd = document.querySelector('.img-card[data-id="' + id + '"] .card-body');
+      if (th) th.outerHTML = thumbWrapHtml(img);
+      if (bd) bd.outerHTML = cardBodyHtml(img);
+    }
+    // 按筛选显隐（拖拽中的 ghost 延迟隐藏）
+    if (dnd && dnd.card === card) {
+      // 拖拽中不立即隐藏，由 finishDrag 收尾
+    } else {
+      var shouldShow = opts.forceHidden ? false : cardShouldShow(img);
+      card.style.display = shouldShow ? "" : "none";
+    }
+    // 缩略图/视频帧接管与计数
+    if (!img._loading) { setupVideoThumbs(); observeThumbs(); }
+    updateImgCount();
+  }
+
+  // 就地移除一张卡（乐观删除/回滚添加失败），从数据源 + DOM 中移除并刷新计数
+  function removeCardLocal(id) {
+    lastImages = (lastImages || []).filter(function (x) { return x && x.id !== id; });
+    if (gridState.vis) gridState.vis = gridState.vis.filter(function (x) { return x && x.id !== id; });
+    var card = document.querySelector('.img-card[data-id="' + id + '"]');
+    if (card && card.parentNode) card.parentNode.removeChild(card);
+    if (!lastImages.length) {
+      renderGrid(lastImages); // 空列表时回到空态（会同步 gridState.vis 与 empty 提示）
+    } else {
+      updateImgCount();
+    }
+  }
+
+  // 把一张卡插入 lastImages 首位并就地渲染（乐观添加）
+  function insertCardFirstLocal(im) {
+    lastImages = lastImages || [];
+    lastImages.unshift(im);
+    // 更新当前可见快照：若命中当前筛选则前插，否则仅入数据源
+    var matches = cardShouldShow(im);
+    if (gridState.vis) {
+      if (matches) gridState.vis.unshift(im);
+      // 不匹配当前筛选时不进 vis（避免出现本不该显示的卡）
+    }
+    var grid = $("grid");
+    if (matches) {
+      var card = buildCard(im, 0);
+      if (gridSentinel) grid.insertBefore(card, gridSentinel);
+      else grid.insertBefore(card, grid.firstChild);
+      gridState.rendered++;
+      if (!im._loading) { setupVideoThumbs(); observeThumbs(); }
+      updateImgCount();
+    } else {
+      updateImgCount();
+    }
+  }
+
+  // 乐观添加：convert 返回真实 id 后，把临时占位卡替换为真实 id 的占位对象，
+  // 并同步数据源与 DOM 卡的 data-id，随后由 ensureInfoLoads 拉取完整信息填充
+  function replacePendingCard(tempId, newIm) {
+    if (lastImages) {
+      for (var i = 0; i < lastImages.length; i++) {
+        if (lastImages[i] && lastImages[i].id === tempId) { lastImages[i] = newIm; break; }
+      }
+    }
+    if (gridState.vis) {
+      for (var j = 0; j < gridState.vis.length; j++) {
+        if (gridState.vis[j] && gridState.vis[j].id === tempId) { gridState.vis[j] = newIm; break; }
+      }
+    }
+    var card = document.querySelector('.img-card[data-id="' + tempId + '"]');
+    if (card) card.dataset.id = newIm.id;
+    // 真实 folder 与当前筛选不匹配时，等 fillCardInfo 填充时再隐藏
+  }
+
+  // 把保存的（浅拷贝）对象字段回写到 lastImages 对应 id，用于失败回滚
+  function restoreImagesFrom(saved) {
+    if (!saved) return;
+    var map = {};
+    saved.forEach(function (s) { if (s && s.id) map[s.id] = s; });
+    lastImages.forEach(function (im) {
+      if (im && map[im.id]) {
+        im.folder = map[im.id].folder;
+        im.name = map[im.id].name;
+        im.enabled = map[im.id].enabled;
+      }
+    });
+  }
+
+  // 就地重建所有已渲染卡的 .card-body（保留 .thumb），用于文件夹增删改名后刷新 fsel 选项
+  function refreshCardBodies() {
+    var cards = $("grid").querySelectorAll(".img-card");
+    for (var i = 0; i < cards.length; i++) {
+      var c = cards[i];
+      var im = findInLast(c.dataset.id);
+      if (!im || im._loading) continue;
+      var bd = c.querySelector(".card-body");
+      if (bd) bd.outerHTML = cardBodyHtml(im);
+    }
+    setupVideoThumbs();
+    observeThumbs();
+  }
+
+  // 就地同步当前过滤（文件夹/搜索）到已渲染卡：显隐 + 更新 vis 快照 + 计数 + 空态。
+  // 已渲染可见卡数量不足 vis（例如切到更大的文件夹）时重建网格补齐（本地，无网络）。
+  function syncFilterInPlace() {
+    var vis = filterImages(lastImages);
+    gridState.vis = vis;
+    var cards = $("grid").querySelectorAll(".img-card");
+    var visibleCount = 0;
+    for (var i = 0; i < cards.length; i++) {
+      var c = cards[i];
+      var im = findInLast(c.dataset.id);
+      if (!im) { c.style.display = "none"; continue; }
+      if (im._loading) { c.style.display = ""; visibleCount++; continue; } // 占位保持显示
+      var show = cardShouldShow(im);
+      c.style.display = show ? "" : "none";
+      if (show) visibleCount++;
+    }
+    if (!vis.length) {
+      $("empty").classList.remove("hidden");
+      $("empty").textContent = lastImages.length ? t("empty.filtered") : t("empty");
+    } else {
+      $("empty").classList.add("hidden");
+    }
+    $("img-count").textContent = t("list.count", { n: vis.length });
+    if (visibleCount < vis.length) {
+      renderGrid(lastImages); // 需展示更多卡，重建补齐（本地、快速）
+      return;
+    }
+    ensureInfoLoads();
+  }
+
+  function updateImgCount() {
+    if (!lastImages) return;
+    var n = 0;
+    for (var i = 0; i < lastImages.length; i++) {
+      if (!lastImages[i]) continue;
+      // 占位卡先计入总数（与 renderGrid 的 vis.length 口径一致），已加载卡按筛选匹配计数
+      if (lastImages[i]._loading || cardMatchesFilter(lastImages[i])) n++;
+    }
+    $("img-count").textContent = t("list.count", { n: n });
   }
 
   var addPreviewTimer = null;
@@ -1693,18 +2047,34 @@ a{color:var(--accent)}
     if (folder === "__new__") folder = addPendingFolder;
     var btn = $("add-btn");
     setBusy(btn, true, t("add.busy"));
+    // 乐观：先插入一个临时占位卡到列表首位，立即反映"正在添加"，
+    // 无需等待 convert 返回；请求成功后替换为真实卡，失败则移除
+    var tempId = "pending-" + Date.now();
+    insertCardFirstLocal({ id: tempId, _loading: true, _pendingAdd: true });
     api("/api/convert", { method: "POST", body: JSON.stringify({ url: url, mode: mode, name: name, folder: folder }) })
       .then(function (data) {
+        var realId = data.id;
+        // 若本次添加到的新文件夹不在本地文件夹栏中，补入
+        if (folder && lastFolders.indexOf(folder) === -1) {
+          lastFolders.push(folder);
+          renderFolders();
+        }
+        // 临时占位卡替换为真实 id 占位，随后 ensureInfoLoads 拉取完整信息填充
+        replacePendingCard(tempId, { id: realId, _loading: true });
+        ensureInfoLoads();
         toast(t("add.ok"), "success");
         clearTimeout(addPreviewTimer);
         $("add-url").value = "";
         $("add-name").value = "";
         $("add-preview").classList.add("hidden");
         try { navigator.clipboard.writeText(data.url); } catch (e) {}
-        loadImages();
         $("add-url").focus();
       })
-      .catch(function (err) { toast(err.message || t("add.err"), "error"); })
+      .catch(function (err) {
+        // 失败：移除临时占位卡并回滚
+        removeCardLocal(tempId);
+        toast(err.message || t("add.err"), "error");
+      })
       .finally(function () { setBusy(btn, false); });
   }
   $("add-btn").addEventListener("click", addImage);
@@ -1716,11 +2086,39 @@ a{color:var(--accent)}
     var im = (lastImages || []).filter(function (x) { return x.id === id; })[0];
     return im ? (im.folder || "") : "";
   }
-  function setFolder(id, folder) {
-    api("/api/image/update", { method: "POST", body: JSON.stringify({ id: id, folder: folder }) })
-      .then(function () { toast(t("op.moved"), "success"); loadImages({ anchor: true }); })
-      .catch(function (err) { toast(err.message, "error"); });
+  // 把后端返回的完整单卡数据合并进本地数据源（lastImages + gridState.vis），就地刷新，不做全量重拉
+  function mergeServerImage(data, id) {
+    var d = data && data.image;
+    if (!d || !id) return;
+    var o = findInLast(id);
+    if (o) { for (var k in d) { if (k !== "id") o[k] = d[k]; } }
+    var v = findInVis(id);
+    if (v) { for (var k2 in d) { if (k2 !== "id") v[k2] = d[k2]; } }
   }
+
+  function setFolder(id, folder) {
+    var im = findInLast(id);
+    var prevFolder = im ? (im.folder || "") : "";
+    // 乐观：立即更新数据与单卡 DOM（fsel 选项 + 当前文件夹过滤显隐），无需等待请求
+    if (im) im.folder = folder;
+    var v0 = findInVis(id);
+    if (v0) v0.folder = folder;
+    updateCardDom(id);
+    api("/api/image/update", { method: "POST", body: JSON.stringify({ id: id, folder: folder }) })
+      .then(function (data) {
+        mergeServerImage(data, id);
+        toast(t("op.moved"), "success");
+      })
+      .catch(function (err) {
+        // 失败回滚 folder
+        if (im) im.folder = prevFolder;
+        var v1 = findInVis(id);
+        if (v1) v1.folder = prevFolder;
+        updateCardDom(id);
+        toast(err.message || t("op.fail"), "error");
+      });
+  }
+
   function enterNameEdit(span) {
     if (span.querySelector("input")) return;
     var id = span.getAttribute("data-id");
@@ -1738,11 +2136,29 @@ a{color:var(--accent)}
       finished = true;
       var v = input.value.trim();
       if (save && v !== prev) {
+        var im = findInLast(id);
+        var prevName = im ? (im.name || "") : "";
+        // 乐观：立即更新数据与单卡 DOM（编辑已结束，就地重建安全）
+        if (im) im.name = v;
+        var v0 = findInVis(id);
+        if (v0) v0.name = v;
+        updateCardDom(id);
         api("/api/image/update", { method: "POST", body: JSON.stringify({ id: id, name: v }) })
-          .then(function () { toast(t("op.saved"), "success"); loadImages({ anchor: true }); })
-          .catch(function (err) { toast(err.message, "error"); });
+          .then(function (data) {
+            mergeServerImage(data, id);
+            toast(t("op.saved"), "success");
+          })
+          .catch(function (err) {
+            // 失败回滚 name
+            if (im) im.name = prevName;
+            var v1 = findInVis(id);
+            if (v1) v1.name = prevName;
+            updateCardDom(id);
+            toast(err.message || t("op.fail"), "error");
+          });
       } else {
-        loadImages({ anchor: true });
+        // 取消编辑：就地重建该卡，恢复为数据源当前值（不触发全量重拉）
+        updateCardDom(id);
       }
     }
     input.addEventListener("keydown", function (e) {
@@ -1795,9 +2211,27 @@ a{color:var(--accent)}
     if (el.classList.contains("tgl")) {
       var id = el.getAttribute("data-id");
       var enabled = el.checked;
+      // checkbox 变化本身已即时反映；同步数据源，失败时回滚
+      var im = findInLast(id);
+      var prev = im ? im.enabled !== false : true;
+      if (im) im.enabled = enabled;
+      var v0 = findInVis(id);
+      if (v0) v0.enabled = enabled;
+      var card0 = document.querySelector('.img-card[data-id="' + id + '"]');
+      if (card0) card0.classList.toggle("disabled", !enabled);
       api("/api/image/toggle", { method: "POST", body: JSON.stringify({ id: id, enabled: enabled }) })
         .then(function () { toast(enabled ? t("op.toggleOn") : t("op.toggleOff")); })
-        .catch(function (err) { toast(err.message || t("op.fail"), "error"); });
+        .catch(function (err) {
+          // 失败回滚
+          if (im) im.enabled = prev;
+          var v1 = findInVis(id);
+          if (v1) v1.enabled = prev;
+          var card1 = document.querySelector('.img-card[data-id="' + id + '"]');
+          var tgl = card1 ? card1.querySelector(".tgl") : null;
+          if (tgl) tgl.checked = prev;
+          if (card1) card1.classList.toggle("disabled", !prev);
+          toast(err.message || t("op.fail"), "error");
+        });
     } else if (el.classList.contains("fsel")) {
       var id2 = el.getAttribute("data-id");
       var val = el.value;
@@ -1842,14 +2276,15 @@ a{color:var(--accent)}
     var id = pendingDelete;
     closeConfirm();
     if (!id) return;
+    // 乐观删除：确认后立即从本地数据源与 DOM 移除，无需等待请求；KV 最终一致由后端保证
+    removeCardLocal(id);
+    toast(t("op.del"));
     api("/api/image/delete", { method: "POST", body: JSON.stringify({ id: id }) })
-      .then(function () {
-        toast(t("op.del"));
-        // KV 删除是最终一致性的，本地立即移除，避免列表要等 KV 传播才消失
-        lastImages = (lastImages || []).filter(function (x) { return x.id !== id; });
-        renderGrid(lastImages, { anchor: true });
-      })
-      .catch(function (err) { toast(err.message || t("op.delFail"), "error"); });
+      .catch(function (err) {
+        // 删除失败（极少）：全量重拉恢复真实状态，保证数据一致性
+        toast(err.message || t("op.delFail"), "error");
+        loadImages({ anchor: true });
+      });
   });
   $("confirm-modal").addEventListener("click", function (e) { if (e.target === this) closeConfirm(); });
   function closeConfirm() { pendingDelete = null; $("confirm-modal").classList.add("hidden"); }
@@ -1896,9 +2331,10 @@ a{color:var(--accent)}
     } else if (el.classList.contains("fchip") && el.id !== "folder-add") {
       currentFolder = el.getAttribute("data-f");
       if (lastImages !== null) {
-        window.scrollTo(0, 0);
+        // 就地显隐（保留缩略图与滚动），切换文件夹无需全量重建网格
         renderFolders();
-        renderGrid(lastImages);
+        syncFilterInPlace();
+        window.scrollTo(0, 0);
       } else {
         loadImages();
       }
@@ -1906,11 +2342,12 @@ a{color:var(--accent)}
       var name = (window.prompt(t("folder.newPh")) || "").trim();
       if (!name) return;
       apiCreateFolder(name).then(function () {
-        currentFolder = name;
+        // 就地更新：无需全量重拉，仅补文件夹栏 + 切换到新文件夹
         if (lastFolders.indexOf(name) === -1) lastFolders.push(name);
-        toast(t("folder.createOk"), "success");
+        currentFolder = name;
         renderFolders();
-        renderGrid(lastImages === null ? [] : lastImages);
+        toast(t("folder.createOk"), "success");
+        if (lastImages !== null) syncFilterInPlace();
       }).catch(function (err) { toast(err.message, "error"); });
     }
   });
@@ -1928,20 +2365,51 @@ a{color:var(--accent)}
     if (act === "rename") {
       var name = (window.prompt(t("folder.renamePrompt"), chipMenuFolder) || "").trim();
       if (!name || name === chipMenuFolder) return;
-      api("/api/folder/rename", { method: "POST", body: JSON.stringify({ from: chipMenuFolder, to: name }) })
-        .then(function () {
-          if (currentFolder === chipMenuFolder) currentFolder = name;
-          toast(t("folder.renameOk"), "success");
-          loadImages();
-        }).catch(function (err) { toast(err.message, "error"); });
+      var from = chipMenuFolder;
+      var savedImgs = (lastImages || []).map(function (x) { return x ? { ...x } : null; });
+      var savedFolders = lastFolders.slice();
+      // 乐观：就地重命名文件夹及其下所有卡
+      lastImages.forEach(function (im) { if (im && im.folder === from) im.folder = name; });
+      lastFolders = lastFolders.filter(function (f) { return f !== from; });
+      if (lastFolders.indexOf(name) === -1) lastFolders.push(name);
+      if (currentFolder === from) currentFolder = name;
+      renderFolders();
+      refreshCardBodies();
+      syncFilterInPlace();
+      api("/api/folder/rename", { method: "POST", body: JSON.stringify({ from: from, to: name }) })
+        .then(function () { toast(t("folder.renameOk"), "success"); })
+        .catch(function (err) {
+          restoreImagesFrom(savedImgs);
+          lastFolders = savedFolders;
+          if (currentFolder === name) currentFolder = from;
+          renderFolders();
+          refreshCardBodies();
+          syncFilterInPlace();
+          toast(err.message, "error");
+        });
     } else if (act === "delete") {
       if (!window.confirm(t("folder.deleteConfirm", { name: chipMenuFolder }))) return;
-      api("/api/folder/delete", { method: "POST", body: JSON.stringify({ name: chipMenuFolder }) })
-        .then(function () {
-          if (currentFolder === chipMenuFolder) currentFolder = "";
-          toast(t("folder.deleted"), "success");
-          loadImages();
-        }).catch(function (err) { toast(err.message, "error"); });
+      var delName = chipMenuFolder;
+      var savedImgs2 = (lastImages || []).map(function (x) { return x ? { ...x } : null; });
+      var savedFolders2 = lastFolders.slice();
+      // 乐观：就地删除文件夹，其下卡移入未分类
+      lastImages.forEach(function (im) { if (im && im.folder === delName) im.folder = ""; });
+      lastFolders = lastFolders.filter(function (f) { return f !== delName; });
+      if (currentFolder === delName) currentFolder = "";
+      renderFolders();
+      refreshCardBodies();
+      syncFilterInPlace();
+      api("/api/folder/delete", { method: "POST", body: JSON.stringify({ name: delName }) })
+        .then(function () { toast(t("folder.deleted"), "success"); })
+        .catch(function (err) {
+          restoreImagesFrom(savedImgs2);
+          lastFolders = savedFolders2;
+          if (currentFolder === "" && savedFolders2.indexOf(delName) !== -1) currentFolder = delName;
+          renderFolders();
+          refreshCardBodies();
+          syncFilterInPlace();
+          toast(err.message, "error");
+        });
     }
   });
 

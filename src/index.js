@@ -12,6 +12,7 @@ import {
   saveFolders,
   getOrder,
   saveOrder,
+  getOrderedIds,
 } from "./lib/store.js";
 import {
   json,
@@ -150,6 +151,22 @@ async function handleList(request, env) {
   return json({ images: out, folders: await getFolders(env) });
 }
 
+// 轻量：仅返回有序 id 列表，供前端预渲染占位卡并锁定顺序，响应极小、速度快
+async function handleListIds(env) {
+  const [ids, folders] = await Promise.all([getOrderedIds(env), getFolders(env)]);
+  return json({ ids, folders });
+}
+
+// 单条：按 id 返回单张媒体的完整元数据（含 shortUrl），供前端逐卡独立异步加载
+async function handleImageDetail(request, env) {
+  const id = new URL(request.url).searchParams.get("id") || "";
+  if (!id || !IMAGE_ID_RE.test(id)) return json({ error: "ID 无效" }, 400);
+  const img = await getImage(env, id);
+  if (!img) return json({ error: "图片不存在" }, 404);
+  const settings = await getSettings(env);
+  return json({ ...img, shortUrl: await makeLink(request, env, settings, id) });
+}
+
 async function handleUpdateImage(request, env) {
   const body = await request.json().catch(() => null);
   const id = body && typeof body.id === "string" ? body.id : "";
@@ -159,7 +176,9 @@ async function handleUpdateImage(request, env) {
   if (body.name !== undefined) img.name = sanitizeField(body.name, 60);
   if (body.folder !== undefined) img.folder = sanitizeField(body.folder, 30);
   await putImage(env, id, img);
-  return json({ ok: true });
+  // 返回更新后的完整单卡数据（含 shortUrl），前端可直接就地刷新，无需全量重拉
+  const settings = await getSettings(env);
+  return json({ ok: true, image: { ...img, id, shortUrl: await makeLink(request, env, settings, id) } });
 }
 
 async function handleCreateFolder(request, env) {
@@ -438,6 +457,8 @@ export default {
     if (pathname === "/api/login") return handleLogin(request, env);
     if (pathname === "/api/convert") return requireAuth(request, env, () => handleConvert(request, env));
     if (pathname === "/api/images") return requireAuth(request, env, () => handleList(request, env));
+    if (pathname === "/api/images/ids") return requireAuth(request, env, () => handleListIds(env));
+    if (pathname === "/api/image/detail") return requireAuth(request, env, () => handleImageDetail(request, env));
     if (pathname === "/api/image/delete") return requireAuth(request, env, () => handleDelete(request, env, ctx));
     if (pathname === "/api/image/toggle") return requireAuth(request, env, () => handleToggle(request, env, ctx));
     if (pathname === "/api/image/update") return requireAuth(request, env, () => handleUpdateImage(request, env));

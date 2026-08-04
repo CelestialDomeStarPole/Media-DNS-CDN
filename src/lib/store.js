@@ -142,6 +142,15 @@ export async function listImages(env) {
   return images;
 }
 
+// 仅返回有序 id 列表（轻量，供前端预渲染占位卡）。
+// 有显式排序记录时只需一次 KV 读；无记录时回退到 listImages 取 id（仅发生在从未有过排序记录的存量数据）。
+export async function getOrderedIds(env) {
+  const order = await getOrder(env);
+  if (order && order.length) return order;
+  const images = await listImages(env);
+  return images.map((x) => x.id);
+}
+
 export async function getFolders(env) {
   const raw = await env.MAPPINGS.get(FOLDER_KEY);
   if (raw) {
