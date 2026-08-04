@@ -250,7 +250,7 @@ a{color:var(--accent)}
 .empty{color:var(--muted);text-align:center;padding:50px 0;font-size:14px}
 
 /* 图片网格 */
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;align-items:stretch}
 .img-card{overflow:hidden;display:flex;flex-direction:column;transition:transform .14s ease,box-shadow .14s ease;animation:cardIn .4s ease;cursor:grab}
 .img-card:hover{transform:translateY(-3px);box-shadow:0 14px 34px color-mix(in srgb,var(--accent) 28%,rgba(31,41,55,.10))}
 .img-card:active{cursor:grabbing}
@@ -279,11 +279,12 @@ a{color:var(--accent)}
 .badge-type-image{background:color-mix(in srgb,#3b82f6 14%,#fff);color:#2563eb;border-color:transparent}
 .badge-type-audio{background:color-mix(in srgb,#10b981 14%,#fff);color:#059669;border-color:transparent}
 .badge-type-video{background:color-mix(in srgb,#f59e0b 14%,#fff);color:#d97706;border-color:transparent}
-.img-name{font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.img-name .pen{font-size:11px;color:var(--muted);opacity:0;transition:opacity .15s}
+.img-name{font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;line-height:20px;min-height:20px}
+.img-name .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.img-name .pen{flex:none;font-size:11px;color:var(--muted);opacity:0;transition:opacity .15s}
 .img-name:hover .pen{opacity:1}
 .name-edit{width:100%;padding:5px 8px;font-size:14px;font-weight:600;border:1px solid var(--accent);border-radius:7px;outline:none}
-.img-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#4b5563;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.img-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#4b5563;line-height:16px;min-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .img-url{font-size:11px;color:var(--muted);line-height:15px;min-height:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fsel{width:100%;padding:5px 8px;font-size:12px;border:1px solid rgba(0,0,0,.12);border-radius:7px;background:rgba(255,255,255,.85);color:#374151;cursor:pointer}
 .fsel:focus{border-color:var(--accent)}
