@@ -259,7 +259,7 @@ a{color:var(--accent)}
 .drop-placeholder{position:relative;display:flex;align-items:center;justify-content:center;border:2px dashed color-mix(in srgb,var(--accent) 62%,transparent);border-radius:14px;background:color-mix(in srgb,var(--accent) 10%,transparent);pointer-events:none;color:color-mix(in srgb,var(--accent) 80%,#fff);font-size:13px;font-weight:600;animation:phPulse 1.3s ease-in-out infinite;transition:transform .28s cubic-bezier(.2,.8,.2,1)}
 @keyframes phPulse{0%,100%{box-shadow:inset 0 0 0 0 color-mix(in srgb,var(--accent) 30%,transparent)}50%{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}}
 @keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-.thumb{position:relative;background:linear-gradient(160deg,color-mix(in srgb,var(--c1) 12%,#fff),color-mix(in srgb,var(--c3) 12%,#fff));aspect-ratio:16/10}
+.thumb{position:relative;background:linear-gradient(160deg,color-mix(in srgb,var(--c1) 12%,#fff),color-mix(in srgb,var(--c3) 12%,#fff));aspect-ratio:16/10;min-height:0}
 .thumb img,.thumb video{-webkit-user-drag:none;user-select:none}
 .thumb img{width:100%;height:100%;object-fit:contain;display:block;transition:opacity .25s ease}
 .thumb img.thumb-pending{opacity:0;position:absolute;inset:0;pointer-events:none}
