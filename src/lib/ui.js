@@ -270,7 +270,7 @@ a{color:var(--accent)}
 .thumb-fallback{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:8px;text-align:center;color:var(--muted)}
 .thumb-fallback .tf-icon{font-size:22px}
 .thumb-fallback .tf-id{font-size:11px;word-break:break-all;max-width:92%}
-.card-body{padding:12px;display:flex;flex-direction:column;gap:7px}
+.card-body{padding:12px;display:flex;flex-direction:column;gap:7px;flex:1}
 .card-top{display:flex;align-items:center;justify-content:space-between}
 .badge{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:600}
 .badge-proxy{background:color-mix(in srgb,var(--c1) 16%,#fff);color:var(--c1)}
@@ -279,11 +279,11 @@ a{color:var(--accent)}
 .badge-type-image{background:color-mix(in srgb,#3b82f6 14%,#fff);color:#2563eb;border-color:transparent}
 .badge-type-audio{background:color-mix(in srgb,#10b981 14%,#fff);color:#059669;border-color:transparent}
 .badge-type-video{background:color-mix(in srgb,#f59e0b 14%,#fff);color:#d97706;border-color:transparent}
-.img-name{font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;word-break:break-all}
+.img-name{font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .img-name .pen{font-size:11px;color:var(--muted);opacity:0;transition:opacity .15s}
 .img-name:hover .pen{opacity:1}
 .name-edit{width:100%;padding:5px 8px;font-size:14px;font-weight:600;border:1px solid var(--accent);border-radius:7px;outline:none}
-.img-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#4b5563;word-break:break-all}
+.img-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#4b5563;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .img-url{font-size:11px;color:var(--muted);word-break:break-all;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fsel{width:100%;padding:5px 8px;font-size:12px;border:1px solid rgba(0,0,0,.12);border-radius:7px;background:rgba(255,255,255,.85);color:#374151;cursor:pointer}
 .fsel:focus{border-color:var(--accent)}
