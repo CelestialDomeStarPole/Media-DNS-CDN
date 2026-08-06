@@ -3,6 +3,7 @@ node_modules/
 .wrangler/
 dist/
 *.log
+Todo.txt
 
 # 系统 / 编辑器
 .DS_Store

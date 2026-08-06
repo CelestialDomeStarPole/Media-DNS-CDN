@@ -443,8 +443,8 @@ a{color:var(--accent)}
           <select id="add-folder" aria-label="Folder"></select>
         </div>
         <div class="mode-row">
-          <label class="mode-option"><input type="radio" name="mode" value="redirect" checked /><span data-i18n="mode.redirect"></span><em data-i18n="mode.redirect.em"></em></label>
-          <label class="mode-option"><input type="radio" name="mode" value="proxy" /><span data-i18n="mode.proxy"></span><em data-i18n="mode.proxy.em"></em></label>
+          <label class="mode-option"><input type="radio" name="mode" value="redirect" /><span data-i18n="mode.redirect"></span><em data-i18n="mode.redirect.em"></em></label>
+          <label class="mode-option"><input type="radio" name="mode" value="proxy" checked /><span data-i18n="mode.proxy"></span><em data-i18n="mode.proxy.em"></em></label>
         </div>
         <div id="add-preview" class="preview hidden">
           <div id="preview-media"></div>
@@ -491,7 +491,7 @@ a{color:var(--accent)}
           <label><span data-i18n="set.maxImageSize"></span><input id="maxImageSize" type="number" min="1024" /></label>
           <label><span data-i18n="set.maxAudioSize"></span><input id="maxAudioSize" type="number" min="1024" /></label>
           <label><span data-i18n="set.maxVideoSize"></span><input id="maxVideoSize" type="number" min="1024" /><small data-i18n="set.maxVideoSize.hint"></small></label>
-          <label><span data-i18n="set.defaultMode"></span>
+          <label><span data-i18n="set.defaultMode"></span><small data-i18n="set.defaultMode.hint"></small>
             <span class="mode-radio-row">
               <label><input type="radio" name="defaultMode" id="defaultModeRedirect" value="redirect" /><span data-i18n="mode.redirect.short"></span></label>
               <label><input type="radio" name="defaultMode" id="defaultModeProxy" value="proxy" /><span data-i18n="mode.proxy.short"></span></label>
@@ -566,7 +566,7 @@ a{color:var(--accent)}
   var rateMeta = null;
   var THUMB_CACHE_KEY = "media_dns_thumb_cache";
   var thumbCacheMax = parseInt(localStorage.getItem(THUMB_CACHE_KEY), 10);
-  if (!thumbCacheMax || thumbCacheMax < 8) { thumbCacheMax = 40; localStorage.setItem(THUMB_CACHE_KEY, "40"); }
+  if (!thumbCacheMax || thumbCacheMax < 8) { thumbCacheMax = 50; localStorage.setItem(THUMB_CACHE_KEY, "50"); }
   var gridState = { cols: 1, rowH: 320, groupSize: 20, rendered: 0, vis: null };
   var gridSentinel = null;
   var gridObserver = null;
@@ -707,6 +707,7 @@ a{color:var(--accent)}
       "set.maxVideoSize": "单个视频大小上限（字节）",
       "set.maxVideoSize.hint": "Cloudflare 免费版单个缓存对象上限 512MB，超过此值的视频不会被缓存。",
       "set.defaultMode": "默认链接类型",
+      "set.defaultMode.hint": "兜底设置：仅在媒体未指定链接类型时生效（如通过 API 直接添加的媒体、或早期版本添加的无该字段的旧媒体），不影响已有媒体。",
       "set.group.origin": "上游（图床）",
       "set.allowedOrigins": "允许代理的域名（SSRF 白名单，逗号分隔）",
       "set.allowedOrigins.ph": "如 img.example.com, img2.example.com",
@@ -726,7 +727,7 @@ a{color:var(--accent)}
       "set.rateNoteText": "限流由 Cloudflare Rate Limit Binding 在边缘执行，数值需在 wrangler.jsonc 中修改后重新部署，此处仅展示当前配置。",
       "set.group.ui": "界面",
       "set.thumbCache": "缩略图缓存上限（个）",
-      "set.thumbCache.ph": "如 40",
+      "set.thumbCache.ph": "如 50",
       "set.thumbCache.hint": "超过上限时自动释放距离当前位置最远、且超过最小释放距离的缩略图，滑到附近时重新加载。仅存在本浏览器。",
       "nav.groups": "分组",
       "nav.group.go": "跳到第 {n} 组"
@@ -844,6 +845,7 @@ a{color:var(--accent)}
       "set.maxVideoSize": "Max video size (bytes)",
       "set.maxVideoSize.hint": "Cloudflare free plan caches objects up to 512MB; larger videos won't be cached.",
       "set.defaultMode": "Default link type",
+      "set.defaultMode.hint": "Fallback only: applies only when a media has no explicit link type (e.g. added via API, or legacy media without this field); existing media are unaffected.",
       "set.group.origin": "Upstream (image host)",
       "set.allowedOrigins": "Allowed proxy domains (SSRF whitelist, comma separated)",
       "set.allowedOrigins.ph": "e.g. img.example.com, img2.example.com",
@@ -863,7 +865,7 @@ a{color:var(--accent)}
       "set.rateNoteText": "Rate limiting runs at the edge via Cloudflare Rate Limit Binding; change values in wrangler.jsonc and re-deploy. This is read-only.",
       "set.group.ui": "Interface",
       "set.thumbCache": "Thumbnail cache cap",
-      "set.thumbCache.ph": "e.g. 40",
+      "set.thumbCache.ph": "e.g. 50",
       "set.thumbCache.hint": "When the cap is exceeded, thumbnails farthest from the viewport (beyond a minimum eviction distance) are released and reload when scrolled back. Stored in this browser only.",
       "nav.groups": "Groups",
       "nav.group.go": "Jump to group {n}"
@@ -2218,7 +2220,7 @@ a{color:var(--accent)}
   function addImage() {
     var url = $("add-url").value.trim();
     var modeEl = document.querySelector('input[name="mode"]:checked');
-    var mode = modeEl ? modeEl.value : "redirect";
+    var mode = modeEl ? modeEl.value : "proxy";
     if (!url) { toast(t("add.err.empty"), "error"); $("add-url").focus(); return; }
     var name = $("add-name").value.trim();
     var folder = $("add-folder").value;
