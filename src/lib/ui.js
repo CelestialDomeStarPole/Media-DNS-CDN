@@ -570,7 +570,8 @@ a{color:var(--accent)}
   var gridState = { cols: 1, rowH: 320, groupSize: 20, rendered: 0, vis: null };
   var gridSentinel = null;
   var gridObserver = null;
-  var renderDoneCb = null; // renderWindow 渲染完成后回调（分组跳转等需等待高度就位再滚动）
+  var renderDoneCb = null; // 渲染队列处理完成后回调（分组跳转等需等待高度就位再滚动）
+  var pendingJump = null; // 待执行的分组跳转目标（多次快速点击只保留最后一次）
   var thumbObserver2 = null;
   var thumbObsTargets = [];
   var thumbLoaded = 0;
@@ -1553,6 +1554,7 @@ a{color:var(--accent)}
     var card = document.createElement("div");
     card.className = "card img-card" + (img.enabled ? "" : " disabled");
     card.dataset.id = img.id;
+    card.dataset.idx = i;
     card.style.animationDelay = Math.min(i * 45, 360) + "ms";
     if (img._loading) {
       // 占位卡：基本信息未就绪，保持固定尺寸与顺序，待信息到达后再填充
@@ -1661,10 +1663,33 @@ a{color:var(--accent)}
     resetGridNodes();
     gridState.vis = vis;
     renderDoneCb = onDone || null;
+    pendingJump = null; // 全量重建后丢弃过期的分组跳转目标
     var s0 = Math.max(0, start - 2 * gridState.cols);
     var end = Math.min(vis.length, start + gridState.groupSize + 2 * gridState.cols);
     gridState.rendered = s0;
     enqueueCardRange(s0, end, false);
+  }
+  // 增量渲染：确保 [0, end) 区间已渲染。不清空网格，只补渲染缺失区间（插到哨兵前），
+  // 已渲染卡片全部保留、页面总高度不变（哨兵撑高），避免分组跳转时"前组卡片消失"与"先跳顶再滑动"
+  function ensureRangeRendered(end) {
+    var vis = gridState.vis;
+    if (!vis || !vis.length) return;
+    end = Math.max(0, Math.min(vis.length, end));
+    if (gridState.rendered + cardQueue.length >= end) {
+      flushPendingJump(); // 目标区间已渲染或已在排队中，立即跳转
+      return;
+    }
+    if (!renderDoneCb) renderDoneCb = flushPendingJump; // 队列处理完成后执行最新跳转
+    enqueueCardRange(gridState.rendered + cardQueue.length, end, true);
+  }
+  // 执行最新一次分组跳转的平滑滚动（多次快速点击只保留最后一次目标）
+  function flushPendingJump() {
+    if (!pendingJump) return;
+    var j = pendingJump;
+    pendingJump = null;
+    smoothScrollTo(groupScrollTargetY(j.start), undefined, function () {
+      updateCurrentGroup();
+    });
   }
   function renderGrid(images, opts) {
     opts = opts || {};
@@ -1697,23 +1722,34 @@ a{color:var(--accent)}
     return r.top + (window.pageYOffset || document.documentElement.scrollTop);
   }
   // 自实现 RAF 缓动滚动：不依赖浏览器原生 smooth（内容高度突变时会被打断成直接跳转），
-  // 速度随距离自适应，兼顾"快速"与"优雅"
-  function smoothScrollTo(targetY, duration) {
+  // 速度随距离自适应，兼顾"快速"与"优雅"；onDone 在滚动结束后回调（用于同步高亮）
+  var scrollAnimToken = 0;
+  function smoothScrollTo(targetY, duration, onDone) {
+    scrollAnimToken++; // 取消上一次未完成的滚动动画（快速连点分组时避免两个动画互相覆盖）
+    var myToken = scrollAnimToken;
     var doc = document.documentElement;
     var maxY = Math.max(0, doc.scrollHeight - window.innerHeight);
     targetY = Math.max(0, Math.min(targetY, maxY));
     var startY = window.pageYOffset || doc.scrollTop;
     var delta = targetY - startY;
-    if (Math.abs(delta) < 2) { window.scrollTo(0, targetY); return; }
+    if (Math.abs(delta) < 2) {
+      window.scrollTo(0, targetY);
+      if (onDone) onDone();
+      return;
+    }
     var dur = duration || Math.min(850, Math.max(320, Math.abs(delta) * 0.45));
     var t0 = null;
     function ease(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
     function step(ts) {
+      if (myToken !== scrollAnimToken) return; // 已被更新的滚动请求取消
       if (t0 === null) t0 = ts;
       var p = Math.min(1, (ts - t0) / dur);
       window.scrollTo(0, startY + delta * ease(p));
       if (p < 1) requestAnimationFrame(step);
-      else window.scrollTo(0, targetY);
+      else {
+        window.scrollTo(0, targetY);
+        if (onDone) onDone();
+      }
     }
     requestAnimationFrame(step);
   }
@@ -1723,10 +1759,31 @@ a{color:var(--accent)}
     var btns = box.querySelectorAll(".g-btn");
     for (var i = 0; i < btns.length; i++) btns[i].classList.toggle("active", i === g);
   }
+  // 基于真实 DOM 卡片位置计算当前所在分组：取视口内第一张可见卡，
+  // 用其数据源实时索引（indexOf）算出分组，避免理论 rowH 估算与实际高度的偏差
   function updateCurrentGroup() {
     if (!gridState.vis || !gridState.groupSize) return;
-    var top = window.pageYOffset || document.documentElement.scrollTop;
-    var g = Math.floor((top - gridDocTop()) / (gridState.rowH * (gridState.groupSize / gridState.cols)));
+    var cards = $("grid").querySelectorAll(".img-card");
+    var foundIdx = -1;
+    var viewH = window.innerHeight;
+    for (var i = 0; i < cards.length; i++) {
+      var c = cards[i];
+      var r = c.getBoundingClientRect();
+      if (r.bottom > 0 && r.top < viewH) { // 视口内第一张可见卡（display:none 的 rect 为 0 自动跳过）
+        var im = findInLast(c.dataset.id);
+        var idx = im ? gridState.vis.indexOf(im) : -1;
+        if (idx < 0) idx = parseInt(c.dataset.idx, 10) || 0;
+        if (idx >= 0) { foundIdx = idx; break; }
+      }
+    }
+    var g;
+    if (foundIdx >= 0) {
+      g = Math.floor(foundIdx / gridState.groupSize);
+    } else {
+      var top = window.pageYOffset || document.documentElement.scrollTop;
+      var delta = top - gridDocTop();
+      g = Math.floor(delta / (gridState.rowH * (gridState.groupSize / gridState.cols)));
+    }
     if (g < 0) g = 0;
     var last = Math.ceil(gridState.vis.length / gridState.groupSize) - 1;
     if (g > last) g = last;
@@ -1742,6 +1799,16 @@ a{color:var(--accent)}
       h += '<button class="g-btn" data-g="' + g + '" aria-label="' + esc(t("nav.group.go", { n: g + 1 })) + '">' + (g + 1) + "</button>";
     }
     box.innerHTML = h;
+    updateCurrentGroup(); // 重建导航按钮后恢复当前分组高亮
+  }
+  // 计算分组起点卡的真实文档坐标；目标卡未渲染或被隐藏时回退理论位置
+  function groupScrollTargetY(idx) {
+    var card = $("grid").querySelector('.img-card[data-idx="' + idx + '"]');
+    if (card && card.style.display !== "none") {
+      var r = card.getBoundingClientRect();
+      return r.top + (window.pageYOffset || document.documentElement.scrollTop);
+    }
+    return gridDocTop() + (idx / gridState.cols) * gridState.rowH;
   }
   $("group-nav").addEventListener("click", function (e) {
     var b = e.target.closest(".g-btn");
@@ -1750,11 +1817,11 @@ a{color:var(--accent)}
     var vis = gridState.vis || [];
     if (!vis.length) return;
     var start = Math.min(g * gridState.groupSize, Math.max(0, vis.length - 1));
-    // 先渲染目标窗口，待网格高度（含哨兵占位）就位后再平滑滚动，避免原生 smooth 因高度突变失效
-    renderWindow(vis, start, function () {
-      smoothScrollTo(gridDocTop() + (start / gridState.cols) * gridState.rowH);
-      updateCurrentGroup();
-    });
+    pendingJump = { start: start }; // 记录最新跳转目标
+    updateGroupHighlight(g); // 立即切换高亮，不等滚动完成
+    var end = Math.min(vis.length, start + gridState.groupSize + 2 * gridState.cols);
+    // 不清空网格：增量补渲染缺失区间（已渲染卡保留、总高度恒定），渲染就位后平滑滚动到目标卡
+    ensureRangeRendered(end);
   });
   window.addEventListener("scroll", function () { requestAnimationFrame(updateCurrentGroup); }, { passive: true });
   window.addEventListener("resize", debounce(function () {
@@ -1762,7 +1829,16 @@ a{color:var(--accent)}
     var old = gridState.cols;
     computeGridMetrics();
     if (gridState.cols === old) return;
-    renderGrid(lastImages, { anchor: true });
+    // 列数变化：DOM 卡片由 CSS grid 自动重排，无需全量重建（避免同类"卡片消失"）。
+    // 仅重算哨兵撑高、收敛滚动位置并同步分组高亮
+    if (gridState.vis && gridState.vis.length) {
+      updateSentinelHeight();
+      var doc = document.documentElement;
+      var maxY = Math.max(0, doc.scrollHeight - window.innerHeight);
+      var top = window.pageYOffset || doc.scrollTop;
+      if (top > maxY) window.scrollTo(0, maxY);
+      updateCurrentGroup();
+    }
   }, 250));
 
   function renderFolders() {
@@ -1974,6 +2050,7 @@ a{color:var(--accent)}
       renderGrid(lastImages); // 空列表时回到空态（会同步 gridState.vis 与 empty 提示）
     } else {
       updateImgCount();
+      renderGroupNav(gridState.vis); // 分组数可能变化，就地刷新导航
     }
   }
 
@@ -1998,6 +2075,8 @@ a{color:var(--accent)}
     } else {
       updateImgCount();
     }
+    if (!gridState.vis) gridState.vis = filterImages(lastImages); // 空态首次添加时补建 vis 快照
+    renderGroupNav(gridState.vis); // 新增媒体后分组数可能变化，就地刷新导航
   }
 
   // 乐观添加：convert 返回真实 id 后，把临时占位卡替换为真实 id 的占位对象，
@@ -2074,6 +2153,7 @@ a{color:var(--accent)}
       return;
     }
     ensureInfoLoads();
+    renderGroupNav(gridState.vis); // 筛选变化后分组数可能变化，就地刷新导航
   }
 
   function updateImgCount() {
