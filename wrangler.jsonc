@@ -29,7 +29,7 @@
   "kv_namespaces": [
     {
     "binding": "MAPPINGS", // KV 命名空间绑定名
-    "id": "REPLACE_WITH_YOUR_KV_NAMESPACE_ID" // KV 命名空间 ID（部署前创建）
+    "id": "9d3519ce583b48e0b9b88876eb4ff8bc" // KV 命名空间 ID（部署前创建）
     }
   ],
 

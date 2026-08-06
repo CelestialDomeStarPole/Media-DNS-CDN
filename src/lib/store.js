@@ -47,6 +47,8 @@ export function defaultSettings(env) {
     maxAudioSize: Number(env.MAX_AUDIO_SIZE || 104857600),
     maxVideoSize: Number(env.MAX_VIDEO_SIZE || 524288000),
     defaultMode: env.DEFAULT_MODE === "proxy" ? "proxy" : "redirect",
+    downloadNameSource:
+      env.DOWNLOAD_NAME_SOURCE === "custom" ? "custom" : "upstream",
     originReferer: env.ORIGIN_REFERER || "",
     originUserAgent: env.ORIGIN_USER_AGENT || "",
   };

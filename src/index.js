@@ -57,6 +57,36 @@ function sanitizeField(v, max) {
   return v.replace(/[\u0000-\u001f]/g, "").trim().slice(0, max);
 }
 
+// 上游文件名（URL 末段，含扩展名），解码还原可读字符，失败返回空串
+function upstreamFileName(rawUrl) {
+  try {
+    const seg = new URL(rawUrl).pathname.split("/").pop() || "";
+    return seg ? decodeURIComponent(seg) : "";
+  } catch {
+    return "";
+  }
+}
+
+// 上游扩展名（小写、不含点）；无扩展名或名称为纯扩展名时返回空串
+function upstreamExt(rawUrl) {
+  const name = upstreamFileName(rawUrl);
+  const i = name.lastIndexOf(".");
+  if (i <= 0 || i === name.length - 1) return "";
+  return name.slice(i + 1).toLowerCase();
+}
+
+// 非 ASCII 兜底名：filename 参数仅允许 ASCII，其余字符替换为下划线
+function asciiFallback(name) {
+  return name.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
+}
+
+// 构造 Content-Disposition：filename 兜底 + filename* UTF-8 编码（非 ASCII 安全）
+function buildContentDisposition(filename) {
+  const ascii = asciiFallback(filename);
+  const ext = `filename*=UTF-8''${encodeURIComponent(filename)}`;
+  return ascii ? `inline; filename="${ascii}"; ${ext}` : `inline; ${ext}`;
+}
+
 function requireAuth(request, env, handler) {
   if (!auth(request, env)) return json({ error: "未授权，请检查 PASSWORD" }, 401);
   return handler();
@@ -313,6 +343,8 @@ function normalizeSettings(raw, env) {
     maxAudioSize: num(raw.maxAudioSize, base.maxAudioSize, 1024, 512 * 1024 * 1024),
     maxVideoSize: num(raw.maxVideoSize, base.maxVideoSize, 1024, 512 * 1024 * 1024),
     defaultMode: raw.defaultMode === "proxy" ? "proxy" : "redirect",
+    downloadNameSource:
+      raw.downloadNameSource === "custom" ? "custom" : "upstream",
     originReferer: String(raw.originReferer ?? base.originReferer).trim(),
     originUserAgent: String(raw.originUserAgent ?? base.originUserAgent).trim(),
   };
@@ -431,7 +463,21 @@ async function handleImage(request, env, id) {
     });
   }
 
-  return buildCachedResponse(response, settings, id, v.partial);
+  const cached = buildCachedResponse(response, settings, id, v.partial);
+  // 保存文件名来源：custom 时用「网站自定义名 + 上游扩展名」覆盖上游文件名
+  if (settings.downloadNameSource === "custom") {
+    const customName = typeof image.name === "string" ? image.name.trim() : "";
+    let saveName;
+    if (customName) {
+      const ext = upstreamExt(image.url);
+      saveName = ext ? `${customName}.${ext}` : customName;
+    } else {
+      // 自定义名为空时回退上游文件名（含原扩展名，避免双后缀）
+      saveName = upstreamFileName(image.url);
+    }
+    if (saveName) cached.headers.set("Content-Disposition", buildContentDisposition(saveName));
+  }
+  return cached;
 }
 
 export default {

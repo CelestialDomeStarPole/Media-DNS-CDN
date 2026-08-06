@@ -497,6 +497,12 @@ a{color:var(--accent)}
               <label><input type="radio" name="defaultMode" id="defaultModeProxy" value="proxy" /><span data-i18n="mode.proxy.short"></span></label>
             </span>
           </label>
+          <label><span data-i18n="set.downloadNameSource"></span><small data-i18n="set.downloadNameSource.hint"></small>
+            <span class="mode-radio-row">
+              <label><input type="radio" name="downloadNameSource" id="downloadNameSourceUpstream" value="upstream" /><span data-i18n="set.downloadNameSource.upstream"></span></label>
+              <label><input type="radio" name="downloadNameSource" id="downloadNameSourceCustom" value="custom" /><span data-i18n="set.downloadNameSource.custom"></span></label>
+            </span>
+          </label>
         </div>
 
         <div class="card group">
@@ -708,6 +714,10 @@ a{color:var(--accent)}
       "set.maxVideoSize.hint": "Cloudflare 免费版单个缓存对象上限 512MB，超过此值的视频不会被缓存。",
       "set.defaultMode": "默认链接类型",
       "set.defaultMode.hint": "兜底设置：仅在媒体未指定链接类型时生效（如通过 API 直接添加的媒体、或早期版本添加的无该字段的旧媒体），不影响已有媒体。",
+      "set.downloadNameSource": "保存文件名来源",
+      "set.downloadNameSource.hint": "另存/下载媒体时文件名取自上游文件名，或取自网站自定义名（自动补上游扩展名）。自定义名请勿带后缀，否则会变成「名字.你写的后缀.上游后缀」。仅「缓存代理+DNS」模式生效（仅DNS为302直跳上游，无法控制保存名）。",
+      "set.downloadNameSource.upstream": "上游文件名",
+      "set.downloadNameSource.custom": "网站自定义名",
       "set.group.origin": "上游（图床）",
       "set.allowedOrigins": "允许代理的域名（SSRF 白名单，逗号分隔）",
       "set.allowedOrigins.ph": "如 img.example.com, img2.example.com",
@@ -846,6 +856,10 @@ a{color:var(--accent)}
       "set.maxVideoSize.hint": "Cloudflare free plan caches objects up to 512MB; larger videos won't be cached.",
       "set.defaultMode": "Default link type",
       "set.defaultMode.hint": "Fallback only: applies only when a media has no explicit link type (e.g. added via API, or legacy media without this field); existing media are unaffected.",
+      "set.downloadNameSource": "Saved file name source",
+      "set.downloadNameSource.hint": "When saving/downloading media, use the upstream file name, or the name set on this site (upstream extension appended automatically). Do NOT include an extension in the custom name, or the file becomes “name.your_ext.upstream_ext”. Only applies in “Cache proxy + DNS” mode (DNS-only is a 302 redirect and can't control the saved name).",
+      "set.downloadNameSource.upstream": "Upstream file name",
+      "set.downloadNameSource.custom": "Name set on this site",
       "set.group.origin": "Upstream (image host)",
       "set.allowedOrigins": "Allowed proxy domains (SSRF whitelist, comma separated)",
       "set.allowedOrigins.ph": "e.g. img.example.com, img2.example.com",
@@ -2610,6 +2624,8 @@ a{color:var(--accent)}
       $("requireSignature").checked = !!s.requireSignature;
       if (s.defaultMode === "proxy") { $("defaultModeProxy").checked = true; }
       else { $("defaultModeRedirect").checked = true; }
+      if (s.downloadNameSource === "custom") { $("downloadNameSourceCustom").checked = true; }
+      else { $("downloadNameSourceUpstream").checked = true; }
       $("originReferer").value = s.originReferer || "";
       $("originUserAgent").value = s.originUserAgent || "";
       if ($("thumbCache")) $("thumbCache").value = thumbCacheMax;
@@ -2647,6 +2663,7 @@ a{color:var(--accent)}
     });
     body.requireSignature = $("requireSignature").checked;
     body.defaultMode = $("defaultModeProxy").checked ? "proxy" : "redirect";
+    body.downloadNameSource = $("downloadNameSourceCustom").checked ? "custom" : "upstream";
     body.originReferer = $("originReferer").value.trim();
     body.originUserAgent = $("originUserAgent").value.trim();
     var tc = parseInt($("thumbCache") ? $("thumbCache").value : "", 10);
