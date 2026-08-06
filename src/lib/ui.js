@@ -570,6 +570,7 @@ a{color:var(--accent)}
   var gridState = { cols: 1, rowH: 320, groupSize: 20, rendered: 0, vis: null };
   var gridSentinel = null;
   var gridObserver = null;
+  var renderDoneCb = null; // renderWindow 渲染完成后回调（分组跳转等需等待高度就位再滚动）
   var thumbObserver2 = null;
   var thumbObsTargets = [];
   var thumbLoaded = 0;
@@ -586,7 +587,9 @@ a{color:var(--accent)}
   var infoInFlight = 0;
   var infoRunning = false;
   var infoActive = {}; // id -> true（已入队或在途，防止重复入队）
-  var infoFailed = {}; // id -> true（本轮加载失败，跳过重试；下次 loadImages 重置）
+  var infoFailed = {}; // id -> true（本轮多次加载失败后放弃；下次 loadImages 重置）
+  var infoRetry = {}; // id -> 失败已重试次数
+  var INFO_MAX_RETRY = 2; // 详情请求失败额外重试次数
   var loadGen = 0;
 
   var I18N = {
@@ -880,6 +883,7 @@ a{color:var(--accent)}
     return function () { var a = arguments, c = this; clearTimeout(timer); timer = setTimeout(function () { fn.apply(c, a); }, ms); };
   }
 
+  var API_TIMEOUT = 15000; // 请求超时（ms），超时按失败处理并触发上层重试
   function api(path, opts) {
     opts = opts || {};
     var headers = { "Content-Type": "application/json" };
@@ -887,17 +891,20 @@ a{color:var(--accent)}
     if (opts.headers) {
       for (var k in opts.headers) headers[k] = opts.headers[k];
     }
+    var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var timer = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, API_TIMEOUT) : null;
     return fetch(path, {
       method: opts.method || "GET",
       headers: headers,
-      body: opts.body
+      body: opts.body,
+      signal: ctrl ? ctrl.signal : undefined
     }).then(function (res) {
       if (res.status === 401) { showLogin(); throw new Error(t("auth.invalid")); }
       return res.json().then(function (data) {
         if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
         return data;
       });
-    });
+    }).finally(function () { if (timer) clearTimeout(timer); });
   }
 
   var toastTimer = null;
@@ -1108,6 +1115,14 @@ a{color:var(--accent)}
       startThumbLoad(img);
     }
   }
+  var THUMB_MAX_RETRY = 2;      // 缩略图加载失败额外重试次数
+  var THUMB_RETRY_DELAY = 700;  // 重试间隔基数（ms），按次数递增
+  function replaceThumbWithFallback(img) {
+    var fb = document.createElement("div");
+    fb.className = "thumb-fallback";
+    fb.innerHTML = '<span class="tf-icon">✕</span><span class="tf-id">' + esc(t("net.err")) + "</span>";
+    try { img.parentNode.replaceChild(fb, img); } catch (e) {}
+  }
   function startThumbLoad(img) {
     var src = img.getAttribute("data-src");
     function done() {
@@ -1116,25 +1131,59 @@ a{color:var(--accent)}
       pumpThumbs();
     }
     if (!src) { done(); return; }
+    var tries = parseInt(img.dataset.tries || "0", 10);
+    if (tries > THUMB_MAX_RETRY) {
+      // 多次失败不再重试：移除 pending 并显示失败占位，避免空白/破图常驻
+      img.removeAttribute("src");
+      img.classList.remove("thumb-pending");
+      img.dataset.loaded = "1";
+      replaceThumbWithFallback(img);
+      done();
+      return;
+    }
     img.setAttribute("src", src);
     img.dataset.loaded = "1";
     thumbLoaded++;
     thumbObsUnobserve(img);
     scheduleCacheManage();
-    if (img.complete) {
-      img.classList.remove("thumb-pending");
-      done();
-      return;
-    }
     var finished = false;
     function reveal() {
       if (finished) return;
       finished = true;
+      img.dataset.tries = "0"; // 成功后重置失败计数
       img.classList.remove("thumb-pending");
       done();
     }
+    function retryOrFail() {
+      if (finished) return;
+      finished = true;
+      var n = tries + 1;
+      if (n > THUMB_MAX_RETRY) {
+        img.classList.remove("thumb-pending");
+        img.removeAttribute("src");
+        img.dataset.loaded = "1";
+        replaceThumbWithFallback(img);
+        done();
+        return;
+      }
+      img.dataset.tries = String(n);
+      img.removeAttribute("src");
+      img.classList.add("thumb-pending");
+      delete img.dataset.loaded;
+      thumbLoaded--;
+      done();
+      setTimeout(function () {
+        if (img.isConnected) loadThumbImg(img);
+      }, THUMB_RETRY_DELAY * n);
+    }
+    if (img.complete) {
+      // complete 时事件可能已错过：用 naturalWidth 区分成功/失败，避免把失败误判为已加载
+      if (img.naturalWidth > 0) reveal();
+      else retryOrFail();
+      return;
+    }
     img.addEventListener("load", reveal, { once: true });
-    img.addEventListener("error", reveal, { once: true });
+    img.addEventListener("error", retryOrFail, { once: true });
   }
   function loadThumbImg(img) {
     enqueueThumb(img);
@@ -1568,9 +1617,20 @@ a{color:var(--accent)}
   }
   function finishCardQueue() {
     if (gridState.vis && gridState.rendered >= gridState.vis.length) resetSentinel();
-    else ensureSentinel();
+    else { ensureSentinel(); updateSentinelHeight(); }
     setupVideoThumbs();
     observeThumbs();
+    var cb = renderDoneCb;
+    renderDoneCb = null;
+    if (cb) cb();
+  }
+  // 哨兵占位撑高：把剩余未渲染卡片的高度折算为 sentinel 高度，使虚拟滚动总高度恒定，
+  // 保证任意虚拟位置（分组跳转、锚点定位）都能平滑滚动到真实坐标
+  function updateSentinelHeight() {
+    if (!gridSentinel || !gridState.vis) return;
+    var remaining = gridState.vis.length - gridState.rendered;
+    if (remaining <= 0) { resetSentinel(); return; }
+    gridSentinel.style.height = Math.max(0, Math.ceil(remaining / gridState.cols) * gridState.rowH) + "px";
   }
   function ensureSentinel() {
     if (gridSentinel) return;
@@ -1579,6 +1639,7 @@ a{color:var(--accent)}
     gridSentinel = document.createElement("div");
     gridSentinel.className = "grid-sentinel";
     grid.appendChild(gridSentinel);
+    updateSentinelHeight();
     if (!gridObserver) {
       gridObserver = new IntersectionObserver(function (entries) {
         entries.forEach(function (en) {
@@ -1596,9 +1657,10 @@ a{color:var(--accent)}
     if (start >= end) { resetSentinel(); return; }
     enqueueCardRange(start, end, true);
   }
-  function renderWindow(vis, start) {
+  function renderWindow(vis, start, onDone) {
     resetGridNodes();
     gridState.vis = vis;
+    renderDoneCb = onDone || null;
     var s0 = Math.max(0, start - 2 * gridState.cols);
     var end = Math.min(vis.length, start + gridState.groupSize + 2 * gridState.cols);
     gridState.rendered = s0;
@@ -1634,6 +1696,27 @@ a{color:var(--accent)}
     var r = grid.getBoundingClientRect();
     return r.top + (window.pageYOffset || document.documentElement.scrollTop);
   }
+  // 自实现 RAF 缓动滚动：不依赖浏览器原生 smooth（内容高度突变时会被打断成直接跳转），
+  // 速度随距离自适应，兼顾"快速"与"优雅"
+  function smoothScrollTo(targetY, duration) {
+    var doc = document.documentElement;
+    var maxY = Math.max(0, doc.scrollHeight - window.innerHeight);
+    targetY = Math.max(0, Math.min(targetY, maxY));
+    var startY = window.pageYOffset || doc.scrollTop;
+    var delta = targetY - startY;
+    if (Math.abs(delta) < 2) { window.scrollTo(0, targetY); return; }
+    var dur = duration || Math.min(850, Math.max(320, Math.abs(delta) * 0.45));
+    var t0 = null;
+    function ease(t) { return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; }
+    function step(ts) {
+      if (t0 === null) t0 = ts;
+      var p = Math.min(1, (ts - t0) / dur);
+      window.scrollTo(0, startY + delta * ease(p));
+      if (p < 1) requestAnimationFrame(step);
+      else window.scrollTo(0, targetY);
+    }
+    requestAnimationFrame(step);
+  }
   function updateGroupHighlight(g) {
     var box = $("group-nav");
     if (!box) return;
@@ -1667,10 +1750,11 @@ a{color:var(--accent)}
     var vis = gridState.vis || [];
     if (!vis.length) return;
     var start = Math.min(g * gridState.groupSize, Math.max(0, vis.length - 1));
-    renderWindow(vis, start);
-    var top = gridDocTop() + (start / gridState.cols) * gridState.rowH;
-    window.scrollTo({ top: top, behavior: "smooth" });
-    updateCurrentGroup();
+    // 先渲染目标窗口，待网格高度（含哨兵占位）就位后再平滑滚动，避免原生 smooth 因高度突变失效
+    renderWindow(vis, start, function () {
+      smoothScrollTo(gridDocTop() + (start / gridState.cols) * gridState.rowH);
+      updateCurrentGroup();
+    });
   });
   window.addEventListener("scroll", function () { requestAnimationFrame(updateCurrentGroup); }, { passive: true });
   window.addEventListener("resize", debounce(function () {
@@ -1701,6 +1785,7 @@ a{color:var(--accent)}
     infoQueue = [];
     infoActive = {};
     infoFailed = {};
+    infoRetry = {};
     infoRunning = false;
     if (lastImages === null) renderSkeleton();
     api("/api/images/ids").then(function (data) {
@@ -1751,8 +1836,20 @@ a{color:var(--accent)}
     api("/api/image/detail?id=" + encodeURIComponent(id)).then(function (data) {
       if (gen === loadGen) fillCardInfo(id, data);
     }).catch(function () {
-      // 失败保留占位，本轮跳过重试（避免重试风暴）；下次 loadImages 会清空重试
-      infoFailed[id] = true;
+      if (gen !== loadGen) return;
+      // 失败不立即放弃：错峰延迟重试，避免瞬时故障（冷启动/限流/网络抖动）导致卡片永远停在占位
+      infoRetry[id] = (infoRetry[id] || 0) + 1;
+      if (infoRetry[id] <= INFO_MAX_RETRY) {
+        setTimeout(function () {
+          if (gen !== loadGen || infoFailed[id]) return;
+          delete infoActive[id];
+          infoQueue.push(id);
+          infoActive[id] = true;
+          pumpInfo(gen);
+        }, 600 * infoRetry[id]);
+      } else {
+        infoFailed[id] = true; // 多次失败才放弃，保留占位；下次 loadImages 重置
+      }
     }).then(function () {
       delete infoActive[id];
       infoInFlight--;
