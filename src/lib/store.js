@@ -49,6 +49,8 @@ export function defaultSettings(env) {
     defaultMode: env.DEFAULT_MODE === "proxy" ? "proxy" : "redirect",
     downloadNameSource:
       env.DOWNLOAD_NAME_SOURCE === "custom" ? "custom" : "upstream",
+    thumbSource: env.THUMB_SOURCE === "site" ? "site" : "upstream",
+    previewSource: env.PREVIEW_SOURCE === "site" ? "site" : "upstream",
     originReferer: env.ORIGIN_REFERER || "",
     originUserAgent: env.ORIGIN_USER_AGENT || "",
   };

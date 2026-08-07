@@ -191,7 +191,9 @@ a{color:var(--accent)}
 .logout-in-settings:active{transform:scale(.97)}
 .main{flex:1;padding:28px 34px;width:100%;min-width:0}
 .view{display:none}
-.view.active{display:block;animation:viewIn .28s ease both}
+.view.active{display:block;animation:viewFadeIn .28s ease both}
+@keyframes viewFadeIn{from{opacity:0}to{opacity:1}}
+/* viewIn 带 transform，仅用于自身为 fixed 的灯箱/弹层；视图切换用纯淡入，避免 transform 包含块破坏内部 fixed 子元素 */
 @keyframes viewIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
 /* 卡片 */
@@ -331,7 +333,8 @@ a{color:var(--accent)}
 .mode-radio-row{display:flex;gap:22px;margin-top:6px;flex-wrap:wrap}
 .mode-radio-row label{display:flex;align-items:center;gap:7px;font-size:14px;cursor:pointer}
 .mode-radio-row input{accent-color:var(--accent)}
-.save-row{margin-top:4px}
+.save-row{display:flex;justify-content:center;gap:12px;margin-top:4px;padding-bottom:10px}
+.save-fixed{position:fixed;right:34px;bottom:28px;z-index:1000;box-shadow:0 10px 26px rgba(0,0,0,.28)}
 
 /* 按钮 */
 .primary{
@@ -357,7 +360,8 @@ a{color:var(--accent)}
 .lightbox audio{width:min(560px,92vw)}
 .lightbox .close{position:absolute;top:16px;right:24px;color:#fff;font-size:36px;line-height:1;cursor:pointer;opacity:.85;transition:opacity .15s}
 .lightbox .close:hover{opacity:1}
-.lightbox .openlink{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);color:#fff;text-decoration:none;background:rgba(255,255,255,.16);padding:8px 16px;border-radius:8px;font-size:13px;transition:background .15s;display:flex;align-items:center;gap:6px}
+.lightbox .lightbox-actions{position:absolute;bottom:22px;left:50%;transform:translateX(-50%);display:flex;gap:10px;justify-content:center;flex-wrap:wrap;max-width:90vw}
+.lightbox .openlink{color:#fff;text-decoration:none;background:rgba(255,255,255,.16);padding:8px 16px;border-radius:8px;font-size:13px;transition:background .15s;display:flex;align-items:center;gap:6px;white-space:nowrap}
 .lightbox .openlink:hover{background:rgba(255,255,255,.3)}
 
 /* 删除确认弹窗 */
@@ -375,6 +379,7 @@ a{color:var(--accent)}
   .nav-btn{font-size:0;text-align:center;padding:10px}
   .nav-btn.active:after{content:"\\2022"}
   .main{padding:18px 14px}
+  .save-fixed{right:14px;bottom:14px}
   .toolbar input{width:160px}
   .add-row,.add-row2{flex-direction:column}
   .add-row2 select{max-width:100%}
@@ -503,6 +508,18 @@ a{color:var(--accent)}
               <label><input type="radio" name="downloadNameSource" id="downloadNameSourceCustom" value="custom" /><span data-i18n="set.downloadNameSource.custom"></span></label>
             </span>
           </label>
+          <label><span data-i18n="set.thumbSource"></span><small data-i18n="set.thumbSource.hint"></small>
+            <span class="mode-radio-row">
+              <label><input type="radio" name="thumbSource" id="thumbSourceUpstream" value="upstream" /><span data-i18n="set.thumbSource.upstream"></span></label>
+              <label><input type="radio" name="thumbSource" id="thumbSourceSite" value="site" /><span data-i18n="set.thumbSource.site"></span></label>
+            </span>
+          </label>
+          <label><span data-i18n="set.previewSource"></span><small data-i18n="set.previewSource.hint"></small>
+            <span class="mode-radio-row">
+              <label><input type="radio" name="previewSource" id="previewSourceUpstream" value="upstream" /><span data-i18n="set.previewSource.upstream"></span></label>
+              <label><input type="radio" name="previewSource" id="previewSourceSite" value="site" /><span data-i18n="set.previewSource.site"></span></label>
+            </span>
+          </label>
         </div>
 
         <div class="card group">
@@ -526,9 +543,10 @@ a{color:var(--accent)}
         </div>
 
         <div class="save-row">
-          <button id="save-settings" class="primary" data-i18n="set.save"></button>
           <button id="logout-in-settings" class="logout-in-settings" data-i18n="nav.logout"></button>
         </div>
+        <!-- 保存设置按钮固定在窗口右下角；视图动画为纯淡入（无 transform），fixed 不会被包含块干扰 -->
+        <button id="save-settings" class="primary save-fixed" data-i18n="set.save"></button>
       </div>
     </section>
   </main>
@@ -537,7 +555,10 @@ a{color:var(--accent)}
 <div id="toast" class="toast"></div>
 <div id="lightbox" class="lightbox hidden">
   <div id="lightbox-media"></div>
-  <a id="lightbox-open" class="openlink" href="#" target="_blank" rel="noopener" data-i18n="lightbox.open"></a>
+  <div class="lightbox-actions">
+    <a id="lightbox-open" class="openlink" href="#" target="_blank" rel="noopener" data-i18n="lightbox.open"></a>
+    <a id="lightbox-open-site" class="openlink" href="#" target="_blank" rel="noopener" data-i18n="lightbox.openSite"></a>
+  </div>
   <span class="close" data-i18n-aria="lightbox.close" aria-label="关闭">&times;</span>
 </div>
 <div id="confirm-modal" class="modal hidden">
@@ -570,6 +591,7 @@ a{color:var(--accent)}
   var addPendingFolder = "";
   var lastPreviewHost = "";
   var rateMeta = null;
+  var appSettings = {}; // 全局设置缓存（含 thumbSource/previewSource），缩略图与灯箱渲染时读取
   var THUMB_CACHE_KEY = "media_dns_thumb_cache";
   var thumbCacheMax = parseInt(localStorage.getItem(THUMB_CACHE_KEY), 10);
   if (!thumbCacheMax || thumbCacheMax < 8) { thumbCacheMax = 50; localStorage.setItem(THUMB_CACHE_KEY, "50"); }
@@ -678,6 +700,7 @@ a{color:var(--accent)}
       "op.sorted": "已更新排序",
       "op.updated": "已更新",
       "lightbox.open": "在新标签打开原图",
+      "lightbox.openSite": "在新标签打开网站外链",
       "lightbox.close": "关闭",
       "set.title": "设置",
       "set.save": "保存设置",
@@ -718,6 +741,14 @@ a{color:var(--accent)}
       "set.downloadNameSource.hint": "另存/下载媒体时文件名取自上游文件名，或取自网站自定义名（自动补上游扩展名）。自定义名请勿带后缀，否则会变成「名字.你写的后缀.上游后缀」。仅「缓存代理+DNS」模式生效（仅DNS为302直跳上游，无法控制保存名）。",
       "set.downloadNameSource.upstream": "上游文件名",
       "set.downloadNameSource.custom": "网站自定义名",
+      "set.thumbSource": "缩略图媒体源",
+      "set.thumbSource.hint": "管理面板中媒体卡片的缩略图/封面取自上游媒体源，或本网站代理后的网站媒体源。仅「缓存代理+DNS」模式的媒体支持网站源（「仅DNS」为302直跳，始终用上游）。视频封面因跨域截帧限制，缓存代理模式下始终走网站代理链接。",
+      "set.thumbSource.upstream": "上游媒体源",
+      "set.thumbSource.site": "网站媒体源",
+      "set.previewSource": "预览媒体源",
+      "set.previewSource.hint": "点击预览按钮后，灯箱中播放/显示的媒体取自上游媒体源，或本网站代理后的网站媒体源。仅「缓存代理+DNS」模式的媒体支持网站源（「仅DNS」为302直跳，始终用上游）。",
+      "set.previewSource.upstream": "上游媒体源",
+      "set.previewSource.site": "网站媒体源",
       "set.group.origin": "上游（图床）",
       "set.allowedOrigins": "允许代理的域名（SSRF 白名单，逗号分隔）",
       "set.allowedOrigins.ph": "如 img.example.com, img2.example.com",
@@ -820,6 +851,7 @@ a{color:var(--accent)}
       "op.sorted": "Order updated",
       "op.updated": "Updated",
       "lightbox.open": "Open original in new tab",
+      "lightbox.openSite": "Open site link in new tab",
       "lightbox.close": "Close",
       "set.title": "Settings",
       "set.save": "Save settings",
@@ -860,6 +892,14 @@ a{color:var(--accent)}
       "set.downloadNameSource.hint": "When saving/downloading media, use the upstream file name, or the name set on this site (upstream extension appended automatically). Do NOT include an extension in the custom name, or the file becomes “name.your_ext.upstream_ext”. Only applies in “Cache proxy + DNS” mode (DNS-only is a 302 redirect and can't control the saved name).",
       "set.downloadNameSource.upstream": "Upstream file name",
       "set.downloadNameSource.custom": "Name set on this site",
+      "set.thumbSource": "Thumbnail media source",
+      "set.thumbSource.hint": "Thumbnails/covers on the media grid load from the upstream source, or from this site's proxied link. Only applies in “Cache proxy + DNS” mode (DNS-only is a 302 redirect and always uses upstream). Video covers always use the proxied link in cache-proxy mode because cross-origin frame capture requires CORS.",
+      "set.thumbSource.upstream": "Upstream source",
+      "set.thumbSource.site": "Site source",
+      "set.previewSource": "Preview media source",
+      "set.previewSource.hint": "Media played/shown in the lightbox loads from the upstream source, or from this site's proxied link. Only applies in “Cache proxy + DNS” mode (DNS-only is a 302 redirect and always uses upstream).",
+      "set.previewSource.upstream": "Upstream source",
+      "set.previewSource.site": "Site source",
       "set.group.origin": "Upstream (image host)",
       "set.allowedOrigins": "Allowed proxy domains (SSRF whitelist, comma separated)",
       "set.allowedOrigins.ph": "e.g. img.example.com, img2.example.com",
@@ -1030,16 +1070,24 @@ a{color:var(--accent)}
     if (tp === "image") return '<span class="badge badge-type badge-type-image">' + esc(t("type.image")) + "</span>";
     return "";
   }
+  // 媒体源选择：site 仅对「缓存代理+DNS」模式且有网站外链的媒体生效，否则回退上游
+  function mediaSrc(img, source) {
+    return source === "site" && img.mode === "proxy" && img.shortUrl ? img.shortUrl : img.url;
+  }
+  // 视频缩略图：缓存代理模式恒走网站外链（跨域截帧必需 CORS），仅DNS按设置选择
+  function videoThumbSrc(img, source) {
+    return img.mode === "proxy" ? img.shortUrl || img.url : mediaSrc(img, source);
+  }
   function thumbHtml(img) {
     var tp = img.type || guessTypeClient(img.url);
     if (tp === "video") {
       // 用代理链接（带 CORS）加载视频，进入视口后截帧生成封面缩略图
-      var src = img.mode === "proxy" ? (img.shortUrl || img.url) : img.url;
+      var src = videoThumbSrc(img, appSettings.thumbSource);
       return '<video class="tv-thumb" data-src="' + esc(src) + '" data-alt="' + esc(img.id) + '" muted playsinline crossorigin="anonymous" preload="metadata"></video>';
     }
     if (tp === "audio")
       return '<div class="thumb-fallback"><span class="tf-icon">♪</span><span class="tf-id">' + esc(t("type.audio")) + "</span></div>";
-    return '<img data-src="' + esc(img.url) + '" class="thumb-img thumb-pending" draggable="false" alt="' + esc(img.id) + '" />';
+    return '<img data-src="' + esc(mediaSrc(img, appSettings.thumbSource)) + '" class="thumb-img thumb-pending" draggable="false" alt="' + esc(img.id) + '" />';
   }
   var thumbObserver = null;
   function observeVideoThumb(v) {
@@ -1551,7 +1599,7 @@ a{color:var(--accent)}
   }
   function thumbWrapHtml(img) {
     return '<div class="thumb">' + thumbHtml(img) +
-      '<button class="zoom" data-url="' + esc(img.url) + '" data-type="' + esc(img.type || "") + '" aria-label="' + esc(t("card.preview")) + '">' + esc(t("card.preview.short")) + "</button></div>";
+      '<button class="zoom" data-url="' + esc(img.url) + '" data-short="' + esc(img.shortUrl || img.url) + '" data-mode="' + esc(img.mode || "") + '" data-type="' + esc(img.type || "") + '" aria-label="' + esc(t("card.preview")) + '">' + esc(t("card.preview.short")) + "</button></div>";
   }
   function cardBodyHtml(img) {
     return '<div class="card-body">' +
@@ -2141,6 +2189,24 @@ a{color:var(--accent)}
     observeThumbs();
   }
 
+  // 按当前媒体源设置重建所有已渲染卡的缩略图（含预览按钮），并重置懒加载计数后重新接管
+  function refreshThumbs() {
+    var cards = $("grid").querySelectorAll(".img-card");
+    for (var i = 0; i < cards.length; i++) {
+      var c = cards[i];
+      var im = findInLast(c.dataset.id);
+      if (!im || im._loading) continue;
+      var thumb = c.querySelector(".thumb");
+      if (thumb) thumb.outerHTML = thumbWrapHtml(im);
+    }
+    thumbLoaded = 0;
+    thumbQueue = [];
+    thumbInFlight = 0;
+    setupVideoThumbs();
+    observeThumbs();
+    scheduleCacheManage();
+  }
+
   // 就地同步当前过滤（文件夹/搜索）到已渲染卡：显隐 + 更新 vis 快照 + 计数 + 空态。
   // 已渲染可见卡数量不足 vis（例如切到更大的文件夹）时重建网格补齐（本地，无网络）。
   function syncFilterInPlace() {
@@ -2184,9 +2250,16 @@ a{color:var(--accent)}
   }
 
   var addPreviewTimer = null;
-  function setPreviewMedia(url) {
+  // 停止并清空添加预览中的媒体：删除链接后立即停止播放（修复音视频持续播放的 bug）
+  function stopPreviewMedia() {
     var box = $("preview-media");
+    var nodes = box.querySelectorAll("video,audio");
+    for (var i = 0; i < nodes.length; i++) { try { nodes[i].pause(); } catch (e) {} }
     box.innerHTML = "";
+  }
+  function setPreviewMedia(url) {
+    stopPreviewMedia();
+    var box = $("preview-media");
     var tp = guessTypeClient(url);
     var el;
     if (tp === "video") { el = document.createElement("video"); el.controls = true; el.muted = true; el.preload = "metadata"; }
@@ -2198,7 +2271,7 @@ a{color:var(--accent)}
   $("add-url").addEventListener("input", function () {
     var v = this.value.trim();
     clearTimeout(addPreviewTimer);
-    if (!v) { $("add-preview").classList.add("hidden"); return; }
+    if (!v) { stopPreviewMedia(); $("add-preview").classList.add("hidden"); return; }
     addPreviewTimer = setTimeout(function () {
       setPreviewMedia(v);
       var host = "";
@@ -2260,6 +2333,7 @@ a{color:var(--accent)}
         clearTimeout(addPreviewTimer);
         $("add-url").value = "";
         $("add-name").value = "";
+        stopPreviewMedia();
         $("add-preview").classList.add("hidden");
         try { navigator.clipboard.writeText(data.url); } catch (e) {}
         $("add-url").focus();
@@ -2384,7 +2458,12 @@ a{color:var(--accent)}
       $("confirm-modal").classList.remove("hidden");
       $("confirm-ok").focus();
     } else if (el.classList.contains("zoom")) {
-      openLightbox(el.getAttribute("data-url"), el.getAttribute("data-type"));
+      openLightbox({
+        url: el.getAttribute("data-url"),
+        shortUrl: el.getAttribute("data-short"),
+        mode: el.getAttribute("data-mode"),
+        type: el.getAttribute("data-type")
+      });
     } else if (el.closest(".img-name")) {
       enterNameEdit(el.closest(".img-name"));
     }
@@ -2483,16 +2562,20 @@ a{color:var(--accent)}
   $("confirm-modal").addEventListener("click", function (e) { if (e.target === this) closeConfirm(); });
   function closeConfirm() { pendingDelete = null; $("confirm-modal").classList.add("hidden"); }
 
-  function openLightbox(url, type) {
+  function openLightbox(info) {
+    var url = info.url;
+    var siteUrl = info.shortUrl || url;
     var box = $("lightbox-media");
     box.innerHTML = "";
     var el;
-    if (type === "video") { el = document.createElement("video"); el.controls = true; }
-    else if (type === "audio") { el = document.createElement("audio"); el.controls = true; }
+    if (info.type === "video") { el = document.createElement("video"); el.controls = true; }
+    else if (info.type === "audio") { el = document.createElement("audio"); el.controls = true; }
     else { el = document.createElement("img"); el.alt = ""; }
-    el.src = url;
+    // 预览媒体源：site 仅对缓存代理模式生效，否则回退上游
+    el.src = mediaSrc(info, appSettings.previewSource);
     box.appendChild(el);
-    $("lightbox-open").href = url;
+    $("lightbox-open").href = url; // 「在新标签打开原图」始终指向上游原始链接
+    $("lightbox-open-site").href = siteUrl; // 「在新标签打开网站外链」
     $("lightbox").classList.remove("hidden");
   }
   function closeLightbox() {
@@ -2613,6 +2696,7 @@ a{color:var(--accent)}
   function loadSettings() {
     api("/api/settings").then(function (data) {
       var s = data.settings || {};
+      appSettings = s; // 全局设置缓存，缩略图/灯箱渲染读取 thumbSource/previewSource
       LIST_KEYS.forEach(function (k) {
         var el = $(k);
         if (el) el.value = (s[k] || []).join(", ");
@@ -2626,6 +2710,10 @@ a{color:var(--accent)}
       else { $("defaultModeRedirect").checked = true; }
       if (s.downloadNameSource === "custom") { $("downloadNameSourceCustom").checked = true; }
       else { $("downloadNameSourceUpstream").checked = true; }
+      if (s.thumbSource === "site") { $("thumbSourceSite").checked = true; }
+      else { $("thumbSourceUpstream").checked = true; }
+      if (s.previewSource === "site") { $("previewSourceSite").checked = true; }
+      else { $("previewSourceUpstream").checked = true; }
       $("originReferer").value = s.originReferer || "";
       $("originUserAgent").value = s.originUserAgent || "";
       if ($("thumbCache")) $("thumbCache").value = thumbCacheMax;
@@ -2664,6 +2752,8 @@ a{color:var(--accent)}
     body.requireSignature = $("requireSignature").checked;
     body.defaultMode = $("defaultModeProxy").checked ? "proxy" : "redirect";
     body.downloadNameSource = $("downloadNameSourceCustom").checked ? "custom" : "upstream";
+    body.thumbSource = $("thumbSourceSite").checked ? "site" : "upstream";
+    body.previewSource = $("previewSourceSite").checked ? "site" : "upstream";
     body.originReferer = $("originReferer").value.trim();
     body.originUserAgent = $("originUserAgent").value.trim();
     var tc = parseInt($("thumbCache") ? $("thumbCache").value : "", 10);
@@ -2673,7 +2763,13 @@ a{color:var(--accent)}
     var btn = this;
     setBusy(btn, true, t("set.busy"));
     api("/api/settings", { method: "PUT", body: JSON.stringify(body) })
-      .then(function () { toast(t("op.saveOk"), "success"); })
+      .then(function () {
+        // 同步全局设置缓存并按新媒体源刷新已渲染缩略图，无需整页重建
+        appSettings.thumbSource = body.thumbSource;
+        appSettings.previewSource = body.previewSource;
+        refreshThumbs();
+        toast(t("op.saveOk"), "success");
+      })
       .catch(function (err) { toast(err.message || t("op.saveFail"), "error"); })
       .finally(function () { setBusy(btn, false); });
   });

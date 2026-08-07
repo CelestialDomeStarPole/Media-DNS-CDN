@@ -345,6 +345,8 @@ function normalizeSettings(raw, env) {
     defaultMode: raw.defaultMode === "proxy" ? "proxy" : "redirect",
     downloadNameSource:
       raw.downloadNameSource === "custom" ? "custom" : "upstream",
+    thumbSource: raw.thumbSource === "site" ? "site" : "upstream",
+    previewSource: raw.previewSource === "site" ? "site" : "upstream",
     originReferer: String(raw.originReferer ?? base.originReferer).trim(),
     originUserAgent: String(raw.originUserAgent ?? base.originUserAgent).trim(),
   };
