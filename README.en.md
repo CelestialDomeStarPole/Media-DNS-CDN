@@ -31,12 +31,13 @@ Image / Audio / Video hotlink relay · Cache · Anti-leech Cloudflare Worker
   - **Cache proxy + DNS**: the Worker fetches the origin and writes into Cloudflare edge cache; hits are served from the edge directly
 - **Video playback friendly**: forwards `Range` / `If-Range` headers for seeking; full 200 responses are cached and subsequent range requests are sliced by the edge from the cached object; 206 partial responses pass through uncached
 - **Video thumbnails**: the admin panel auto-captures a video frame as the card preview (client-side canvas capture, no backend processing)
+- **Configurable media source**: thumbnails / previews can load from the upstream origin or this site's proxied link (cache proxy mode only)
 - **Per-type size limits**: image 50MB / audio 100MB / video 500MB (adjustable in the admin panel)
 - **Anti-leech**: Referer allow list; optional HMAC signed links (expiring, unforgeable)
+- **Customizable download names**: downloaded file names come from the upstream or from the custom name set in the admin panel
 - **Access control**: country / IP / ASN allow & block lists, all validated at the edge
 - **Multi-level rate limiting**: separate limits per IP, per image and per audio/video (Rate Limit Binding, enforced at the edge)
 - **SSRF protection**: proxied targets must be on the allowed-origin whitelist
-- **Bilingual admin panel**: media CRUD, folders, search, one-click copy, lightbox preview, zh / EN toggle and dynamic themes
 
 ## Quick Start
 
@@ -44,7 +45,16 @@ Image / Audio / Video hotlink relay · Cache · Anti-leech Cloudflare Worker
 
 - [Node.js](https://nodejs.org/) 18+ and npm
 - A [Cloudflare](https://dash.cloudflare.com) account
-- wrangler installed: `npm install`
+- Install wrangler (the project lists it as a dev dependency — pick one):
+
+  ```bash
+  # Option 1: project-local install (recommended, version locked with the project)
+  npm install
+  # then use it via npx wrangler (e.g. npx wrangler login)
+
+  # Option 2: global install (the wrangler command is available anywhere)
+  npm install -g wrangler
+  ```
 
 ### Authenticate with Cloudflare (pick one)
 
@@ -152,6 +162,9 @@ npm run dev
 | `MAX_AUDIO_SIZE` | `104857600` | Max audio size (bytes, 100MB) |
 | `MAX_VIDEO_SIZE` | `524288000` | Max video size (bytes, 500MB) |
 | `DEFAULT_MODE` | `redirect` | Default link type: `redirect` / `proxy` |
+| `DOWNLOAD_NAME_SOURCE` | `upstream` | Download name source: `upstream` (upstream file name) / `custom` (name set on this site) |
+| `THUMB_SOURCE` | `upstream` | Thumbnail media source: `upstream` / `site` (proxied link, cache proxy mode only) |
+| `PREVIEW_SOURCE` | `upstream` | Preview media source: `upstream` / `site` (proxied link, cache proxy mode only) |
 | `ORIGIN_REFERER` / `ORIGIN_USER_AGENT` | empty | Upstream headers forwarded to the origin (to pass origin anti-leech checks) |
 
 ### Rate limits (Rate Limit Binding — edit wrangler.jsonc and re-deploy)
@@ -164,9 +177,11 @@ npm run dev
 
 ## Usage
 
-1. Log in to the admin panel → paste a media direct link → choose a mode → add
-2. Copy the generated short link `https://your-domain/i/<id>` (with `?e=expiry&s=signature` when signing is enabled)
-3. Use it in `<img>` / `<video>` / `<audio>` or any download scenario
+1. Log in to the admin panel → paste a media direct link → choose a mode → add (a live audio/video preview appears while typing)
+2. Click the card's "Preview" button to view the full image / play media in the lightbox, then open the original or the site link in a new tab
+3. Copy the generated short link `https://your-domain/i/<id>` (with `?e=expiry&s=signature` when signing is enabled)
+4. Use it in `<img>` / `<video>` / `<audio>` or any download scenario
+5. In **Settings → Cache & Limits**, adjust the "Thumbnail media source" and "Preview media source" (upstream / site source); they take effect immediately after saving
 
 Every request passes a 4-layer validation in both modes: **rate limit → country/IP/ASN allow & block lists → Referer allow list → signature check**, and only then is it redirected or proxied.
 
@@ -209,7 +224,8 @@ All endpoints return JSON; admin endpoints require `Authorization: Bearer <PASSW
 - **KV eventual consistency**: deletes propagate globally within ~60s (the admin panel removes items locally at once, so they disappear immediately)
 - **Partial responses are not cached**: 206 responses pass through; once the full 200 object is cached, subsequent range requests are sliced by the edge from the cached object
 - **HLS/DASH**: proxied as whole files only, no segment URL rewriting; most HLS origins reject non-standard requests — extend it yourself if you need full streaming support
-- **Video thumbnails require CORS**: cache proxy mode works out of the box (the Worker returns `Access-Control-Allow-Origin: *`); DNS-only mode depends on the origin's CORS, falling back to an icon placeholder otherwise
+- **Video thumbnails require CORS**: cache proxy mode works out of the box (the Worker returns `Access-Control-Allow-Origin: *`); DNS-only mode depends on the origin's CORS, falling back to an icon placeholder otherwise; video covers always use the proxied link in cache proxy mode because cross-origin frame capture requires CORS
+- **Media source settings only apply in cache proxy mode**: choosing the site source affects only "Cache proxy + DNS" media; DNS-only is a 302 redirect and always uses the upstream
 - **Referer checks are best effort**: browsers don't always send a Referer header
 
 ## License

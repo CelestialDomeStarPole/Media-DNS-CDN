@@ -31,12 +31,13 @@
   - **缓存代理+DNS**：Worker 拉取原站并写入 Cloudflare 边缘缓存，命中后由边缘直接返回
 - **视频播放友好**：透传 `Range`/`If-Range`，支持拖动进度条；全量 200 响应入缓存后由边缘切片响应后续 Range 请求；206 分片透传不缓存
 - **视频缩略图**：管理页自动截取视频帧作为封面预览（无需后端处理，浏览器 canvas 截帧）
+- **媒体源可设置**：缩略图 / 预览媒体可取自上游原站，或本网站代理源（仅缓存代理模式生效）
 - **按类型大小限制**：图片 50MB / 音频 100MB / 视频 500MB（可后台调整）
 - **防盗链**：Referer 白名单；可选 HMAC 签名链接（带过期时间，不可伪造）
+- **下载文件名可定制**：下载时文件名可取自上游文件名，或使用管理页设置的自定义名
 - **访问控制**：国家（地区） / IP / ASN 黑白名单，四层校验全部在边缘生效
 - **多级限流**：每 IP、每图片、每音视频独立限流（Rate Limit Binding，边缘执行）
 - **SSRF 防护**：代理目标必须位于允许域名白名单内
-- **中英双语管理页**：媒体增删改、文件夹分组、搜索、链接一键复制、灯箱预览，内置中 / EN 切换与动态主题
 
 ## 快速开始
 
@@ -44,7 +45,16 @@
 
 - [Node.js](https://nodejs.org/) 18+ 与 npm
 - 一个 [Cloudflare](https://dash.cloudflare.com) 账号
-- 已安装 wrangler：`npm install`
+- 安装 wrangler（项目已将其列为开发依赖，二选一）：
+
+  ```bash
+  # 方式一：项目本地安装（推荐，版本随项目锁定）
+  npm install
+  # 之后用 npx wrangler 调用（如 npx wrangler login）
+
+  # 方式二：全局安装（任意目录可直接使用 wrangler 命令）
+  npm install -g wrangler
+  ```
 
 ### 登录 Cloudflare（二选一）
 
@@ -60,12 +70,12 @@ npx wrangler login
 1. 打开 Cloudflare 控制台 → 右上角头像 → **My Profile** → **API Tokens** → **Create Token**
 2. 选择模板 **Edit Cloudflare Workers**（或自定义，需包含以下权限）：
 
-   | 权限 | 范围 |
-   | --- | --- |
-   | Account → Workers Scripts → Edit | 必须 |
-   | Account → Workers KV Storage → Edit | 必须（创建/读写 KV 命名空间） |
-   | Account → Account Settings → Read | 建议 |
-   | Account → Workers Routes → Edit | 可选（如需绑定自定义域名路由） |
+   | 权限                                | 范围                           |
+   | ----------------------------------- | ------------------------------ |
+   | Account → Workers Scripts → Edit    | 必须                           |
+   | Account → Workers KV Storage → Edit | 必须（创建/读写 KV 命名空间）  |
+   | Account → Account Settings → Read   | 建议                           |
+   | Account → Workers Routes → Edit     | 可选（如需绑定自定义域名路由） |
 
 3. 创建后复制 Token，写入环境变量（wrangler 会自动读取，无需 `wrangler login`）：
 
@@ -73,6 +83,7 @@ npx wrangler login
    # Windows PowerShell
    $env:CLOUDFLARE_API_TOKEN = "你的Token"
    ```
+
    ```bash
    # macOS / Linux
    export CLOUDFLARE_API_TOKEN="你的Token"
@@ -111,6 +122,7 @@ npx wrangler secret put SIGNING_SECRET  # HMAC 链接签名密钥（启用签名
 # 6. 部署
 npm run deploy
 ```
+
 部署完成后访问 `https://<worker名>.<子域>.workers.dev`，用 PASSWORD 登录管理页，在「设置」中填写允许代理的域名白名单（SSRF 白名单，必须配置，否则无法添加链接）。
 
 ### 本地调试
@@ -130,42 +142,47 @@ npm run dev
 
 ### 机密（secrets）
 
-| 名称 | 说明 |
-| --- | --- |
-| `PASSWORD` | 管理页登录密码（Bearer Token 鉴权） |
+| 名称             | 说明                                              |
+| ---------------- | ------------------------------------------------- |
+| `PASSWORD`       | 管理页登录密码（Bearer Token 鉴权）               |
 | `SIGNING_SECRET` | HMAC 链接签名密钥，启用 `requireSignature` 时必填 |
 
 ### 环境变量（vars，均为部署默认值，之后可在管理页运行时修改并即时生效）
 
-| 名称 | 默认值 | 说明 |
-| --- | --- | --- |
-| `ALLOWED_ORIGINS` | 空 | SSRF 白名单：允许代理的域名，逗号分隔，**必填** |
-| `ALLOWED_COUNTRIES` / `BLOCKED_COUNTRIES` | 空 | 地区白/黑名单（ISO 国家代码） |
-| `ALLOWED_IPS` / `BLOCKED_IPS` | 空 | IP 白/黑名单 |
-| `ALLOWED_ASN` / `BLOCKED_ASN` | 空 | ASN 白/黑名单 |
-| `ALLOWED_REFERERS` | 空 | Referer 白名单（尽力而为，可伪造） |
-| `REQUIRE_SIGNATURE` | `false` | 生成带过期 HMAC 签名的链接（最强防外链） |
-| `SIGNATURE_TTL` | `3600` | 签名有效期（秒） |
-| `CACHE_TTL` | `2592000` | 缓存 TTL（秒），仅缓存代理模式生效 |
-| `MAX_IMAGE_SIZE` | `52428800` | 单张图片大小上限（字节，50MB） |
-| `MAX_AUDIO_SIZE` | `104857600` | 单个音频大小上限（字节，100MB） |
-| `MAX_VIDEO_SIZE` | `524288000` | 单个视频大小上限（字节，500MB） |
-| `DEFAULT_MODE` | `redirect` | 默认链接类型：`redirect` / `proxy` |
-| `ORIGIN_REFERER` / `ORIGIN_USER_AGENT` | 空 | 转发给原站的上游请求头（应对原站防盗链） |
+| 名称                                      | 默认值      | 说明                                                                   |
+| ----------------------------------------- | ----------- | ---------------------------------------------------------------------- |
+| `ALLOWED_ORIGINS`                         | 空          | SSRF 白名单：允许代理的域名，逗号分隔，**必填**                        |
+| `ALLOWED_COUNTRIES` / `BLOCKED_COUNTRIES` | 空          | 地区白/黑名单（ISO 国家代码）                                          |
+| `ALLOWED_IPS` / `BLOCKED_IPS`             | 空          | IP 白/黑名单                                                           |
+| `ALLOWED_ASN` / `BLOCKED_ASN`             | 空          | ASN 白/黑名单                                                          |
+| `ALLOWED_REFERERS`                        | 空          | Referer 白名单（尽力而为，可伪造）                                     |
+| `REQUIRE_SIGNATURE`                       | `false`     | 生成带过期 HMAC 签名的链接（最强防外链）                               |
+| `SIGNATURE_TTL`                           | `3600`      | 签名有效期（秒）                                                       |
+| `CACHE_TTL`                               | `2592000`   | 缓存 TTL（秒），仅缓存代理模式生效                                     |
+| `MAX_IMAGE_SIZE`                          | `52428800`  | 单张图片大小上限（字节，50MB）                                         |
+| `MAX_AUDIO_SIZE`                          | `104857600` | 单个音频大小上限（字节，100MB）                                        |
+| `MAX_VIDEO_SIZE`                          | `524288000` | 单个视频大小上限（字节，500MB）                                        |
+| `DEFAULT_MODE`                            | `redirect`  | 默认链接类型：`redirect` / `proxy`                                     |
+| `DOWNLOAD_NAME_SOURCE`                    | `upstream`  | 下载文件名来源：`upstream`（上游文件名）/ `custom`（网站自定义名）     |
+| `THUMB_SOURCE`                            | `upstream`  | 缩略图媒体源：`upstream`（上游）/ `site`（网站代理源，仅缓存代理模式） |
+| `PREVIEW_SOURCE`                          | `upstream`  | 预览媒体源：`upstream`（上游）/ `site`（网站代理源，仅缓存代理模式）   |
+| `ORIGIN_REFERER` / `ORIGIN_USER_AGENT`    | 空          | 转发给原站的上游请求头（应对原站防盗链）                               |
 
 ### 限流（Rate Limit Binding，需改 wrangler.jsonc 后重新部署）
 
-| 绑定 | 默认值 | 说明 |
-| --- | --- | --- |
-| `RATE_LIMITER_IP` | 100 次 / 60 秒 | 每 IP 限流 |
-| `RATE_LIMITER_IMG` | 40 次 / 10 秒 | 每图片限流 |
-| `RATE_LIMITER_AV` | 300 次 / 10 秒 | 每音视频限流（播放会产生大量分片请求） |
+| 绑定               | 默认值         | 说明                                   |
+| ------------------ | -------------- | -------------------------------------- |
+| `RATE_LIMITER_IP`  | 100 次 / 60 秒 | 每 IP 限流                             |
+| `RATE_LIMITER_IMG` | 40 次 / 10 秒  | 每图片限流                             |
+| `RATE_LIMITER_AV`  | 300 次 / 10 秒 | 每音视频限流（播放会产生大量分片请求） |
 
 ## 使用方式
 
-1. 登录管理页 → 粘贴媒体直链 → 选择模式 → 添加
-2. 复制生成的短链接 `https://你的域名/i/<id>`（开启签名时带 `?e=过期时间&s=签名`）
-3. 将该链接用于 `<img>` / `<video>` / `<audio>` / 任意下载场景
+1. 登录管理页 → 粘贴媒体直链 → 选择模式 → 添加（粘贴后自动出现音视频实时小预览）
+2. 点击卡片「预览」按钮在灯箱中查看大图 / 播放音视频，可一键「在新标签打开原图」或「在新标签打开网站外链」
+3. 复制生成的短链接 `https://你的域名/i/<id>`（开启签名时带 `?e=过期时间&s=签名`）
+4. 将该链接用于 `<img>` / `<video>` / `<audio>` / 任意下载场景
+5. 在「设置」→「缓存与限制」中可调整「缩略图媒体源」与「预览媒体源」（上游媒体源 / 网站媒体源），保存后即时生效
 
 链接在两种模式下都经过四层校验：**限流 → 地区/IP/ASN 黑白名单 → Referer 白名单 → 签名校验**，校验通过后才直跳或代理。
 
@@ -173,19 +190,19 @@ npm run dev
 
 所有接口返回 JSON，管理接口需携带 `Authorization: Bearer <PASSWORD>`。
 
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| POST | `/api/login` | 登录校验 `{ token }` |
-| POST | `/api/convert` | 添加媒体 `{ url, mode, name?, folder? }`，自动嗅探类型 |
-| GET | `/api/images` | 媒体列表 + 文件夹列表 |
-| POST | `/api/image/delete` | 删除 `{ id }` |
-| POST | `/api/image/toggle` | 启用/停用 `{ id, enabled }` |
-| POST | `/api/image/update` | 重命名/移动 `{ id, name?, folder? }` |
-| POST | `/api/folder/create` | 创建文件夹 `{ name }` |
-| POST | `/api/folder/rename` | 重命名文件夹 `{ from, to }` |
-| POST | `/api/folder/delete` | 删除文件夹 `{ name }` |
-| GET / PUT | `/api/settings` | 读取 / 保存设置 |
-| GET / HEAD | `/i/<id>` | 媒体访问入口（302 或缓存代理） |
+| 方法       | 路径                 | 说明                                                   |
+| ---------- | -------------------- | ------------------------------------------------------ |
+| POST       | `/api/login`         | 登录校验 `{ token }`                                   |
+| POST       | `/api/convert`       | 添加媒体 `{ url, mode, name?, folder? }`，自动嗅探类型 |
+| GET        | `/api/images`        | 媒体列表 + 文件夹列表                                  |
+| POST       | `/api/image/delete`  | 删除 `{ id }`                                          |
+| POST       | `/api/image/toggle`  | 启用/停用 `{ id, enabled }`                            |
+| POST       | `/api/image/update`  | 重命名/移动 `{ id, name?, folder? }`                   |
+| POST       | `/api/folder/create` | 创建文件夹 `{ name }`                                  |
+| POST       | `/api/folder/rename` | 重命名文件夹 `{ from, to }`                            |
+| POST       | `/api/folder/delete` | 删除文件夹 `{ name }`                                  |
+| GET / PUT  | `/api/settings`      | 读取 / 保存设置                                        |
+| GET / HEAD | `/i/<id>`            | 媒体访问入口（302 或缓存代理）                         |
 
 ## 项目结构
 
