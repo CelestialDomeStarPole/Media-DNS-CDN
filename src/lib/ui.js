@@ -348,7 +348,7 @@ a{color:var(--accent)}
 .primary:disabled{opacity:.6;cursor:default;box-shadow:none;transform:none}
 
 /* toast */
-.toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%) translateY(90px);color:#fff;padding:11px 20px;border-radius:10px;font-size:14px;opacity:0;transition:.25s;z-index:2000;box-shadow:0 10px 34px rgba(0,0,0,.28);pointer-events:none;max-width:80vw}
+.toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%) translateY(90px);color:#fff;padding:11px 20px;border-radius:10px;font-size:14px;opacity:0;transition:.25s;z-index:2400;box-shadow:0 10px 34px rgba(0,0,0,.28);pointer-events:none;max-width:80vw}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .toast.success{background:linear-gradient(135deg,#10b981,#0ea5e9)}
 .toast.error{background:linear-gradient(135deg,#f43f5e,#ef4444)}
@@ -372,6 +372,45 @@ a{color:var(--accent)}
 .modal-box p{font-size:13px;color:#374151;line-height:1.6;word-break:break-all}
 .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
 
+/* 媒体详情弹窗 */
+.detail-modal{position:fixed;inset:0;z-index:2250;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.45);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);padding:18px}
+.detail-box{width:1026px;max-width:100%;max-height:92vh;overflow:auto;background:#fff;border-radius:22px;box-shadow:0 27px 81px rgba(0,0,0,.28);animation:popIn .16s ease-out both}
+.detail-head{display:flex;align-items:center;justify-content:space-between;padding:19px 24px 0}
+.detail-head h3{font-size:20px;font-weight:600;color:var(--text)}
+.detail-close{font-size:35px;line-height:1;color:#9ca3af;cursor:pointer;transition:color .15s,transform .15s;background:none;border:none;padding:0 2px}
+.detail-close:hover{color:#dc2626;transform:rotate(90deg)}
+.detail-body{display:flex;gap:24px;padding:19px 24px 24px}
+.detail-left{width:405px;flex:none;display:flex;flex-direction:column;gap:13px}
+.detail-info{display:flex;flex-direction:column;gap:5px;color:var(--text)}
+.detail-name{font-size:19px;font-weight:600;cursor:pointer;line-height:1.35;word-break:break-all;display:flex;align-items:center;gap:8px;color:var(--text);max-width:100%}
+.detail-name:hover .pen{opacity:1}
+.detail-name .pen{opacity:.6}
+.detail-name input{width:100%;font-size:17px;padding:5px 11px;border-radius:6px;border:1px solid var(--accent);outline:none;color:#1f2937}
+.detail-folder{font-size:16px;color:var(--muted);display:flex;align-items:center;gap:8px;max-width:100%;word-break:break-all}
+.detail-folder select{width:100%;font-size:16px;padding:5px 11px;border-radius:8px;border:1px solid rgba(0,0,0,.15);background:#fff;color:#1f2937;outline:none;cursor:pointer}
+.detail-folder select:focus{border-color:var(--accent)}
+.detail-media{width:100%;border-radius:12px;overflow:hidden;background:none;min-height:405px;display:flex;align-items:center;justify-content:center}
+.detail-thumb{width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:0}
+.detail-thumb img,.detail-thumb video{display:block;max-width:100%;max-height:459px;object-fit:contain;border-radius:8px}
+.detail-thumb .thumb-fallback{font-size:46px;color:color-mix(in srgb,var(--accent) 70%,#444);display:flex;flex-direction:column;align-items:center;gap:11px}
+.detail-right{flex:1;min-width:0;display:flex;flex-direction:column;gap:22px}
+.detail-meta{display:grid;grid-template-columns:1fr 1fr;gap:9px 22px}
+.detail-meta .meta-row{font-size:14px;color:var(--muted);display:flex;gap:7px;align-items:baseline;min-width:0}
+.detail-meta .meta-row span{flex:none;white-space:nowrap}
+.detail-meta .meta-row b{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-weight:600;color:var(--text);font-size:14px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.detail-meta .meta-row b.id-copy{cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.detail-meta .meta-row b.id-copy:hover{color:var(--accent)}
+.detail-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:14px}
+.dt-sec-title{font-size:16px;font-weight:600;color:var(--muted);margin:3px 0 0}
+.detail-chips{display:flex;flex-wrap:wrap;gap:11px}
+.dchip{padding:8px 19px;border-radius:999px;font-size:17px;background:rgba(255,255,255,.72);border:1px solid rgba(0,0,0,.1);color:#374151;transition:all .15s;font-weight:500}
+.dchip:hover{transform:translateY(-1px);border-color:var(--accent)}
+.dchip.active{background:var(--grad);color:#fff;border-color:transparent;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+.detail-preview{margin-top:3px}
+.detail-preview textarea{width:100%;min-height:97px;resize:vertical;padding:14px 16px;border-radius:10px;border:1px solid rgba(0,0,0,.12);background:#fafafa;color:#374151;font-size:17px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.6;word-break:break-all}
+.detail-preview textarea:focus{border-color:var(--accent);outline:none}
+.detail-copy-btn{align-self:flex-start;margin-top:3px}
+
 @media (max-width:720px){
   .sidebar{width:64px;padding:18px 8px}
   .sidebar .brand{font-size:0}
@@ -384,6 +423,10 @@ a{color:var(--accent)}
   .add-row,.add-row2{flex-direction:column}
   .add-row2 select{max-width:100%}
   .group-nav{display:none}
+  .detail-body{flex-direction:column}
+  .detail-left{width:100%}
+  .detail-media{min-height:270px}
+  .detail-thumb img,.detail-thumb video{max-height:324px}
 }
 @media (prefers-reduced-motion: reduce){
   *,*:before,*:after{animation:none!important;transition:none!important}
@@ -575,6 +618,51 @@ a{color:var(--accent)}
   <button data-act="rename" data-i18n="folder.rename"></button>
   <button data-act="delete" class="danger" data-i18n="folder.delete"></button>
 </div>
+<div id="detail-modal" class="detail-modal hidden">
+  <div class="detail-box" role="dialog" aria-modal="true" aria-labelledby="detail-title">
+    <div class="detail-head">
+      <h3 id="detail-title" data-i18n="detail.title"></h3>
+      <button class="detail-close" data-i18n-aria="detail.close" aria-label="关闭">&times;</button>
+    </div>
+    <div class="detail-body">
+      <div class="detail-left">
+        <div class="detail-info">
+          <div id="detail-name" class="detail-name" data-id="" data-name=""><span class="t"></span><span class="pen">✎</span></div>
+          <div id="detail-folder" class="detail-folder"></div>
+        </div>
+        <div class="detail-media">
+          <div id="detail-thumb" class="detail-thumb"></div>
+        </div>
+      </div>
+      <div class="detail-right">
+        <div class="detail-meta">
+          <div class="meta-row"><span data-i18n="detail.size"></span><b id="detail-size">-</b></div>
+          <div class="meta-row"><span data-i18n="detail.id"></span><b id="detail-id" class="id-copy" data-i18n-title="detail.copyId">-</b></div>
+          <div class="meta-row"><span data-i18n="detail.time"></span><b id="detail-time">-</b></div>
+          <div class="meta-row"><span data-i18n="detail.dimension"></span><b id="detail-dim">-</b></div>
+        </div>
+        <div class="detail-copy">
+        <p class="dt-sec-title" data-i18n="detail.source"></p>
+        <div class="detail-chips" id="detail-source">
+          <button type="button" class="dchip active" data-src="site" data-i18n="detail.sourceSite"></button>
+          <button type="button" class="dchip" data-src="upstream" data-i18n="detail.sourceUpstream"></button>
+        </div>
+        <p class="dt-sec-title" data-i18n="detail.format"></p>
+        <div class="detail-chips" id="detail-format">
+          <button type="button" class="dchip active" data-fmt="url" data-i18n="detail.formatUrl"></button>
+          <button type="button" class="dchip" data-fmt="html" data-i18n="detail.formatHtml"></button>
+          <button type="button" class="dchip" data-fmt="markdown" data-i18n="detail.formatMarkdown"></button>
+          <button type="button" class="dchip" data-fmt="bbcode" data-i18n="detail.formatBBcode"></button>
+        </div>
+        <div class="detail-preview">
+          <textarea id="detail-preview" readonly spellcheck="false"></textarea>
+        </div>
+        <button id="detail-copy-btn" class="primary detail-copy-btn" data-i18n="detail.copy"></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
 (function () {
@@ -592,6 +680,9 @@ a{color:var(--accent)}
   var lastPreviewHost = "";
   var rateMeta = null;
   var appSettings = {}; // 全局设置缓存（含 thumbSource/previewSource），缩略图与灯箱渲染时读取
+  var detailModalImg = null; // 详情弹窗当前媒体对象
+  var detailSrc = "site"; // 详情弹窗复制源：site=网站链接 / upstream=上游链接
+  var detailFmt = "url"; // 详情弹窗复制格式：url / html / markdown / bbcode
   var THUMB_CACHE_KEY = "media_dns_thumb_cache";
   var thumbCacheMax = parseInt(localStorage.getItem(THUMB_CACHE_KEY), 10);
   if (!thumbCacheMax || thumbCacheMax < 8) { thumbCacheMax = 50; localStorage.setItem(THUMB_CACHE_KEY, "50"); }
@@ -683,6 +774,23 @@ a{color:var(--accent)}
       "card.toggle": "启用/停用",
       "card.folderAria": "移动文件夹",
       "card.renameTitle": "点击重命名",
+      "card.detail": "详情",
+      "detail.title": "媒体详情",
+      "detail.close": "关闭",
+      "detail.source": "复制源",
+      "detail.sourceSite": "网站链接",
+      "detail.sourceUpstream": "上游链接",
+      "detail.format": "复制格式",
+      "detail.formatUrl": "URL",
+      "detail.formatHtml": "HTML",
+      "detail.formatMarkdown": "Markdown",
+      "detail.formatBBcode": "BBcode",
+      "detail.copy": "复制",
+      "detail.copyId": "点击复制 ID",
+      "detail.size": "大小",
+      "detail.id": "ID",
+      "detail.time": "上传时间",
+      "detail.dimension": "尺寸",
       "confirm.title": "删除媒体",
       "confirm.text": "确定删除媒体「{name}」吗？删除后链接将立即失效。",
       "confirm.cancel": "取消",
@@ -834,6 +942,23 @@ a{color:var(--accent)}
       "card.toggle": "Enable/Disable",
       "card.folderAria": "Move to folder",
       "card.renameTitle": "Click to rename",
+      "card.detail": "Details",
+      "detail.title": "Media details",
+      "detail.close": "Close",
+      "detail.source": "Source",
+      "detail.sourceSite": "Site link",
+      "detail.sourceUpstream": "Upstream link",
+      "detail.format": "Format",
+      "detail.formatUrl": "URL",
+      "detail.formatHtml": "HTML",
+      "detail.formatMarkdown": "Markdown",
+      "detail.formatBBcode": "BBcode",
+      "detail.copy": "Copy",
+      "detail.copyId": "Click to copy ID",
+      "detail.size": "Size",
+      "detail.id": "ID",
+      "detail.time": "Uploaded",
+      "detail.dimension": "Dimensions",
       "confirm.title": "Delete media",
       "confirm.text": "Delete media ‘{name}’? The link will stop working immediately.",
       "confirm.cancel": "Cancel",
@@ -1320,7 +1445,7 @@ a{color:var(--accent)}
   var dnd = null;
   var flipTimer = null;
   function dragBlocked(el) {
-    return !!el.closest("button, a, input, select, textarea, label, .zoom, .copy, .del, .tgl, .switch, .fsel, .img-name, .pen");
+    return !!el.closest("button, a, input, select, textarea, label, .zoom, .copy, .del, .detail, .tgl, .switch, .fsel, .img-name, .pen");
   }
   function gridVisibleIds() {
     var cards = $("grid").querySelectorAll(".img-card");
@@ -1610,6 +1735,7 @@ a{color:var(--accent)}
       '<select class="fsel" data-id="' + esc(img.id) + '" aria-label="' + esc(t("card.folderAria")) + '">' + folderOptions(img.folder || "") + "</select>" +
       '<div class="actions">' +
       '<label class="switch" title="' + esc(t("card.toggle")) + '"><input type="checkbox" class="tgl" data-id="' + esc(img.id) + '"' + (img.enabled ? " checked" : "") + ' /><span></span></label>' +
+      '<button class="mini detail" data-id="' + esc(img.id) + '" aria-label="' + esc(t("card.detail")) + '">' + esc(t("card.detail")) + "</button>" +
       '<button class="mini copy" data-url="' + esc(img.shortUrl || img.url) + '" aria-label="' + esc(t("card.copy.aria")) + '">' + esc(t("card.copy")) + "</button>" +
       '<button class="mini danger del" data-id="' + esc(img.id) + '" aria-label="' + esc(t("card.del")) + '">' + esc(t("card.del")) + "</button>" +
       "</div></div>";
@@ -2364,7 +2490,7 @@ a{color:var(--accent)}
     if (v) { for (var k2 in d) { if (k2 !== "id") v[k2] = d[k2]; } }
   }
 
-  function setFolder(id, folder) {
+  function setFolder(id, folder, onDone) {
     var im = findInLast(id);
     var prevFolder = im ? (im.folder || "") : "";
     // 乐观：立即更新数据与单卡 DOM（fsel 选项 + 当前文件夹过滤显隐），无需等待请求
@@ -2376,6 +2502,7 @@ a{color:var(--accent)}
       .then(function (data) {
         mergeServerImage(data, id);
         toast(t("op.moved"), "success");
+        if (onDone) onDone(true);
       })
       .catch(function (err) {
         // 失败回滚 folder
@@ -2384,10 +2511,11 @@ a{color:var(--accent)}
         if (v1) v1.folder = prevFolder;
         updateCardDom(id);
         toast(err.message || t("op.fail"), "error");
+        if (onDone) onDone(false);
       });
   }
 
-  function enterNameEdit(span) {
+  function enterNameEdit(span, onSaved) {
     if (span.querySelector("input")) return;
     var id = span.getAttribute("data-id");
     var prev = span.getAttribute("data-name") || "";
@@ -2414,6 +2542,7 @@ a{color:var(--accent)}
         api("/api/image/update", { method: "POST", body: JSON.stringify({ id: id, name: v }) })
           .then(function (data) {
             mergeServerImage(data, id);
+            if (onSaved) onSaved(id);
             toast(t("op.saved"), "success");
           })
           .catch(function (err) {
@@ -2427,6 +2556,7 @@ a{color:var(--accent)}
       } else {
         // 取消编辑：就地重建该卡，恢复为数据源当前值（不触发全量重拉）
         updateCardDom(id);
+        if (onSaved) onSaved(id);
       }
     }
     input.addEventListener("keydown", function (e) {
@@ -2439,7 +2569,11 @@ a{color:var(--accent)}
 
   $("grid").addEventListener("click", function (e) {
     var el = e.target;
-    if (el.classList.contains("copy")) {
+    if (el.classList.contains("detail")) {
+      var did = el.getAttribute("data-id");
+      var dimg = (lastImages || []).filter(function (x) { return x.id === did; })[0];
+      if (dimg) openDetailModal(dimg);
+    } else if (el.classList.contains("copy")) {
       var url = el.getAttribute("data-url");
       function done() {
         el.textContent = t("card.copy.ok");
@@ -2585,9 +2719,182 @@ a{color:var(--accent)}
   $("lightbox").addEventListener("click", function (e) {
     if (e.target === $("lightbox") || e.target.classList.contains("close")) closeLightbox();
   });
+  function closeDetailModal() {
+    $("detail-modal").classList.add("hidden");
+    $("detail-thumb").innerHTML = "";
+    detailModalImg = null;
+  }
+  $("detail-modal").addEventListener("click", function (e) {
+    if (e.target === $("detail-modal") || e.target.classList.contains("detail-close")) closeDetailModal();
+  });
+
+  // ---- 详情弹窗：左栏（大缩略图 + 信息 overlay + 元数据探测）----
+  function fmtSize(n) {
+    if (!n || n < 0) return "-";
+    if (n < 1024) return n + " B";
+    if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+    if (n < 1073741824) return (n / 1048576).toFixed(1) + " MB";
+    return (n / 1073741824).toFixed(2) + " GB";
+  }
+  function setDetailDim(w, h) {
+    if (w && h) $("detail-dim").textContent = w + "×" + h;
+  }
+  function renderDetailName() {
+    var el = $("detail-name");
+    if (!detailModalImg) return;
+    var nm = displayName(detailModalImg);
+    el.setAttribute("data-id", detailModalImg.id);
+    el.setAttribute("data-name", detailModalImg.name || "");
+    el.innerHTML = '<span class="t"></span><span class="pen">✎</span>';
+    el.querySelector(".t").textContent = nm;
+    el.title = nm;
+  }
+  function renderDetailFolder() {
+    var el = $("detail-folder");
+    if (!detailModalImg) return;
+    el.textContent = "";
+    var sel = document.createElement("select");
+    sel.innerHTML = folderOptions(detailModalImg.folder || "");
+    sel.addEventListener("change", function () {
+      var val = sel.value;
+      if (val === "__new__") {
+        var nm = (window.prompt(t("add.folder.newPh")) || "").trim();
+        if (!nm) { renderDetailFolder(); return; }
+        apiCreateFolder(nm)
+          .then(function () { detailSetFolder(detailModalImg.id, nm); })
+          .catch(function (err) { toast(err.message, "error"); renderDetailFolder(); });
+      } else {
+        detailSetFolder(detailModalImg.id, val);
+      }
+    });
+    el.appendChild(sel);
+  }
+  function detailSetFolder(id, folder) {
+    setFolder(id, folder, function () { renderDetailFolder(); });
+  }
+  function fillDetailMedia(img) {
+    var box = $("detail-thumb");
+    box.innerHTML = "";
+    var tp = img.type || guessTypeClient(img.url);
+    if (tp === "audio") {
+      box.innerHTML = '<div class="thumb-fallback"><span class="tf-icon">♪</span><span class="tf-id">' + esc(t("type.audio")) + "</span></div>";
+      return;
+    }
+    var el = tp === "video" ? document.createElement("video") : document.createElement("img");
+    if (tp === "video") {
+      el.muted = true;
+      el.playsInline = true;
+      el.preload = "metadata";
+      el.crossOrigin = "anonymous";
+      el.src = videoThumbSrc(img, appSettings.thumbSource);
+      el.addEventListener("loadedmetadata", function () { setDetailDim(el.videoWidth, el.videoHeight); });
+    } else {
+      el.alt = img.id;
+      el.onload = function () { setDetailDim(el.naturalWidth, el.naturalHeight); };
+      el.src = mediaSrc(img, appSettings.thumbSource);
+    }
+    box.appendChild(el);
+  }
+  function probeDetailSize(img) {
+    var url = img.shortUrl || img.url;
+    if (!url) return;
+    try {
+      fetch(url, { method: "HEAD", cache: "no-store" })
+        .then(function (r) {
+          var len = r.headers.get("content-length");
+          if (len) $("detail-size").textContent = fmtSize(Number(len));
+        })
+        .catch(function () {});
+    } catch (e) {}
+  }
+  function openDetailModal(img) {
+    if (!img) return;
+    detailModalImg = img;
+    detailSrc = "site";
+    detailFmt = "url";
+    fillDetailMedia(img);
+    renderDetailName();
+    renderDetailFolder();
+    $("detail-id").textContent = img.id;
+    $("detail-time").textContent = fmtTime(img.createdAt);
+    $("detail-size").textContent = "-";
+    $("detail-dim").textContent = "-";
+    probeDetailSize(img);
+    fillDetailCopy(img);
+    $("detail-modal").classList.remove("hidden");
+  }
+  // 详情弹窗：点击名字改名、点击 ID 值复制
+  $("detail-name").addEventListener("click", function () {
+    if (!detailModalImg) return;
+    enterNameEdit(this, function () { renderDetailName(); });
+  });
+  $("detail-id").addEventListener("click", function () {
+    if (!detailModalImg) return;
+    var text = detailModalImg.id;
+    function done() {
+      toast(t("op.copyOk"), "success");
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text); done(); });
+    } else { fallbackCopy(text); done(); }
+  });
+
+  // ---- 详情弹窗：右栏（复制源 / 格式 / 预览 / 复制）----
+  function buildCopyText(img, source, format) {
+    if (!img) return "";
+    var link = source === "upstream" ? img.url : (img.shortUrl || img.url);
+    var name = displayName(img);
+    var isImg = (img.type || guessTypeClient(img.url)) === "image";
+    if (format === "html") {
+      return isImg
+        ? '<img src="' + esc(link) + '" alt="' + esc(name) + '">'
+        : '<a href="' + esc(link) + '">' + esc(name) + "</a>";
+    }
+    if (format === "markdown") {
+      return isImg ? "![" + name + "](" + link + ")" : "[" + name + "](" + link + ")";
+    }
+    if (format === "bbcode") {
+      return isImg ? "[img]" + link + "[/img]" : "[url=" + link + "]" + name + "[/url]";
+    }
+    return link; // url
+  }
+  function fillDetailCopy(img) {
+    var srcs = $("detail-source").querySelectorAll(".dchip");
+    for (var i = 0; i < srcs.length; i++) srcs[i].classList.toggle("active", srcs[i].getAttribute("data-src") === detailSrc);
+    var fmts = $("detail-format").querySelectorAll(".dchip");
+    for (var j = 0; j < fmts.length; j++) fmts[j].classList.toggle("active", fmts[j].getAttribute("data-fmt") === detailFmt);
+    $("detail-preview").value = buildCopyText(img, detailSrc, detailFmt);
+  }
+  $("detail-source").addEventListener("click", function (e) {
+    var btn = e.target.closest(".dchip");
+    if (!btn || !detailModalImg) return;
+    detailSrc = btn.getAttribute("data-src");
+    var srcs = this.querySelectorAll(".dchip");
+    for (var i = 0; i < srcs.length; i++) srcs[i].classList.toggle("active", srcs[i] === btn);
+    $("detail-preview").value = buildCopyText(detailModalImg, detailSrc, detailFmt);
+  });
+  $("detail-format").addEventListener("click", function (e) {
+    var btn = e.target.closest(".dchip");
+    if (!btn || !detailModalImg) return;
+    detailFmt = btn.getAttribute("data-fmt");
+    var fmts = this.querySelectorAll(".dchip");
+    for (var j = 0; j < fmts.length; j++) fmts[j].classList.toggle("active", fmts[j] === btn);
+    $("detail-preview").value = buildCopyText(detailModalImg, detailSrc, detailFmt);
+  });
+  $("detail-copy-btn").addEventListener("click", function () {
+    var text = $("detail-preview").value;
+    if (!text) return;
+    function done() {
+      toast(t("op.copyOk"), "success");
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text); done(); });
+    } else { fallbackCopy(text); done(); }
+  });
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") {
       if (!$("confirm-modal").classList.contains("hidden")) closeConfirm();
+      else if (!$("detail-modal").classList.contains("hidden")) closeDetailModal();
       else if (!$("lightbox").classList.contains("hidden")) closeLightbox();
       else if (!$("chip-pop").classList.contains("hidden")) $("chip-pop").classList.add("hidden");
     }
@@ -2866,7 +3173,7 @@ a{color:var(--accent)}
     if (REDUCED) return;
     var t = e.target;
     if (!t || t === document) return;
-    if (t.closest("button,a,input,select,textarea,label,[data-act],.fchip,.fchip-menu,.fchip-wrap,.lt-seg-opt,.tgl,.fsel,.img-name,.copy,.del,.zoom,.close,.primary,.mini,.nav-btn,.logout,.lang-toggle,.chip-pop,.lightbox,.modal,.search-clear,.openlink")) return;
+    if (t.closest("button,a,input,select,textarea,label,[data-act],.fchip,.fchip-menu,.fchip-wrap,.lt-seg-opt,.tgl,.fsel,.img-name,.copy,.del,.detail,.zoom,.close,.primary,.mini,.nav-btn,.logout,.lang-toggle,.chip-pop,.lightbox,.modal,.detail-modal,.search-clear,.openlink,.dchip,.detail-name,.detail-folder,.detail-preview,.id-copy")) return;
     spawnClickFx(e.clientX, e.clientY);
   });
 
