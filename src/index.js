@@ -111,20 +111,38 @@ async function purgeTag(ctx, tag) {
   } catch {}
 }
 
-async function sniffType(targetUrl, settings) {
-  // 添加时用 HEAD 嗅探媒体类型（图片/音频/视频），失败则按扩展名推断
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 5000);
-  try {
-    const { response } = await fetchOrigin(settings, targetUrl, { method: "HEAD", signal: ctrl.signal });
-    if (response && response.status < 400) {
-      const t = classifyType(response.headers.get("Content-Type") || "");
-      if (t) return t;
+// 多级探测媒体类型（图片/音频/视频）：
+// L1 HEAD 嗅探 Content-Type → L2 GET+Range(0-0)（仅读响应头后即断开，对 HEAD 不友好/重定向源可靠）
+// → L3 按 URL 扩展名兜底 → 仍失败返回 "unknown"。
+// timeoutMs 供调用方控制：添加场景较宽松（5000ms），详情接口场景用短超时（2500ms）。
+async function probeType(targetUrl, settings, timeoutMs = 5000) {
+  const sniff = async (method) => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+    let response;
+    try {
+      const opts = { method, signal: ctrl.signal };
+      // L2 只取响应头不下载文件体：Range 0-0 让源站返回头信息（206/200），读到 Content-Type 后即 cancel 断开
+      if (method === "GET") opts.headers = [["Range", "bytes=0-0"]];
+      const res = await fetchOrigin(settings, targetUrl, opts);
+      response = res.response;
+      if (response && response.status < 400) {
+        const t = classifyType(response.headers.get("Content-Type") || "");
+        if (t) return t;
+      }
+    } catch {
+    } finally {
+      clearTimeout(timer);
+      try {
+        await response?.body?.cancel();
+      } catch {}
     }
-  } catch {
-  } finally {
-    clearTimeout(timer);
-  }
+    return null;
+  };
+  const fromHead = await sniff("HEAD");
+  if (fromHead) return fromHead;
+  const fromRange = await sniff("GET");
+  if (fromRange) return fromRange;
   return guessType(targetUrl) || "unknown";
 }
 
@@ -154,7 +172,7 @@ async function handleConvert(request, env) {
   const id = generateId();
   const name = sanitizeField(body.name, 60);
   const folder = sanitizeField(body.folder, 30);
-  const type = await sniffType(raw, settings);
+  const type = await probeType(raw, settings);
   await putImage(env, id, { url: raw, mode, enabled: true, name, folder, type, createdAt: Date.now() });
   // 新条目排在列表最前（与默认"新在前"一致）
   const order = (await getOrder(env)) || [];
@@ -194,6 +212,15 @@ async function handleImageDetail(request, env) {
   const img = await getImage(env, id);
   if (!img) return json({ error: "图片不存在" }, 404);
   const settings = await getSettings(env);
+  // 懒纠正：type 为 unknown 且通过白名单校验时，短超时探测真实类型并回写 KV，
+  // 让管理面板卡片即时显示类型徽章（仅触发一次，纠正后不再探测）
+  if (img.type === "unknown" && isAllowedUrl(img.url, settings)) {
+    const got = await probeType(img.url, settings, 2500);
+    if (got && got !== "unknown") {
+      img.type = got;
+      await putImage(env, id, img).catch(() => {});
+    }
+  }
   return json({ ...img, shortUrl: await makeLink(request, env, settings, id) });
 }
 
@@ -362,7 +389,7 @@ async function handlePutSettings(request, env, ctx) {
   return json({ ok: true });
 }
 
-async function handleImage(request, env, id) {
+async function handleImage(request, env, id, ctx) {
   const settings = await getSettings(env);
   const url = new URL(request.url);
 
@@ -465,6 +492,11 @@ async function handleImage(request, env, id) {
     });
   }
 
+  // 懒纠正：此前 type 为 unknown 的条目，代理成功识别到真实类型后异步回写 KV，不阻塞媒体响应
+  if (mediaType === "unknown" && v.type && v.type !== "unknown") {
+    ctx.waitUntil(putImage(env, id, { ...image, type: v.type }).catch(() => {}));
+  }
+
   const cached = buildCachedResponse(response, settings, id, v.partial);
   // 保存文件名来源：custom 时用「网站自定义名 + 上游扩展名」覆盖上游文件名
   if (settings.downloadNameSource === "custom") {
@@ -521,7 +553,7 @@ export default {
 
     const m = pathname.match(IMAGE_PATH);
     if (m && (request.method === "GET" || request.method === "HEAD")) {
-      return handleImage(request, env, m[1]);
+      return handleImage(request, env, m[1], ctx);
     }
 
     return new Response("Not Found", { status: 404 });

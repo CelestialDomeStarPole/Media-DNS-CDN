@@ -1,4 +1,4 @@
-const IMAGE_EXT = ["jpg", "jpeg", "png", "gif", "webp", "avif", "bmp", "svg", "ico", "tiff", "tif"];
+const IMAGE_EXT = ["jpg", "jpeg", "png", "gif", "webp", "avif", "jxl", "bmp", "svg", "ico", "tiff", "tif"];
 const AUDIO_EXT = ["mp3", "wav", "ogg", "oga", "aac", "flac", "m4a", "opus", "wma", "amr", "weba"];
 const VIDEO_EXT = ["mp4", "webm", "mov", "avi", "mkv", "m4v", "ts", "3gp", "mpg", "mpeg", "wmv", "flv", "ogv", "m3u8", "mpd"];
 const TYPE_SIZE_KEY = { image: "maxImageSize", audio: "maxAudioSize", video: "maxVideoSize" };

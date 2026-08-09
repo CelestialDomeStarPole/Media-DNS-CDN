@@ -392,7 +392,9 @@ a{color:var(--accent)}
 .detail-media{width:100%;border-radius:12px;overflow:hidden;background:none;min-height:405px;display:flex;align-items:center;justify-content:center}
 .detail-thumb{width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:0}
 .detail-thumb img,.detail-thumb video{display:block;max-width:100%;max-height:459px;object-fit:contain;border-radius:8px}
-.detail-thumb .thumb-fallback{font-size:46px;color:color-mix(in srgb,var(--accent) 70%,#444);display:flex;flex-direction:column;align-items:center;gap:11px}
+.detail-thumb .thumb-fallback{position:static;inset:auto;font-size:46px;color:color-mix(in srgb,var(--accent) 70%,#444);display:flex;flex-direction:row;align-items:center;gap:11px}
+.detail-audio-wrap{width:100%;max-width:340px;display:flex;flex-direction:column;align-items:center;gap:14px}
+.detail-audio-wrap audio{width:100%}
 .detail-right{flex:1;min-width:0;display:flex;flex-direction:column;gap:22px}
 .detail-meta{display:grid;grid-template-columns:1fr 1fr;gap:9px 22px}
 .detail-meta .meta-row{font-size:14px;color:var(--muted);display:flex;gap:7px;align-items:baseline;min-width:0}
@@ -832,9 +834,9 @@ a{color:var(--accent)}
       "set.group.hotlink": "防盗链",
       "set.allowedReferers": "允许引用的域名（Referer 白名单，逗号分隔，留空 = 不限制）",
       "set.allowedReferers.ph": "如 myblog.com, blog.com",
-      "set.allowedReferers.hint": "仅当请求携带 Referer 时校验；浏览器不总是发送 Referer，此为尽力而为。",
+      "set.allowedReferers.hint": "配置后，只有请求的 Referer 域名匹配此列表（含子域名）才放行；不携带 Referer（如浏览器直链访问、直接输入网址）或域名不匹配的请求一律返回 403。请把需要引用外链的网页域名加入列表；留空 = 不限制。",
       "set.requireSignature": "启用 HMAC 签名链接",
-      "set.requireSignature.hint": "（生成的链接带过期签名，不可伪造，最强防外链）",
+      "set.requireSignature.hint": "开启后生成的链接自动附带「过期时间+签名」，任何请求都必须携带有效签名，无法伪造或篡改，即使 Referer 缺失也能防护（最强防外链）。注意：开启后旧链接、手工拼接或已过期的链接将全部失效，需重新复制新链接。",
       "set.signatureTtl": "签名有效期（秒）",
       "set.group.cache": "缓存与限制",
       "set.cacheTtl": "缓存 TTL（秒，0 = 不缓存）",
@@ -850,7 +852,7 @@ a{color:var(--accent)}
       "set.downloadNameSource.upstream": "上游文件名",
       "set.downloadNameSource.custom": "网站自定义名",
       "set.thumbSource": "缩略图媒体源",
-      "set.thumbSource.hint": "管理面板中媒体卡片的缩略图/封面取自上游媒体源，或本网站代理后的网站媒体源。仅「缓存代理+DNS」模式的媒体支持网站源（「仅DNS」为302直跳，始终用上游）。视频封面因跨域截帧限制，缓存代理模式下始终走网站代理链接。",
+      "set.thumbSource.hint": "管理面板中媒体卡片的缩略图/封面取自上游媒体源，或本网站代理后的网站媒体源；媒体详情页缩略图同样由此控制。仅「缓存代理+DNS」模式的媒体支持网站源（「仅DNS」为302直跳，始终用上游）。视频封面因跨域截帧限制，缓存代理模式下始终走网站代理链接。",
       "set.thumbSource.upstream": "上游媒体源",
       "set.thumbSource.site": "网站媒体源",
       "set.previewSource": "预览媒体源",
@@ -1000,9 +1002,9 @@ a{color:var(--accent)}
       "set.group.hotlink": "Hotlink protection",
       "set.allowedReferers": "Allowed referer domains (comma separated; empty = unrestricted)",
       "set.allowedReferers.ph": "e.g. myblog.com, blog.com",
-      "set.allowedReferers.hint": "Checked only when Referer is present; browsers don't always send it, so best-effort.",
+      "set.allowedReferers.hint": "When set, only requests whose Referer host matches this list (including subdomains) are allowed; requests with no Referer (direct <img>/<video> loads, typing the URL) or a non-matching Referer get 403. Add the domains of pages that embed your media; empty = no Referer check.",
       "set.requireSignature": "Enable HMAC signed links",
-      "set.requireSignature.hint": "(links get expiring signatures, unforgeable, strongest protection)",
+      "set.requireSignature.hint": "When enabled, generated links carry an expiring signature; every request must include a valid one, which can't be forged or tampered with and protects even without a Referer (strongest). Note: old, hand-built, or expired links stop working — re-copy new links.",
       "set.signatureTtl": "Signature TTL (seconds)",
       "set.group.cache": "Cache & limits",
       "set.cacheTtl": "Cache TTL (seconds, 0 = off)",
@@ -1018,7 +1020,7 @@ a{color:var(--accent)}
       "set.downloadNameSource.upstream": "Upstream file name",
       "set.downloadNameSource.custom": "Name set on this site",
       "set.thumbSource": "Thumbnail media source",
-      "set.thumbSource.hint": "Thumbnails/covers on the media grid load from the upstream source, or from this site's proxied link. Only applies in “Cache proxy + DNS” mode (DNS-only is a 302 redirect and always uses upstream). Video covers always use the proxied link in cache-proxy mode because cross-origin frame capture requires CORS.",
+      "set.thumbSource.hint": "Thumbnails/covers on the media grid and in the media detail view load from the upstream source, or from this site's proxied link. Only applies in “Cache proxy + DNS” mode (DNS-only is a 302 redirect and always uses upstream). Video covers always use the proxied link in cache-proxy mode because cross-origin frame capture requires CORS.",
       "set.thumbSource.upstream": "Upstream source",
       "set.thumbSource.site": "Site source",
       "set.previewSource": "Preview media source",
@@ -1183,7 +1185,7 @@ a{color:var(--accent)}
     try {
       var path = new URL(u).pathname.toLowerCase();
       var ext = path.split(".").pop() || "";
-      if (["jpg", "jpeg", "png", "gif", "webp", "avif", "bmp", "svg", "ico", "tiff", "tif"].indexOf(ext) !== -1) return "image";
+      if (["jpg", "jpeg", "png", "gif", "webp", "avif", "jxl", "bmp", "svg", "ico", "tiff", "tif"].indexOf(ext) !== -1) return "image";
       if (["mp3", "wav", "ogg", "oga", "aac", "flac", "m4a", "opus", "wma", "amr", "weba"].indexOf(ext) !== -1) return "audio";
       if (["mp4", "webm", "mov", "avi", "mkv", "m4v", "ts", "3gp", "mpg", "mpeg", "wmv", "flv", "ogv", "m3u8", "mpd"].indexOf(ext) !== -1) return "video";
     } catch (e) {}
@@ -2016,18 +2018,26 @@ a{color:var(--accent)}
   window.addEventListener("scroll", function () { requestAnimationFrame(updateCurrentGroup); }, { passive: true });
   window.addEventListener("resize", debounce(function () {
     if (lastImages === null) return;
-    var old = gridState.cols;
+    var oldCols = gridState.cols;
+    var oldSize = gridState.groupSize;
     computeGridMetrics();
-    if (gridState.cols === old) return;
-    // 列数变化：DOM 卡片由 CSS grid 自动重排，无需全量重建（避免同类"卡片消失"）。
-    // 仅重算哨兵撑高、收敛滚动位置并同步分组高亮
+    // 列数或分组大小任一变化（含仅窗口高度变化导致的 groupSize 变化）都就地刷新分组体系，
+    // 无需刷新页面：重建分组导航、重算哨兵撑高、补齐当前视口缺失区间并同步高亮
+    if (gridState.cols === oldCols && gridState.groupSize === oldSize) return;
     if (gridState.vis && gridState.vis.length) {
-      updateSentinelHeight();
       var doc = document.documentElement;
       var maxY = Math.max(0, doc.scrollHeight - window.innerHeight);
       var top = window.pageYOffset || doc.scrollTop;
-      if (top > maxY) window.scrollTo(0, maxY);
-      updateCurrentGroup();
+      if (top > maxY) { top = maxY; window.scrollTo(0, maxY); }
+      // groupSize 变化后当前视口覆盖的数据区间可能超出已渲染卡片，
+      // 沿用分组跳转的增量补渲染方式（不清空网格，已渲染卡保留、总高度由哨兵维持）
+      var start = Math.floor(top / gridState.rowH) * gridState.cols;
+      var end = Math.min(gridState.vis.length, start + gridState.groupSize + 2 * gridState.cols);
+      if (gridState.rendered + cardQueue.length < end) {
+        enqueueCardRange(gridState.rendered + cardQueue.length, end, true);
+      }
+      updateSentinelHeight();
+      renderGroupNav(gridState.vis); // 按新 groupSize 重建分组按钮并恢复当前分组高亮
     }
   }, 250));
 
@@ -2777,7 +2787,10 @@ a{color:var(--accent)}
     box.innerHTML = "";
     var tp = img.type || guessTypeClient(img.url);
     if (tp === "audio") {
-      box.innerHTML = '<div class="thumb-fallback"><span class="tf-icon">♪</span><span class="tf-id">' + esc(t("type.audio")) + "</span></div>";
+      // 音频详情：♪ 占位符（横排）+ 可播放的音频控件，媒体源跟随「缩略图媒体源」设置
+      box.innerHTML =
+        '<div class="detail-audio-wrap"><div class="thumb-fallback"><span class="tf-icon">♪</span><span class="tf-id">' + esc(t("type.audio")) + "</span></div>" +
+        '<audio controls preload="metadata" src="' + esc(mediaSrc(img, appSettings.thumbSource)) + '"></audio></div>';
       return;
     }
     var el = tp === "video" ? document.createElement("video") : document.createElement("img");
