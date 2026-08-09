@@ -1,12 +1,12 @@
 {
   "name": "media-dns-cdn",
   "private": true,
-  "version": "1.2.1",
+  "version": "2.1.0",
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "check": "node --check src/index.js && node --check src/lib/store.js && node --check src/lib/security.js && node --check src/lib/proxy.js && node --check src/lib/ui.js"
+    "check": "node --check src/index.js && node --check src/lib/store.js && node --check src/lib/security.js && node --check src/lib/proxy.js && node --check src/lib/onedrive.js && node --check src/lib/ui.js"
   },
   "devDependencies": {
     "wrangler": "^4.10.0"

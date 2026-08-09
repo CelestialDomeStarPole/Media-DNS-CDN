@@ -31,7 +31,24 @@ import {
   buildCachedResponse,
   classifyType,
   guessType,
+  guessTypeFromName,
 } from "./lib/proxy.js";
+import {
+  isOneDriveShareUrl,
+  isNewFormatShareUrl,
+  buildContentUrl,
+  buildContentUrlV2,
+  resolveShareItem,
+  resolveShareItemV2,
+  listShareChildren,
+  listShareChildrenV2,
+  fetchBadgerAuth,
+  resolveTempAuthUrl,
+  isOneDriveTrustedUrl,
+  MAX_CHILDREN,
+  MY_CONTENT_HOST,
+  BADGER_SCHEME,
+} from "./lib/onedrive.js";
 import { renderUI } from "./lib/ui.js";
 
 const IMAGE_PATH = /^\/i\/([A-Za-z0-9_-]+)\/?$/;
@@ -57,9 +74,29 @@ function sanitizeField(v, max) {
   return v.replace(/[\u0000-\u001f]/g, "").trim().slice(0, max);
 }
 
+// 从 OneDrive 稳定媒体源 content URL 解析真实文件名（/root:/{path}/name:/content 的 path 末段）
+function oneDriveRelName(rawUrl) {
+  try {
+    const p = new URL(rawUrl).pathname;
+    const i = p.indexOf("/root:");
+    if (i === -1) return "";
+    const j = p.lastIndexOf(":/content");
+    if (j <= i) return "";
+    const inner = p.slice(i + "/root:".length, j);
+    const seg = inner.split("/").pop() || "";
+    return seg ? decodeURIComponent(seg) : "";
+  } catch {
+    return "";
+  }
+}
+
 // 上游文件名（URL 末段，含扩展名），解码还原可读字符，失败返回空串
 function upstreamFileName(rawUrl) {
   try {
+    if (isOneDriveTrustedUrl(rawUrl)) {
+      const n = oneDriveRelName(rawUrl);
+      if (n) return n;
+    }
     const seg = new URL(rawUrl).pathname.split("/").pop() || "";
     return seg ? decodeURIComponent(seg) : "";
   } catch {
@@ -115,7 +152,8 @@ async function purgeTag(ctx, tag) {
 // L1 HEAD 嗅探 Content-Type → L2 GET+Range(0-0)（仅读响应头后即断开，对 HEAD 不友好/重定向源可靠）
 // → L3 按 URL 扩展名兜底 → 仍失败返回 "unknown"。
 // timeoutMs 供调用方控制：添加场景较宽松（5000ms），详情接口场景用短超时（2500ms）。
-async function probeType(targetUrl, settings, timeoutMs = 5000) {
+// odAuth 可选：OneDrive 新格式 /c/ 媒体源需要 Authorization: badger 头。
+async function probeType(targetUrl, settings, timeoutMs = 5000, odAuth = null) {
   const sniff = async (method) => {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -124,6 +162,10 @@ async function probeType(targetUrl, settings, timeoutMs = 5000) {
       const opts = { method, signal: ctrl.signal };
       // L2 只取响应头不下载文件体：Range 0-0 让源站返回头信息（206/200），读到 Content-Type 后即 cancel 断开
       if (method === "GET") opts.headers = [["Range", "bytes=0-0"]];
+      if (odAuth) {
+        if (opts.headers) opts.headers = [...opts.headers, ["Authorization", `${BADGER_SCHEME} ${odAuth}`]];
+        else opts.headers = [["Authorization", `${BADGER_SCHEME} ${odAuth}`]];
+      }
       const res = await fetchOrigin(settings, targetUrl, opts);
       response = res.response;
       if (response && response.status < 400) {
@@ -155,6 +197,34 @@ async function handleLogin(request, env) {
   return json({ ok: false, error: "密码错误" }, 401);
 }
 
+// 公共添加逻辑：入库 + order 首位 + 文件夹补录，返回新 id（单文件转换与 OneDrive 导入共用）
+// extra 可携带 OneDrive 新格式所需的认证字段（odAuth=BadgerAuth, odShare=原始共享链接）
+async function addMediaRecord(env, { url, mode, name, folder, type, extra }) {
+  const id = generateId();
+  await putImage(env, id, {
+    url,
+    mode,
+    enabled: true,
+    name,
+    folder,
+    type,
+    createdAt: Date.now(),
+    ...(extra || {}),
+  });
+  // 新条目排在列表最前（与默认"新在前"一致）
+  const order = (await getOrder(env)) || [];
+  order.unshift(id);
+  await saveOrder(env, order);
+  if (folder) {
+    const folders = await getFolders(env);
+    if (!folders.includes(folder)) {
+      folders.push(folder);
+      await saveFolders(env, folders);
+    }
+  }
+  return id;
+}
+
 async function handleConvert(request, env) {
   const body = await request.json().catch(() => null);
   const raw = body && typeof body.url === "string" ? body.url.trim() : "";
@@ -169,24 +239,168 @@ async function handleConvert(request, env) {
       : body.mode === "redirect"
         ? "redirect"
         : settings.defaultMode;
-  const id = generateId();
   const name = sanitizeField(body.name, 60);
   const folder = sanitizeField(body.folder, 30);
   const type = await probeType(raw, settings);
-  await putImage(env, id, { url: raw, mode, enabled: true, name, folder, type, createdAt: Date.now() });
-  // 新条目排在列表最前（与默认"新在前"一致）
-  const order = (await getOrder(env)) || [];
-  order.unshift(id);
-  await saveOrder(env, order);
-  if (folder) {
-    const folders = await getFolders(env);
-    if (!folders.includes(folder)) {
-      folders.push(folder);
-      await saveFolders(env, folders);
-    }
-  }
+  const id = await addMediaRecord(env, { url: raw, mode, name, folder, type });
   const link = await makeLink(request, env, settings, id);
   return json({ id, mode, url: link });
+}
+
+// OneDrive 错误统一映射：兼容 v1(旧格式) 与 v2(新格式 /c/) 的解析结果
+// 注意: 非公开共享不能用 401 返回——前端 api() 对 401 统一按"登录失效"处理并弹出登录框，
+// 故复用 403，仅 error 字符串区分，供前端 odErrorToast 识别。
+function odErrorResponse(info) {
+  if (!info || info.error === "network") {
+    return json({ error: "无法访问 OneDrive，请稍后重试" }, 502);
+  }
+  if (info.error === "no-auth") {
+    return json({ error: "无法获取 OneDrive 匿名会话，请检查 Worker 网络可达 onedrive.live.com" }, 502);
+  }
+  if (info.error === "password_required") {
+    return json({ error: "password_required" }, 403);
+  }
+  if (info.error === "unauthenticated") {
+    return json({ error: "unauthenticated" }, 403);
+  }
+  if (info.error === "invalid") {
+    return json({ error: "无效的 OneDrive 共享链接，或链接已失效" }, 400);
+  }
+  return null;
+}
+
+// 统一解析入口：自动识别新格式(/c/)与旧格式，返回 v2 额外携带 odAuth/odShare
+async function resolveOneDriveInfo(raw) {
+  if (isNewFormatShareUrl(raw)) {
+    const auth = await fetchBadgerAuth(raw);
+    if (!auth || auth.error) return { error: auth ? auth.error : "network" };
+    const info = await resolveShareItemV2(raw, auth.token);
+    if (info && !info.error) {
+      info.odAuth = auth.token;
+      info.odShare = raw.trim();
+    }
+    return info;
+  }
+  return resolveShareItem(raw);
+}
+
+// OneDrive 共享链接解析预览：返回 { isFolder, name, size, childCount }
+async function handleOneDriveResolve(request, env) {
+  const body = await request.json().catch(() => null);
+  const raw = body && typeof body.url === "string" ? body.url.trim() : "";
+  if (!raw || !isOneDriveShareUrl(raw)) {
+    return json({ error: "无效的 OneDrive 共享链接" }, 400);
+  }
+  const info = await resolveOneDriveInfo(raw);
+  const err = odErrorResponse(info);
+  if (err) return err;
+  return json({
+    ok: true,
+    isFolder: info.isFolder,
+    name: info.name,
+    size: info.size,
+    childCount: info.childCount,
+  });
+}
+
+// OneDrive 导入：单文件直接添加；文件夹递归遍历全部文件批量添加（串行，上限 MAX_CHILDREN）
+// 成功返回 { id, mode, type, url }（单文件）或 { added, failed, items:[{name,ok,id}] }（文件夹）
+async function handleOneDriveImport(request, env) {
+  const body = await request.json().catch(() => null);
+  const raw = body && typeof body.url === "string" ? body.url.trim() : "";
+  if (!raw || !isOneDriveShareUrl(raw)) {
+    return json({ error: "无效的 OneDrive 共享链接" }, 400);
+  }
+  const settings = await getSettings(env);
+  // OneDrive 默认缓存代理+DNS（直链时效性由 Worker 实时跟随 302 规避），可传 redirect 切仅DNS
+  const mode = body.mode === "redirect" ? "redirect" : "proxy";
+  const folder = sanitizeField(body.folder, 30);
+  const newFormat = isNewFormatShareUrl(raw);
+
+  const info = await resolveOneDriveInfo(raw);
+  const err = odErrorResponse(info);
+  if (err) return err;
+
+  // 新格式媒体源：优先获取 download.aspx?tempauth= 匿名直链（无需认证即可访问，约 1 小时有效）。
+  // 获取失败（如低权限 token）时回退 content URL + odAuth 代理方式。
+  // 旧格式直接用 content URL（api.onedrive.com，Worker 实时跟随 302）。
+  const buildV2Media = async (itemId) => {
+    const contentUrl = buildContentUrlV2(info.driveId, itemId);
+    if (newFormat && info.odAuth) {
+      const t = await resolveTempAuthUrl(info.driveId, itemId, info.odAuth);
+      if (t && t.url) return { url: t.url, anonymous: true };
+      return { url: contentUrl, anonymous: false };
+    }
+    return { url: contentUrl, anonymous: false };
+  };
+
+  // 单文件：探测类型后入库
+  if (!info.isFolder) {
+    const media = newFormat
+      ? await buildV2Media(info.itemId)
+      : { url: buildContentUrl(raw, ""), anonymous: false };
+    let type = await probeType(media.url, settings, 5000, media.anonymous ? null : (newFormat ? info.odAuth : null));
+    // OneDrive 直链返回 octet-stream 导致探测失败时，用文件名扩展名兜底
+    if (type === "unknown" && info.name) {
+      type = guessTypeFromName(info.name) || type;
+    }
+    const name = sanitizeField(body.name, 60) || info.name;
+    const id = await addMediaRecord(env, {
+      url: media.url,
+      mode,
+      name,
+      folder,
+      type,
+      extra: newFormat
+        ? { odAuth: info.odAuth, odShare: info.odShare, odDriveId: info.driveId, odItemId: info.itemId }
+        : undefined,
+    });
+    const link = await makeLink(request, env, settings, id);
+    return json({ ok: true, id, mode, type, url: link });
+  }
+
+  // 文件夹：递归遍历全部文件，串行入库；单个失败不中断，汇总返回
+  const items = newFormat
+    ? await listShareChildrenV2(info.driveId, info.itemId, info.odAuth)
+    : await listShareChildren(raw);
+  const out = [];
+  let added = 0;
+  let failed = 0;
+  for (const it of items) {
+    try {
+      // 批量导入不逐个 probeType（探测请求数=文件数，易超时）：
+      // 用文件名扩展名兜底，未知类型交给详情懒纠正回写
+      const type = guessTypeFromName(it.name) || "unknown";
+      const media = newFormat
+        ? await buildV2Media(it.itemId)
+        : { url: buildContentUrl(raw, it.relPath), anonymous: false };
+      const id = await addMediaRecord(env, {
+        url: media.url,
+        mode,
+        name: it.name,
+        folder,
+        type,
+        extra: newFormat
+          ? { odAuth: info.odAuth, odShare: info.odShare, odDriveId: info.driveId, odItemId: it.itemId }
+          : undefined,
+      });
+      added++;
+      out.push({ name: it.name, ok: true, id });
+    } catch {
+      failed++;
+      out.push({ name: it.name, ok: false });
+    }
+  }
+  return json({ ok: true, isFolder: true, added, failed, items: out, limit: MAX_CHILDREN });
+}
+
+// 类型 → 大小限制设置键（与 proxy.js 的 validateMedia 保持一致）
+const TYPE_SIZE_KEY = { image: "maxImageSize", audio: "maxAudioSize", video: "maxVideoSize" };
+
+// 剔除不应暴露给前端的敏感字段（OneDrive BadgerAuth 凭证等）
+function sanitizeImage(img) {
+  const { odAuth, odShare, ...safe } = img;
+  return safe;
 }
 
 async function handleList(request, env) {
@@ -194,7 +408,7 @@ async function handleList(request, env) {
   const images = await listImages(env);
   const out = [];
   for (const img of images) {
-    out.push({ ...img, shortUrl: await makeLink(request, env, settings, img.id) });
+    out.push({ ...sanitizeImage(img), shortUrl: await makeLink(request, env, settings, img.id) });
   }
   return json({ images: out, folders: await getFolders(env) });
 }
@@ -212,16 +426,21 @@ async function handleImageDetail(request, env) {
   const img = await getImage(env, id);
   if (!img) return json({ error: "图片不存在" }, 404);
   const settings = await getSettings(env);
-  // 懒纠正：type 为 unknown 且通过白名单校验时，短超时探测真实类型并回写 KV，
-  // 让管理面板卡片即时显示类型徽章（仅触发一次，纠正后不再探测）
-  if (img.type === "unknown" && isAllowedUrl(img.url, settings)) {
-    const got = await probeType(img.url, settings, 2500);
+  // 懒纠正：type 为 unknown 且通过白名单校验（或 OneDrive 可信源）时，
+  // 短超时探测真实类型并回写 KV，让管理面板卡片即时显示类型徽章（仅触发一次，纠正后不再探测）
+  if (img.type === "unknown" && (isAllowedUrl(img.url, settings) || isOneDriveTrustedUrl(img.url))) {
+    // OneDrive 新格式探测需带 BadgerAuth
+    const odAuth =
+      typeof img.odAuth === "string" && img.odAuth && isOneDriveTrustedUrl(img.url)
+        ? img.odAuth
+        : null;
+    const got = await probeType(img.url, settings, 2500, odAuth);
     if (got && got !== "unknown") {
       img.type = got;
       await putImage(env, id, img).catch(() => {});
     }
   }
-  return json({ ...img, shortUrl: await makeLink(request, env, settings, id) });
+  return json({ ...sanitizeImage(img), shortUrl: await makeLink(request, env, settings, id) });
 }
 
 async function handleUpdateImage(request, env) {
@@ -235,7 +454,10 @@ async function handleUpdateImage(request, env) {
   await putImage(env, id, img);
   // 返回更新后的完整单卡数据（含 shortUrl），前端可直接就地刷新，无需全量重拉
   const settings = await getSettings(env);
-  return json({ ok: true, image: { ...img, id, shortUrl: await makeLink(request, env, settings, id) } });
+  return json({
+    ok: true,
+    image: { ...sanitizeImage(img), id, shortUrl: await makeLink(request, env, settings, id) },
+  });
 }
 
 async function handleCreateFolder(request, env) {
@@ -441,8 +663,24 @@ async function handleImage(request, env, id, ctx) {
 
   const mode = image.mode || settings.defaultMode;
 
+  // 判断是否为 OneDrive 新格式(/c/)媒体源。
+  //  - 匿名直链形态(download.aspx?tempauth=)：无需任何认证头，可直接代理，适合仅DNS
+  //  - content 端点形态(/items/{id}/content)：需要 Authorization: badger 头，
+  //    且不适合"仅DNS"(302) 模式——浏览器跳转后不会带该头。
+  let isODV2 = false;
+  let isODV2Anon = false;
+  try {
+    const odHost = new URL(image.url).hostname.toLowerCase() === MY_CONTENT_HOST;
+    isODV2 = odHost && isOneDriveTrustedUrl(image.url);
+    isODV2Anon = odHost && image.url.indexOf("_layouts/15/download.aspx") !== -1;
+  } catch {
+    isODV2 = false;
+    isODV2Anon = false;
+  }
+
   // 仅DNS：校验通过后 302 直跳原图，不缓存，每次请求都过校验
-  if (mode === "redirect") {
+  // OneDrive 新格式 content 端点强制走代理（浏览器跳转不带 badger 头）；匿名直链可 302。
+  if (mode === "redirect" && !isODV2) {
     return new Response(null, {
       status: 302,
       headers: {
@@ -453,7 +691,8 @@ async function handleImage(request, env, id, ctx) {
   }
 
   // 缓存代理+DNS
-  if (!isAllowedUrl(image.url, settings)) {
+  // OneDrive 稳定媒体源（api.onedrive.com shares content / my.microsoftpersonalcontent.com items content / download.aspx?tempauth=）定向放行
+  if (!isAllowedUrl(image.url, settings) && !isOneDriveTrustedUrl(image.url)) {
     return new Response("Forbidden", {
       status: 403,
       headers: { "Cache-Control": "no-store" },
@@ -466,8 +705,49 @@ async function handleImage(request, env, id, ctx) {
   if (range) extraHeaders.set("Range", range);
   const ifRange = request.headers.get("If-Range");
   if (ifRange) extraHeaders.set("If-Range", ifRange);
+  // OneDrive 新格式 content 端点需要带 BadgerAuth（匿名直链不需要）
+  if (isODV2 && !isODV2Anon && typeof image.odAuth === "string" && image.odAuth) {
+    extraHeaders.set("Authorization", `${BADGER_SCHEME} ${image.odAuth}`);
+  }
 
-  const { response, error } = await fetchOrigin(settings, image.url, { headers: extraHeaders });
+  let { response, error } = await fetchOrigin(settings, image.url, { headers: extraHeaders });
+
+  // OneDrive 新格式：tempauth 过期(401) 或 BadgerAuth 失效时，用存储的原始共享链接刷新并重试一次。
+  // 匿名直链过期 -> 重新 resolve 获取新 tempauth URL；content 端点 401 -> 刷新 BadgerAuth。
+  if (
+    isODV2 &&
+    !error &&
+    response &&
+    response.status === 401 &&
+    typeof image.odShare === "string" &&
+    image.odShare &&
+    typeof image.odAuth === "string" &&
+    image.odAuth
+  ) {
+    try {
+      await response.body?.cancel();
+    } catch {}
+    const refreshed = await fetchBadgerAuth(image.odShare);
+    if (refreshed && refreshed.token) {
+      let retryUrl = image.url;
+      if (isODV2Anon && typeof image.odDriveId === "string" && typeof image.odItemId === "string") {
+        // 匿名直链：用新 token 重新解析 content -> tempauth
+        const t = await resolveTempAuthUrl(image.odDriveId, image.odItemId, refreshed.token);
+        if (t && t.url) retryUrl = t.url;
+      }
+      const newHeaders = new Headers(extraHeaders);
+      newHeaders.set("Authorization", `${BADGER_SCHEME} ${refreshed.token}`);
+      const retry = await fetchOrigin(settings, retryUrl, { headers: newHeaders });
+      if (retry.response && retry.response.status < 400) {
+        // 异步回写新 token 与新直链，避免每次请求都走刷新链
+        ctx.waitUntil(
+          putImage(env, id, { ...image, odAuth: refreshed.token, url: retryUrl }).catch(() => {})
+        );
+        ({ response, error } = retry);
+      }
+    }
+  }
+
   if (error || !response) {
     return new Response("Forbidden", {
       status: 403,
@@ -481,7 +761,28 @@ async function handleImage(request, env, id, ctx) {
     });
   }
 
-  const v = validateMedia(response, settings, mediaType);
+  // OneDrive 新格式直链（download.aspx?tempauth= 或 /content 端点）：
+  // 源站返回 octet-stream 或无 Content-Type，无法从响应头识别类型；
+  // 类型以导入时已确定的 image.type（按文件名扩展名推断）为准，跳过 Content-Type 校验。
+  let v;
+  if (isODV2) {
+    const trustType =
+      typeof image.type === "string" && image.type !== "unknown"
+        ? image.type
+        : guessTypeFromName(image.name) || "unknown";
+    // 206 分片需 Content-Range 校验；200 全量响应直接按已定类型放行（大小限制仍生效）
+    if (response.status === 206) {
+      if (!response.headers.get("Content-Range")) v = { ok: false, reason: "非法分片响应" };
+      else v = { ok: true, partial: true, type: trustType };
+    } else {
+      const len = Number(response.headers.get("Content-Length") || 0);
+      const limit = settings[TYPE_SIZE_KEY[trustType]] || 0;
+      if (len && limit && len > limit) v = { ok: false, reason: "文件超过大小限制" };
+      else v = { ok: true, type: trustType };
+    }
+  } else {
+    v = validateMedia(response, settings, mediaType, null);
+  }
   if (!v.ok) {
     try {
       await response.body?.cancel();
@@ -498,13 +799,22 @@ async function handleImage(request, env, id, ctx) {
   }
 
   const cached = buildCachedResponse(response, settings, id, v.partial);
-  // 保存文件名来源：custom 时用「网站自定义名 + 上游扩展名」覆盖上游文件名
-  if (settings.downloadNameSource === "custom") {
+  // OneDrive 新格式：name 即完整文件名（含扩展名），无论下载名来源都直接用它
+  // （v2 content URL 末段是 content，无法从 URL 推导真实文件名）
+  if (isODV2 && typeof image.name === "string" && image.name.trim()) {
+    cached.headers.set("Content-Disposition", buildContentDisposition(image.name.trim()));
+  } else if (settings.downloadNameSource === "custom") {
+    // 保存文件名来源：custom 时用「网站自定义名 + 上游扩展名」覆盖上游文件名
     const customName = typeof image.name === "string" ? image.name.trim() : "";
     let saveName;
     if (customName) {
       const ext = upstreamExt(image.url);
-      saveName = ext ? `${customName}.${ext}` : customName;
+      // 自定义名已含扩展名且与上游扩展名一致时不再追加，避免双后缀
+      // （如 OneDrive 导入自动填入的完整文件名 photo.jpg + 上游扩展名 jpg）
+      const nameExt = customName.includes(".")
+        ? customName.slice(customName.lastIndexOf(".") + 1).toLowerCase()
+        : "";
+      saveName = ext && nameExt !== ext ? `${customName}.${ext}` : customName;
     } else {
       // 自定义名为空时回退上游文件名（含原扩展名，避免双后缀）
       saveName = upstreamFileName(image.url);
@@ -536,6 +846,10 @@ export default {
     }
     if (pathname === "/api/login") return handleLogin(request, env);
     if (pathname === "/api/convert") return requireAuth(request, env, () => handleConvert(request, env));
+    if (pathname === "/api/onedrive/resolve")
+      return requireAuth(request, env, () => handleOneDriveResolve(request, env));
+    if (pathname === "/api/onedrive/import")
+      return requireAuth(request, env, () => handleOneDriveImport(request, env));
     if (pathname === "/api/images") return requireAuth(request, env, () => handleList(request, env));
     if (pathname === "/api/images/ids") return requireAuth(request, env, () => handleListIds(env));
     if (pathname === "/api/image/detail") return requireAuth(request, env, () => handleImageDetail(request, env));

@@ -43,3 +43,5 @@ yarn-error.log*
 *.jpg
 *.jpeg
 *.webp
+
+chrome-win64/

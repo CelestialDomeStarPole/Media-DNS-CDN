@@ -1,7 +1,25 @@
+import {
+  isOneDriveTrustedUrl,
+  isOneDriveCdnHost,
+  MY_CONTENT_HOST,
+} from "./onedrive.js";
+
 const IMAGE_EXT = ["jpg", "jpeg", "png", "gif", "webp", "avif", "jxl", "bmp", "svg", "ico", "tiff", "tif"];
 const AUDIO_EXT = ["mp3", "wav", "ogg", "oga", "aac", "flac", "m4a", "opus", "wma", "amr", "weba"];
 const VIDEO_EXT = ["mp4", "webm", "mov", "avi", "mkv", "m4v", "ts", "3gp", "mpg", "mpeg", "wmv", "flv", "ogv", "m3u8", "mpd"];
 const TYPE_SIZE_KEY = { image: "maxImageSize", audio: "maxAudioSize", video: "maxVideoSize" };
+
+// 按文件名扩展名判断媒体类型（供 OneDrive content URL 等无法从 URL 末段取扩展名的场景兜底）
+export function guessTypeFromName(name) {
+  const n = String(name || "").toLowerCase();
+  const i = n.lastIndexOf(".");
+  if (i <= 0 || i === n.length - 1) return null;
+  const ext = n.slice(i + 1);
+  if (IMAGE_EXT.indexOf(ext) !== -1) return "image";
+  if (AUDIO_EXT.indexOf(ext) !== -1) return "audio";
+  if (VIDEO_EXT.indexOf(ext) !== -1) return "video";
+  return null;
+}
 
 export function isAllowedUrl(raw, settings) {
   let u;
@@ -49,6 +67,30 @@ export function guessType(rawUrl) {
   return null;
 }
 
+// 重定向目标校验：
+// - OneDrive 可信媒体源（api.onedrive.com shares content / my.microsoftpersonalcontent.com items content）：
+//   302 放行微软 CDN 域集合（files.1drv.com / sharepoint.com / svc.ms 等，含子域）
+// - 其他源：保持原 SSRF 白名单校验，不放行任意域名
+export function isAllowedRedirect(targetUrl, next, settings) {
+  if (isOneDriveTrustedUrl(targetUrl)) {
+    return (
+      isOneDriveTrustedUrl(next) ||
+      isOneDriveCdnHost(next) ||
+      isMyContentHost(next)
+    );
+  }
+  return isAllowedUrl(next, settings);
+}
+
+// my.microsoftpersonalcontent.com 域内的 v2 重定向（如带 tempauth 的分发链接）
+function isMyContentHost(raw) {
+  try {
+    return new URL(raw).hostname.toLowerCase() === MY_CONTENT_HOST;
+  } catch {
+    return false;
+  }
+}
+
 export async function fetchOrigin(settings, targetUrl, opts) {
   opts = opts || {};
   const headers = new Headers();
@@ -70,7 +112,7 @@ export async function fetchOrigin(settings, targetUrl, opts) {
     const loc = resp.headers.get("Location");
     if (!loc) break;
     const next = new URL(loc, targetUrl).toString();
-    if (!isAllowedUrl(next, settings)) {
+    if (!isAllowedRedirect(targetUrl, next, settings)) {
       try {
         await resp.body?.cancel();
       } catch {}
@@ -82,14 +124,21 @@ export async function fetchOrigin(settings, targetUrl, opts) {
   return { response: resp };
 }
 
-export function validateMedia(resp, settings, type) {
+// hintType: 可选的兜底类型（如 OneDrive 直链 name 扩展名推断的 media type），
+// 用于 SharePoint download.aspx 直链返回 application/octet-stream 等无法从 Content-Type 识别的情形。
+export function validateMedia(resp, settings, type, hintType) {
   // 206 分片响应：不缓存、不按整文件校验，仅要求合法 Content-Range
   if (resp.status === 206) {
     if (!resp.headers.get("Content-Range")) return { ok: false, reason: "非法分片响应" };
     return { ok: true, partial: true };
   }
   const ct = resp.headers.get("Content-Type") || "";
-  const got = classifyType(ct);
+  let got = classifyType(ct);
+  // octet-stream（SharePoint 下载直链默认类型）且已有扩展名推断类型时按 hintType 放行
+  if (!got && hintType) {
+    const isOctet = ct.toLowerCase().includes("octet-stream") || !ct;
+    if (isOctet) got = hintType;
+  }
   if (!got) return { ok: false, reason: "非媒体内容" };
   if (type && type !== "unknown" && got !== type)
     return { ok: false, reason: "内容类型与添加时不一致" };

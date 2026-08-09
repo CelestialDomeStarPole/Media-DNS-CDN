@@ -216,6 +216,23 @@ a{color:var(--accent)}
 .mode-row{display:flex;gap:22px;margin-top:14px;flex-wrap:wrap}
 .mode-option{display:flex;align-items:center;gap:7px;font-size:14px;cursor:pointer}
 .mode-option em{font-style:normal;color:var(--muted);font-size:12px}
+/* 添加栏模式切换（普通链接 / OneDrive 链接） */
+.add-mode-toggle{display:flex;gap:8px;margin-bottom:16px}
+.at-seg{flex:1;padding:10px 14px;border-radius:10px;font-size:14px;font-weight:600;color:var(--muted);background:rgba(255,255,255,.55);border:1px solid rgba(0,0,0,.1);cursor:pointer;transition:all .18s ease}
+.at-seg:hover{border-color:var(--accent);color:var(--text)}
+.at-seg.active{background:var(--grad);background-size:220% 220%;color:#fff;border-color:transparent;box-shadow:0 6px 16px color-mix(in srgb,var(--accent) 38%,transparent)}
+/* OneDrive 解析结果信息条 */
+.od-info{display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px 14px;border:1px dashed rgba(0,0,0,.16);border-radius:9px;background:rgba(255,255,255,.5)}
+.od-icon{width:10px;height:10px;border-radius:3px;background:var(--grad);flex-shrink:0}
+.od-name{font-weight:600;color:var(--text);word-break:break-all;min-width:0;flex:1}
+.od-badge{flex-shrink:0;font-size:12px;padding:3px 10px;border-radius:999px;background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent);white-space:nowrap}
+.od-actions{display:flex;gap:10px;margin-top:14px}
+.od-hint{color:var(--muted);font-size:12px;margin-top:10px;line-height:1.5}
+.add-row2 input:disabled{opacity:.55;cursor:not-allowed}
+/* 次级按钮 */
+.secondary{padding:11px 18px;border-radius:10px;font-size:14px;font-weight:600;background:rgba(255,255,255,.75);border:1px solid rgba(0,0,0,.14);color:var(--text);cursor:pointer;transition:all .15s ease;white-space:nowrap}
+.secondary:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-1px)}
+.secondary:disabled{opacity:.6;cursor:default;transform:none}
 .preview{margin-top:16px;display:flex;gap:14px;align-items:center;border:1px dashed rgba(0,0,0,.18);border-radius:9px;padding:10px}
 .preview img{max-width:120px;max-height:90px;border-radius:6px;object-fit:contain;background:rgba(255,255,255,.7)}
 .preview video{max-width:260px;max-height:140px;border-radius:6px;background:rgba(0,0,0,.05)}
@@ -484,21 +501,47 @@ a{color:var(--accent)}
     <section id="view-images" class="view active">
       <div class="card add-card">
         <h2 data-i18n="add.title"></h2>
-        <div class="add-row">
-          <input id="add-url" type="url" data-i18n-ph="add.url.ph" />
-          <button id="add-btn" class="primary" data-i18n="add.btn"></button>
+        <div class="add-mode-toggle">
+          <button type="button" id="add-mode-normal" class="at-seg active" data-i18n="add.mode.normal"></button>
+          <button type="button" id="add-mode-onedrive" class="at-seg" data-i18n="add.mode.onedrive"></button>
         </div>
-        <div class="add-row2">
-          <input id="add-name" type="text" data-i18n-ph="add.name.ph" />
-          <select id="add-folder" aria-label="Folder"></select>
+        <div id="add-form-normal">
+          <div class="add-row">
+            <input id="add-url" type="url" data-i18n-ph="add.url.ph" />
+            <button id="add-btn" class="primary" data-i18n="add.btn"></button>
+          </div>
+          <div class="add-row2">
+            <input id="add-name" type="text" data-i18n-ph="add.name.ph" />
+            <select id="add-folder" aria-label="Folder"></select>
+          </div>
+          <div class="mode-row">
+            <label class="mode-option"><input type="radio" name="mode" value="redirect" /><span data-i18n="mode.redirect"></span><em data-i18n="mode.redirect.em"></em></label>
+            <label class="mode-option"><input type="radio" name="mode" value="proxy" checked /><span data-i18n="mode.proxy"></span><em data-i18n="mode.proxy.em"></em></label>
+          </div>
+          <div id="add-preview" class="preview hidden">
+            <div id="preview-media"></div>
+            <div id="preview-info" class="muted"></div>
+          </div>
         </div>
-        <div class="mode-row">
-          <label class="mode-option"><input type="radio" name="mode" value="redirect" /><span data-i18n="mode.redirect"></span><em data-i18n="mode.redirect.em"></em></label>
-          <label class="mode-option"><input type="radio" name="mode" value="proxy" checked /><span data-i18n="mode.proxy"></span><em data-i18n="mode.proxy.em"></em></label>
-        </div>
-        <div id="add-preview" class="preview hidden">
-          <div id="preview-media"></div>
-          <div id="preview-info" class="muted"></div>
+        <div id="add-form-onedrive" class="hidden">
+          <div class="add-row">
+            <input id="od-url" type="url" data-i18n-ph="add.od.url.ph" />
+            <button id="od-resolve-btn" class="secondary" data-i18n="add.od.resolve"></button>
+          </div>
+          <div class="add-row2">
+            <input id="od-name" type="text" data-i18n-ph="add.name.ph" />
+            <select id="od-folder" aria-label="Folder"></select>
+          </div>
+          <div class="mode-row">
+            <label class="mode-option"><input type="radio" name="od-mode" value="redirect" /><span data-i18n="mode.redirect"></span><em data-i18n="mode.redirect.em"></em></label>
+            <label class="mode-option"><input type="radio" name="od-mode" value="proxy" checked /><span data-i18n="mode.proxy"></span><em data-i18n="mode.proxy.em"></em></label>
+          </div>
+          <div id="od-info" class="od-info hidden"></div>
+          <div class="od-actions">
+            <button id="od-add-btn" class="primary hidden" data-i18n="add.btn"></button>
+            <button id="od-import-btn" class="primary hidden" data-i18n="add.od.import"></button>
+          </div>
+          <p class="od-hint" data-i18n="add.od.hint"></p>
         </div>
       </div>
 
@@ -740,6 +783,22 @@ a{color:var(--accent)}
       "add.err": "添加失败",
       "add.ok": "已添加，链接已复制到剪贴板",
       "add.src": "来源",
+      "add.mode.normal": "普通链接",
+      "add.mode.onedrive": "OneDrive 链接",
+      "add.od.url.ph": "粘贴 OneDrive 共享链接，如 https://1drv.ms/u/s!xxx?e=yyy",
+      "add.od.resolve": "解析",
+      "add.od.resolving": "解析中…",
+      "add.od.ready": "已解析，可添加",
+      "add.od.folder": "{n} 个文件",
+      "add.od.folderReady": "文件夹共 {n} 个文件",
+      "add.od.import": "批量导入",
+      "add.od.importing": "正在导入 {n} 个文件…",
+      "add.od.importDoneOk": "已导入 {n} 个文件",
+      "add.od.importDoneFail": "已导入 {n} 个文件，{m} 个失败",
+      "add.od.pass": "该共享链接需要密码，本期暂不支持，请更换为无密码链接",
+      "add.od.unauth": "该共享为非公开（需登录/仅限指定用户），无法匿名转链，请更换为「任何人可访问」的共享链接",
+      "add.od.fail": "OneDrive 解析失败",
+      "add.od.hint": "OneDrive 模式默认「缓存代理+DNS」，可手动切换；支持旧格式（1drv.ms/u/s!…）与新格式（1drv.ms/f/c/…）的「任何人可访问」共享链接。",
       "type.image": "图片",
       "type.audio": "音频",
       "type.video": "视频",
@@ -908,6 +967,22 @@ a{color:var(--accent)}
       "add.err": "Add failed",
       "add.ok": "Added, link copied to clipboard",
       "add.src": "Source",
+      "add.mode.normal": "Normal link",
+      "add.mode.onedrive": "OneDrive link",
+      "add.od.url.ph": "Paste a OneDrive share link, e.g. https://1drv.ms/u/s!xxx?e=yyy",
+      "add.od.resolve": "Resolve",
+      "add.od.resolving": "Resolving…",
+      "add.od.ready": "Resolved, ready to add",
+      "add.od.folder": "{n} files",
+      "add.od.folderReady": "Folder contains {n} files",
+      "add.od.import": "Import all",
+      "add.od.importing": "Importing {n} files…",
+      "add.od.importDoneOk": "Imported {n} files",
+      "add.od.importDoneFail": "Imported {n} files, {m} failed",
+      "add.od.pass": "This share link is password protected (not supported yet). Please use a password-free link.",
+      "add.od.unauth": "This share is not public (requires sign-in / limited to specific people) and can't be converted anonymously. Please use an “Anyone with the link” share.",
+      "add.od.fail": "Failed to resolve OneDrive link",
+      "add.od.hint": "OneDrive mode defaults to “Cache proxy + DNS”, switchable to DNS-only; supports both legacy (1drv.ms/u/s!…) and new-format (1drv.ms/f/c/…) “Anyone with the link” shares.",
       "type.image": "Image",
       "type.audio": "Audio",
       "type.video": "Video",
@@ -2053,6 +2128,8 @@ a{color:var(--accent)}
     bar.innerHTML = h;
     var sel = $("add-folder");
     if (sel) sel.innerHTML = folderOptions(addPendingFolder);
+    var sel2 = $("od-folder");
+    if (sel2) sel2.innerHTML = folderOptions(addPendingFolder);
   }
 
   function loadImages(opts) {
@@ -2427,8 +2504,8 @@ a{color:var(--accent)}
     return api("/api/folder/create", { method: "POST", body: JSON.stringify({ name: name }) });
   }
 
-  $("add-folder").addEventListener("change", function () {
-    var sel = this;
+  // 文件夹下拉「新建文件夹…」：两个表单（普通/OneDrive）共用
+  function onFolderSelectChange(sel) {
     if (sel.value === "__new__") {
       var name = (window.prompt(t("add.folder.newPh")) || "").trim();
       if (!name) { sel.value = addPendingFolder; return; }
@@ -2438,7 +2515,175 @@ a{color:var(--accent)}
         toast(t("folder.createOk"), "success");
       }).catch(function (err) { toast(err.message, "error"); });
     }
+  }
+  $("add-folder").addEventListener("change", function () { onFolderSelectChange(this); });
+  $("od-folder").addEventListener("change", function () { onFolderSelectChange(this); });
+
+  // ===== OneDrive 添加模式 =====
+  var addMode = "normal"; // "normal" | "onedrive"
+  var odState = null; // 当前 OneDrive 解析结果 { isFolder, name, size, childCount }
+
+  function switchAddMode(mode) {
+    if (mode !== "normal" && mode !== "onedrive") return;
+    addMode = mode;
+    $("add-mode-normal").classList.toggle("active", mode === "normal");
+    $("add-mode-onedrive").classList.toggle("active", mode === "onedrive");
+    $("add-form-normal").classList.toggle("hidden", mode !== "normal");
+    $("add-form-onedrive").classList.toggle("hidden", mode !== "onedrive");
+    if (mode === "onedrive") {
+      // 进入 OneDrive 模式默认选中「缓存代理+DNS」（直链时效问题由 Worker 实时跟随 302 规避）
+      var proxy = document.querySelector('input[name="od-mode"][value="proxy"]');
+      if (proxy) proxy.checked = true;
+      setTimeout(function () { $("od-url").focus(); }, 60);
+    }
+  }
+  $("add-mode-normal").addEventListener("click", function () { switchAddMode("normal"); });
+  $("add-mode-onedrive").addEventListener("click", function () { switchAddMode("onedrive"); });
+
+  function odSelectedMode() {
+    var el = document.querySelector('input[name="od-mode"]:checked');
+    return el ? el.value : "proxy";
+  }
+
+  function renderOdInfo(data) {
+    var box = $("od-info");
+    box.innerHTML = "";
+    var icon = document.createElement("span");
+    icon.className = "od-icon";
+    var nameEl = document.createElement("span");
+    nameEl.className = "od-name";
+    nameEl.textContent = data.name || "-";
+    nameEl.title = data.name || "";
+    var badge = document.createElement("span");
+    badge.className = "od-badge";
+    badge.textContent = data.isFolder ? t("add.od.folder", { n: data.childCount }) : fmtSize(data.size);
+    box.appendChild(icon);
+    box.appendChild(nameEl);
+    box.appendChild(badge);
+    box.classList.remove("hidden");
+  }
+
+  function odResetForm(clearUrl) {
+    odState = null;
+    $("od-info").classList.add("hidden");
+    $("od-info").innerHTML = "";
+    $("od-add-btn").classList.add("hidden");
+    $("od-import-btn").classList.add("hidden");
+    $("od-name").disabled = false;
+    if (clearUrl) {
+      $("od-url").value = "";
+      $("od-name").value = "";
+      $("od-url").focus();
+    }
+  }
+  // OneDrive 错误提示：密码保护 / 非公开共享 / 其他
+  function odErrorToast(err) {
+    if (err.message === "password_required") toast(t("add.od.pass"), "error");
+    else if (err.message === "unauthenticated") toast(t("add.od.unauth"), "error");
+    else toast(err.message || t("add.od.fail"), "error");
+  }
+
+  function odResolve() {
+    var raw = $("od-url").value.trim();
+    if (!raw) { toast(t("add.err.empty"), "error"); $("od-url").focus(); return; }
+    var btn = $("od-resolve-btn");
+    setBusy(btn, true, t("add.od.resolving"));
+    api("/api/onedrive/resolve", { method: "POST", body: JSON.stringify({ url: raw }) })
+      .then(function (data) {
+        odState = data;
+        renderOdInfo(data);
+        if (data.isFolder) {
+          $("od-name").disabled = true;
+          $("od-name").value = "";
+          $("od-add-btn").classList.add("hidden");
+          $("od-import-btn").classList.remove("hidden");
+          toast(t("add.od.folderReady", { n: data.childCount }), "info");
+        } else {
+          $("od-name").disabled = false;
+          $("od-name").value = data.name || "";
+          $("od-import-btn").classList.add("hidden");
+          $("od-add-btn").classList.remove("hidden");
+          toast(t("add.od.ready"), "success");
+        }
+      })
+      .catch(function (err) {
+        odResetForm(false);
+        odErrorToast(err);
+      })
+      .finally(function () { setBusy(btn, false); });
+  }
+  $("od-resolve-btn").addEventListener("click", odResolve);
+  $("od-url").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); odResolve(); }
   });
+
+  // 单文件 OneDrive 添加
+  function odAdd() {
+    if (!odState || odState.isFolder) return;
+    var raw = $("od-url").value.trim();
+    var mode = odSelectedMode();
+    var name = $("od-name").value.trim();
+    var folder = $("od-folder").value;
+    if (folder === "__new__") folder = addPendingFolder;
+    var btn = $("od-add-btn");
+    setBusy(btn, true, t("add.busy"));
+    var tempId = "pending-od-" + Date.now();
+    insertCardFirstLocal({ id: tempId, _loading: true, _pendingAdd: true });
+    api("/api/onedrive/import", { method: "POST", body: JSON.stringify({ url: raw, mode: mode, name: name, folder: folder }) })
+      .then(function (data) {
+        if (folder && lastFolders.indexOf(folder) === -1) { lastFolders.push(folder); renderFolders(); }
+        replacePendingCard(tempId, { id: data.id, _loading: true });
+        ensureInfoLoads();
+        toast(t("add.ok"), "success");
+        try { navigator.clipboard.writeText(data.url); } catch (e) {}
+        odResetForm(true);
+      })
+      .catch(function (err) {
+        removeCardLocal(tempId);
+        odErrorToast(err);
+      })
+      .finally(function () { setBusy(btn, false); });
+  }
+  $("od-add-btn").addEventListener("click", odAdd);
+
+  // 文件夹批量导入
+  function odImport() {
+    if (!odState || !odState.isFolder) return;
+    var raw = $("od-url").value.trim();
+    var mode = odSelectedMode();
+    var folder = $("od-folder").value;
+    if (folder === "__new__") folder = addPendingFolder;
+    var btn = $("od-import-btn");
+    var total = odState.childCount || 0;
+    setBusy(btn, true, t("add.od.importing", { n: total }));
+    api("/api/onedrive/import", { method: "POST", body: JSON.stringify({ url: raw, mode: mode, folder: folder }) })
+      .then(function (data) {
+        if (folder && lastFolders.indexOf(folder) === -1) { lastFolders.push(folder); renderFolders(); }
+        var items = data.items || [];
+        var okCount = 0;
+        var failNames = [];
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].ok) okCount++;
+          else failNames.push(items[i].name);
+        }
+        // 后端按遍历顺序逐个 unshift 到 order 首位，前端按返回顺序逆序前插到 lastImages，
+        // 保证列表顺序与后端一致（最后一个导入项显示在最前）
+        lastImages = lastImages || [];
+        for (var j = items.length - 1; j >= 0; j--) {
+          if (items[j].ok) lastImages.unshift({ id: items[j].id, _loading: true });
+        }
+        renderGrid(lastImages, { anchor: true });
+        ensureInfoLoads();
+        if (failNames.length) toast(t("add.od.importDoneFail", { n: okCount, m: failNames.length }), "error");
+        else toast(t("add.od.importDoneOk", { n: okCount }), "success");
+        odResetForm(true);
+      })
+      .catch(function (err) {
+        odErrorToast(err);
+      })
+      .finally(function () { setBusy(btn, false); });
+  }
+  $("od-import-btn").addEventListener("click", odImport);
 
   function addImage() {
     var url = $("add-url").value.trim();

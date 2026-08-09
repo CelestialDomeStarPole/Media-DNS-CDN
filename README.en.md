@@ -17,6 +17,7 @@ Image / Audio / Video hotlink relay · Cache · Anti-leech Cloudflare Worker
 - [Features](#features)
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
+- [OneDrive Share Link Support](#onedrive-share-link-support)
 - [Usage](#usage)
 - [API](#api)
 - [Project Structure](#project-structure)
@@ -38,6 +39,7 @@ Image / Audio / Video hotlink relay · Cache · Anti-leech Cloudflare Worker
 - **Access control**: country / IP / ASN allow & block lists, all validated at the edge
 - **Multi-level rate limiting**: separate limits per IP, per image and per audio/video (Rate Limit Binding, enforced at the edge)
 - **SSRF protection**: proxied targets must be on the allowed-origin whitelist
+- **OneDrive embed-link support**: `1drv.ms/v/c/{cid}/{token}` embed links (and the corresponding `embed` URL) resolve into usable media sources; the `tempauth` anonymous link (~1 hour expiry) is auto-refreshed, so media links keep working long-term
 
 ## Quick Start
 
@@ -175,13 +177,67 @@ npm run dev
 | `RATE_LIMITER_IMG` | 40 / 10s | Per-image limit |
 | `RATE_LIMITER_AV` | 300 / 10s | Per audio/video limit (playback produces many partial-range requests) |
 
+## OneDrive Share Link Support
+
+The "Add media" card has a toggle between **Normal link** and **OneDrive link**. In OneDrive mode you paste an embed share link; after resolving, the file name is filled in automatically and you click "Add" to convert it into a site media link.
+
+> This section explains **how it works**. For how to obtain a share link from OneDrive and paste it here, see your notes at the end of this section.
+
+### Supported link formats
+
+In practice, **only OneDrive embed links** (the `/v/c/` single-file form) resolve successfully, e.g.:
+
+```
+https://1drv.ms/v/c/d1c8a5e4bddc4ef4/IQQBQyjnUzI4SaB6B4YC6d8AAVBzhIDzcl6Ec95IL9xCZD4
+```
+
+| Type | Example | Notes |
+| --- | --- | --- |
+| Embed | `https://1drv.ms/v/c/{cid}/{token}` | ✅ verified working (single-file share: video / file) |
+| Embed | `https://onedrive.live.com/embed?cid=...&id=...&redeem=...` | Full embed redirect of the same |
+| Other | `1drv.ms/u/s!`, `1drv.ms/f/s!`, `1drv.ms/f/c/...` etc. | ⚠️ implemented in code but not verified |
+
+> Only "Anyone with the link" password-free shares are supported. Password-protected (403 `password_required`) or non-public (401 `unauthenticated`) shares show a corresponding hint.
+
+### How it works
+
+OneDrive share links are not directly hotlinkable. The path verified to work is the **embed-link resolution** (`/v/c/` single-file share):
+
+```
+【Embed link】1drv.ms/v/c/{cid}/{token} (or onedrive.live.com/embed?...)
+   └─> follow the 302 chain, extracting the anonymous session token BadgerAuth
+   └─> Authorization: badger <BadgerAuth>
+   └─> my.microsoftpersonalcontent.com/_api/v2.0/shares/u!{encoded}/driveitem  → metadata (name/size)
+   └─> media source: /_api/v2.0/drives/{driveId}/items/{itemId}/content
+        → 302 → download.aspx?UniqueId=...&tempauth=...      (anonymous, valid ~1 hour)
+```
+
+**Key design decisions**:
+
+- **Why not store `@content.downloadUrl`?** Microsoft's downloadUrl expires in about 1 hour and can't be stored long-term. This site stores a **stable addressing URL** (the content endpoint); every media request follows the 302 to the freshest direct link, avoiding expiry issues.
+- **`tempauth` anonymous link**: the `download.aspx?tempauth=...` returned by the content endpoint needs no auth header and supports Range seeking. The Worker caches it as the media source and **automatically re-resolves when it expires (~1 hour)**.
+- **Type detection**: OneDrive direct links return `application/octet-stream`, so the type can't be read from the response header. The site trusts the **type inferred from the file-name extension at add time**.
+- **Targeted SSRF bypass**: OneDrive domains (`my.microsoftpersonalcontent.com`, Microsoft CDN domains) are whitelisted internally; all other domains still obey the SSRF whitelist.
+
+> The legacy formats (`1drv.ms/u/s!`, `/f/s!`) via `api.onedrive.com` shares API are also implemented in code but **not verified** — they may or may not work.
+
+### How to obtain a OneDrive link
+
+<!-- TODO: add your step-by-step guide on generating a share link from the OneDrive web UI and pasting it here -->
+<!-- Example (replace with your own text):
+1. Open OneDrive on the web, right-click a file → "Share" → "Get a link"
+2. Set permission to "Anyone with the link" (do NOT set a password)
+3. Copy an embed link like https://1drv.ms/v/c/{cid}/{token} and paste it into this site's "OneDrive link" mode
+-->
+
 ## Usage
 
 1. Log in to the admin panel → paste a media direct link → choose a mode → add (a live audio/video preview appears while typing)
-2. Click the card's "Preview" button to view the full image / play media in the lightbox, then open the original or the site link in a new tab
-3. Copy the generated short link `https://your-domain/i/<id>` (with `?e=expiry&s=signature` when signing is enabled)
-4. Use it in `<img>` / `<video>` / `<audio>` or any download scenario
-5. In **Settings → Cache & Limits**, adjust the "Thumbnail media source" and "Preview media source" (upstream / site source); they take effect immediately after saving
+2. **Add OneDrive links**: click the "OneDrive link" toggle at the top of the add card → paste an embed link `https://1drv.ms/v/c/{cid}/{token}` → click "Resolve" → confirm the file name/size and click "Add"
+3. Click the card's "Preview" button to view the full image / play media in the lightbox, then open the original or the site link in a new tab
+4. Copy the generated short link `https://your-domain/i/<id>` (with `?e=expiry&s=signature` when signing is enabled)
+5. Use it in `<img>` / `<video>` / `<audio>` or any download scenario
+6. In **Settings → Cache & Limits**, adjust the "Thumbnail media source" and "Preview media source" (upstream / site source); they take effect immediately after saving
 
 Every request passes a 4-layer validation in both modes: **rate limit → country/IP/ASN allow & block lists → Referer allow list → signature check**, and only then is it redirected or proxied.
 
@@ -193,6 +249,8 @@ All endpoints return JSON; admin endpoints require `Authorization: Bearer <PASSW
 | --- | --- | --- |
 | POST | `/api/login` | Validate login `{ token }` |
 | POST | `/api/convert` | Add media `{ url, mode, name?, folder? }`, auto-detects type |
+| POST | `/api/onedrive/resolve` | Resolve an OneDrive share link `{ url }` → `{ isFolder, name, size, childCount }` |
+| POST | `/api/onedrive/import` | Import an OneDrive file or bulk folder `{ url, mode, name?, folder? }` |
 | GET | `/api/images` | Media list + folder list |
 | POST | `/api/image/delete` | Delete `{ id }` |
 | POST | `/api/image/toggle` | Enable / disable `{ id, enabled }` |
@@ -209,6 +267,7 @@ All endpoints return JSON; admin endpoints require `Authorization: Bearer <PASSW
 ├── src/
 │   ├── index.js          # Worker entry: routing / validation flow / type sniffing
 │   └── lib/
+│       ├── onedrive.js   # OneDrive legacy & new formats: base64url / redirect chain / BadgerAuth / recursive walk
 │       ├── proxy.js      # Origin fetch / Range forwarding / per-type validation / cache response
 │       ├── store.js      # KV storage / settings (with 15s in-memory micro cache)
 │       ├── security.js   # Auth / signing / rate limiting / allow & block lists
@@ -227,6 +286,9 @@ All endpoints return JSON; admin endpoints require `Authorization: Bearer <PASSW
 - **Video thumbnails require CORS**: cache proxy mode works out of the box (the Worker returns `Access-Control-Allow-Origin: *`); DNS-only mode depends on the origin's CORS, falling back to an icon placeholder otherwise; video covers always use the proxied link in cache proxy mode because cross-origin frame capture requires CORS
 - **Media source settings only apply in cache proxy mode**: choosing the site source affects only "Cache proxy + DNS" media; DNS-only is a 302 redirect and always uses the upstream
 - **Referer checks are best effort**: browsers don't always send a Referer header
+- **OneDrive embed links need overseas network**: resolving `1drv.ms/v/c/...` embed links needs `onedrive.live.com` (anonymous credential) and `my.microsoftpersonalcontent.com` (data API). Cloudflare Workers on overseas edges can reach them; local `wrangler dev` may time out behind restrictive networks
+- **Only "Anyone with the link" shares are resolvable**: password-protected (403) and non-public / people-only (401) shares show a hint and can't be converted
+- **OneDrive media sources are proxy-only**: the media source resolved from an embed link relies on Worker proxying, so it is forced to "Cache proxy + DNS" and can't switch to "DNS-only"
 
 ## License
 
