@@ -4,7 +4,8 @@
   //
   // 部署前必做（替换下方 3 个 REPLACE）：
   //   1. 创建 KV 命名空间：  wrangler kv namespace create MAPPINGS
-  //      把返回的 id 填入 kv_namespaces[0].id
+  //      系统会自动把id填入kv_namespaces[0].id
+  //      如果没有，可以通过 npx wrangler kv namespace list 查看并手动填入
   //   2. 限流 namespace_id：不是命令/控制台创建的，而是你自己定义的
   //      正整数（写成字符串，账户内唯一即可），比如 1001、1002 各填一个
   //   3. 配置机密：          wrangler secret put PASSWORD          （管理密码）
@@ -19,6 +20,14 @@
   "name": "media-dns-cdn",  // Worker 名称（Cloudflare 仅允许小写字母数字和连字符）
   "main": "src/index.js",
   "compatibility_date": "2026-08-10",
+
+ // 绑定自定义域名（custom_domain: true = Custom Domain 方式，自动签发证书）
+ // "routes": [
+ //   {
+ //     "pattern": "你想设置的子域名.你的域名",
+ //     "custom_domain": true
+ //   }
+ // ]
 
   // 开启 Workers Caching：缓存命中时由边缘直接返回，Worker 不执行
   "cache": {
