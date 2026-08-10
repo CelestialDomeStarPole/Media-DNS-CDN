@@ -558,6 +558,9 @@ async function handleOneDriveImport(request, env) {
 // 类型 → 大小限制设置键（与 proxy.js 的 validateMedia 保持一致）
 const TYPE_SIZE_KEY = { image: "maxImageSize", audio: "maxAudioSize", video: "maxVideoSize" };
 
+// KV 中记录 OneDrive 上次自动刷新时间戳的键（毫秒）
+const OD_LAST_REFRESH_KEY = "od:lastRefreshTs";
+
 // 剔除不应暴露给前端的敏感字段（OneDrive BadgerAuth 凭证、内部锚点）。
 // 保留 odShare（OneDrive 原始共享链接，前端详情页需要展示）与 sourceType（链接分类）。
 function sanitizeImage(img) {
@@ -565,7 +568,7 @@ function sanitizeImage(img) {
   return safe;
 }
 
-// 定时任务：每小时刷新所有 OneDrive 媒体条目。
+// 定时任务：按设置的刷新间隔刷新所有 OneDrive 媒体条目。
 // tempauth 直链约 1 小时过期，这里在到期前统一重新解析：
 //   - 用存储的原始共享链接 odShare 重新获取 BadgerAuth
 //   - 用 odDriveId/odItemId 重新解析 content -> 新的 download.aspx?tempauth= 直链
@@ -788,6 +791,11 @@ function normalizeSettings(raw, env) {
     if (!Number.isFinite(n)) return def;
     return Math.min(Math.max(n, min), max);
   };
+  // OneDrive 自动刷新间隔：最小 1 小时，最大为缓存时长对应小时数（至少 1）
+  const odMaxHours = Math.max(
+    1,
+    Math.floor(num(raw.cacheTtl ?? base.cacheTtl, base.cacheTtl, 0, 31536000) / 3600)
+  );
   return {
     allowedOrigins: splitList(raw.allowedOrigins ?? base.allowedOrigins),
     allowedCountries: splitList(raw.allowedCountries ?? base.allowedCountries),
@@ -800,6 +808,10 @@ function normalizeSettings(raw, env) {
     requireSignature: Boolean(raw.requireSignature),
     signatureTtl: num(raw.signatureTtl, base.signatureTtl, 60, 31536000),
     cacheTtl: num(raw.cacheTtl, base.cacheTtl, 0, 31536000),
+    onedriveRefreshHours: Math.max(
+      1,
+      Math.min(num(raw.onedriveRefreshHours, base.onedriveRefreshHours, 1, 31536000), odMaxHours)
+    ),
     maxImageSize: num(raw.maxImageSize, base.maxImageSize, 1024, 512 * 1024 * 1024),
     maxAudioSize: num(raw.maxAudioSize, base.maxAudioSize, 1024, 512 * 1024 * 1024),
     maxVideoSize: num(raw.maxVideoSize, base.maxVideoSize, 1024, 512 * 1024 * 1024),
@@ -1092,9 +1104,27 @@ export default {
     return new Response("Not Found", { status: 404 });
   },
 
-  // Cron Trigger（wrangler.jsonc triggers.crons）：
-  // 每小时刷新所有 OneDrive 解析出的直链，规避 tempauth 约 1 小时过期问题
+  // Cron Trigger（wrangler.jsonc triggers.crons 为每 5 分钟触发）：
+  // 由运行时按用户设置 onedriveRefreshHours 决定实际刷新间隔——
+  // 网站缓存了 OneDrive 解析结果，仅用网站外链时解析链过期不影响外链，
+  // 调大间隔可节约 OneDrive 请求；距上次刷新剩余时间 ≤ 310 秒
+  // （5 分钟检查周期 + 10 秒缓冲）即触发刷新并更新时间，无需再单独提前量。
   async scheduled(_event, env, ctx) {
+    const settings = await getSettings(env);
+    const cacheTtl = Number(settings.cacheTtl) || 0;
+    const maxHours = Math.max(1, Math.floor(cacheTtl / 3600));
+    const hours = Math.min(Math.max(Number(settings.onedriveRefreshHours) || 1, 1), maxHours);
+    const intervalMs = hours * 3600 * 1000; // 设置的刷新间隔
+    let last = 0;
+    try {
+      const v = await env.MAPPINGS.get(OD_LAST_REFRESH_KEY);
+      if (v) last = Number(v) || 0;
+    } catch {}
+    const now = Date.now();
+    if (intervalMs - (now - last) > 310 * 1000) return; // 剩余时间 > 310 秒（5 分钟周期 + 10 秒缓冲），未到触发窗口，跳过
+    try {
+      await env.MAPPINGS.put(OD_LAST_REFRESH_KEY, String(now)); // 先记录本次时间，失败也不反复重试
+    } catch {}
     ctx.waitUntil(refreshOneDriveMedia(env));
   },
 };

@@ -29,7 +29,7 @@
   "kv_namespaces": [
     {
     "binding": "MAPPINGS", // KV 命名空间绑定名
-    "id": "9d3519ce583b48e0b9b88876eb4ff8bc" // KV 命名空间 ID（部署前创建）
+    "id": "你的KV命名空间ID" // KV 命名空间 ID（部署前创建）
     }
   ],
 
@@ -88,6 +88,8 @@
     "MAX_VIDEO_SIZE": 524288000,
     // 默认链接类型：redirect(仅DNS 302直跳) / proxy(缓存代理+DNS)
     "DEFAULT_MODE": "redirect",
+    // OneDrive 解析自动刷新间隔（小时），最小 1，最大为缓存时长对应小时数
+    "ONEDRIVE_REFRESH_HOURS": 1,
     // 转发到图床时携带的上游请求头（应对图床拦截/防盗链校验）
     "ORIGIN_REFERER": "",
     "ORIGIN_USER_AGENT": "",
@@ -104,9 +106,12 @@
     "enabled": true
   },
 
-  // 定时任务：每小时自动刷新所有 OneDrive 解析出的直链（tempauth 约 1 小时过期）
-  // 触发 Worker 的 scheduled 事件，遍历含 odShare 的媒体条目重新解析并回写
+  // 定时任务：每 5 分钟触发一次 scheduled 事件（Cloudflare 定时器不可运行时修改），
+  // Worker 内部按用户设置 onedriveRefreshHours 判断是否真正刷新——
+  // 距上次刷新剩余时间 ≤ 310 秒（5 分钟周期 + 10 秒缓冲）即触发刷新并更新时间，
+  // 未到时间直接跳过，几乎不产生请求。
+  // 遍历含 odShare 的媒体条目重新解析并回写，规避 tempauth 约 1 小时过期问题
   "triggers": {
-    "crons": ["0 * * * *"]
+    "crons": ["*/5 * * * *"]
   }
 }

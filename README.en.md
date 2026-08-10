@@ -181,15 +181,9 @@ npm run dev
 
 The "Add media" card has a toggle between **Normal link** and **OneDrive link**. In OneDrive mode you paste an embed share link; after resolving, the file name is filled in automatically and you click "Add" to convert it into a site media link.
 
-> This section explains **how it works**. For how to obtain a share link from OneDrive and paste it here, see your notes at the end of this section.
-
 ### Supported link formats
 
 Both OneDrive **embed links and ordinary share links** resolve successfully, e.g.:
-
-```
-https://1drv.ms/v/c/d1c8a5e4bddc4ef4/IQQBQyjnUzI4SaB6B4YC6d8AAVBzhIDzcl6Ec95IL9xCZD4
-```
 
 | Type | Example | Notes |
 | --- | --- | --- |
@@ -228,7 +222,7 @@ OneDrive share links are not directly hotlinkable. The main verified path is the
 
 - **Why not store `@content.downloadUrl`?** Microsoft's downloadUrl expires in about 1 hour and can't be stored long-term. This site stores a **stable addressing URL** (the content endpoint); every media request follows the 302 to the freshest direct link, avoiding expiry issues.
 - **`tempauth` anonymous link**: the `download.aspx?tempauth=...` returned by the content endpoint needs no auth header and supports Range seeking. The Worker caches it as the media source and **automatically re-resolves when it expires (~1 hour)**.
-- **Hourly scheduled auto-refresh**: the Worker has a Cron Trigger (every hour on the hour, `scheduled` event) that walks every media item carrying OneDrive anchors (original share link + driveId/itemId), re-fetches BadgerAuth, resolves the freshest `tempauth` link and writes it back to KV — renewing the token before it expires, with no user action needed.
+- **Configurable-interval scheduled auto-refresh**: the Worker has a Cron Trigger (every 5 minutes, `scheduled` event) that only actually refreshes according to the "OneDrive auto-refresh interval" setting, walking every media item carrying OneDrive anchors (original share link + driveId/itemId), re-fetching BadgerAuth, resolving the freshest `tempauth` link and writing it back to KV — renewing the token before it expires. Because the site caches resolve results, links keep working even after the resolve chain expires when you only use site links, so you can raise the interval to reduce OneDrive requests. The settings page shows the site's max cache time (derived from "Cache TTL") and three reference values: **minimum 1 hour** (keeps the resolve chain alive), **recommended when you don't use the resolve chain (site links only): set it to the max cache time** (almost no OneDrive requests), and **maximum = the site's max cache time**. Auto-resolve triggers (and updates the timestamp) once the remaining time since the last refresh is ≤ 310s (5-minute check cycle + 10s buffer) to cover network latency.
 - **On-demand fallback refresh**: even if a scheduled run is missed, a media request that hits 401 triggers an immediate re-resolve + single retry, keeping the link usable.
 - **Type detection**: OneDrive direct links return `application/octet-stream`, so the type can't be read from the response header. The site trusts the **type inferred from the file-name extension at add time**.
 - **Targeted SSRF bypass**: OneDrive domains (`my.microsoftpersonalcontent.com`, Microsoft CDN domains) are whitelisted internally; all other domains still obey the SSRF whitelist.
@@ -294,7 +288,7 @@ All endpoints return JSON; admin endpoints require `Authorization: Bearer <PASSW
 ## Notes & Limits
 
 - **512MB cache limit**: Cloudflare free plan caches objects up to 512MB; larger videos are not cached in cache proxy mode — use DNS-only mode for them
-- **KV eventual consistency**: deletes propagate globally within ~60s (the admin panel removes items locally at once, so they disappear immediately)
+- **KV eventual consistency**: changes propagate globally within ~60s (the admin panel applies changes locally at once, so they take effect immediately)
 - **Partial responses are not cached**: 206 responses pass through; once the full 200 object is cached, subsequent range requests are sliced by the edge from the cached object
 - **HLS/DASH**: proxied as whole files only, no segment URL rewriting; most HLS origins reject non-standard requests — extend it yourself if you need full streaming support
 - **Video thumbnails require CORS**: cache proxy mode works out of the box (the Worker returns `Access-Control-Allow-Origin: *`); DNS-only mode depends on the origin's CORS, falling back to an icon placeholder otherwise; video covers always use the proxied link in cache proxy mode because cross-origin frame capture requires CORS

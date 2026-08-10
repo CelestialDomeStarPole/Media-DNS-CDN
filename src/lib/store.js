@@ -43,6 +43,8 @@ export function defaultSettings(env) {
       env.REQUIRE_SIGNATURE === true || env.REQUIRE_SIGNATURE === "true",
     signatureTtl: Number(env.SIGNATURE_TTL || 3600),
     cacheTtl: Number(env.CACHE_TTL || 2592000),
+    // OneDrive 解析自动刷新间隔（小时），最小 1，最大为缓存时长对应小时数
+    onedriveRefreshHours: Number(env.ONEDRIVE_REFRESH_HOURS || 1),
     maxImageSize: Number(env.MAX_IMAGE_SIZE || 52428800),
     maxAudioSize: Number(env.MAX_AUDIO_SIZE || 104857600),
     maxVideoSize: Number(env.MAX_VIDEO_SIZE || 524288000),

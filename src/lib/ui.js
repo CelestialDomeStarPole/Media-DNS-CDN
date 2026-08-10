@@ -594,6 +594,7 @@ a{color:var(--accent)}
         <div class="card group">
           <h3 data-i18n="set.group.cache"></h3>
           <label><span data-i18n="set.cacheTtl"></span><input id="cacheTtl" type="number" min="0" max="31536000" /><small data-i18n="set.cacheTtl.hint"></small></label>
+          <label><span data-i18n="set.odRefreshHours"></span><input id="onedriveRefreshHours" type="number" min="1" step="0.5" /><small id="odRefreshHoursHint"></small></label>
           <label><span data-i18n="set.maxImageSize"></span><input id="maxImageSize" type="number" min="1024" /></label>
           <label><span data-i18n="set.maxAudioSize"></span><input id="maxAudioSize" type="number" min="1024" /></label>
           <label><span data-i18n="set.maxVideoSize"></span><input id="maxVideoSize" type="number" min="1024" /><small data-i18n="set.maxVideoSize.hint"></small></label>
@@ -886,7 +887,7 @@ a{color:var(--accent)}
       "op.del": "已删除",
       "op.delFail": "删除失败",
       "op.fail": "操作失败",
-      "op.saveOk": "设置已保存，缓存已刷新",
+      "op.saveOk": "设置已保存，缓存已刷新。请等待 5~30 秒，待 KV 更新生效",
       "op.saveFail": "保存失败",
       "op.copyOk": "链接已复制",
       "op.saved": "已保存",
@@ -925,6 +926,8 @@ a{color:var(--accent)}
       "set.group.cache": "缓存与限制",
       "set.cacheTtl": "缓存 TTL（秒，0 = 不缓存）",
       "set.cacheTtl.hint": "仅「缓存代理+DNS」模式的媒体走缓存；缓存命中时由边缘直接返回。",
+      "set.odRefreshHours": "OneDrive 自动刷新间隔（小时）",
+      "set.odRefreshHours.hint": "网站缓存了 OneDrive 的解析结果：仅使用网站外链时，即使 OneDrive 解析链已过期，外链仍可正常访问，可调大此值以减少对 OneDrive 的请求。三个参考时间——最短 1 小时（保持解析链不过期）；不使用解析链（仅用网站外链）时推荐设为最长缓存时间 {maxHours} 小时，几乎不再产生 OneDrive 请求；最长为 {maxHours} 小时（= 网站最长缓存时间）。Worker 每 5 分钟检查一次，距上次刷新剩余时间 ≤ 310 秒（5 分钟周期 + 10 秒缓冲）时触发自动解析并更新时间。",
       "set.maxImageSize": "单张图片大小上限（字节）",
       "set.maxAudioSize": "单个音频大小上限（字节）",
       "set.maxVideoSize": "单个视频大小上限（字节）",
@@ -1079,7 +1082,7 @@ a{color:var(--accent)}
       "op.del": "Deleted",
       "op.delFail": "Delete failed",
       "op.fail": "Operation failed",
-      "op.saveOk": "Settings saved, cache refreshed",
+      "op.saveOk": "Settings saved, cache refreshed. Please wait 5–30s for KV updates to take effect",
       "op.saveFail": "Save failed",
       "op.copyOk": "Link copied",
       "op.saved": "Saved",
@@ -1118,6 +1121,8 @@ a{color:var(--accent)}
       "set.group.cache": "Cache & limits",
       "set.cacheTtl": "Cache TTL (seconds, 0 = off)",
       "set.cacheTtl.hint": "Only media in “Cache proxy + DNS” mode are cached; hits return from the edge.",
+      "set.odRefreshHours": "OneDrive auto-refresh interval (hours)",
+      "set.odRefreshHours.hint": "The site caches OneDrive resolve results: when using site links only, the links keep working even after the OneDrive resolve chain expires, so increasing this reduces OneDrive requests. Three reference values — minimum 1 hour (keeps the resolve chain alive); if you don't use the resolve chain (site links only), recommended is the max cache time {maxHours} hours, producing almost no OneDrive requests; maximum is {maxHours} hours (= the site's max cache time). The Worker checks every 5 minutes and triggers auto-resolve (updating the timestamp) once the remaining time since the last refresh is ≤ 310s (5-minute cycle + 10s buffer).",
       "set.maxImageSize": "Max image size (bytes)",
       "set.maxAudioSize": "Max audio size (bytes)",
       "set.maxVideoSize": "Max video size (bytes)",
@@ -3493,7 +3498,7 @@ a{color:var(--accent)}
   });
 
   var LIST_KEYS = ["allowedOrigins", "allowedCountries", "blockedCountries", "allowedIps", "blockedIps", "allowedAsn", "blockedAsn", "allowedReferers"];
-  var NUM_KEYS = ["signatureTtl", "cacheTtl", "maxImageSize", "maxAudioSize", "maxVideoSize"];
+  var NUM_KEYS = ["signatureTtl", "cacheTtl", "maxImageSize", "maxAudioSize", "maxVideoSize", "onedriveRefreshHours"];
 
   function loadSettings() {
     api("/api/settings").then(function (data) {
@@ -3505,7 +3510,8 @@ a{color:var(--accent)}
       });
       NUM_KEYS.forEach(function (k) {
         var el = $(k);
-        if (el) el.value = s[k];
+        // 旧 KV 可能缺少新增字段（如 onedriveRefreshHours），显示为空而非 "undefined"
+        if (el) el.value = s[k] == null ? "" : s[k];
       });
       $("requireSignature").checked = !!s.requireSignature;
       if (s.defaultMode === "proxy") { $("defaultModeProxy").checked = true; }
@@ -3523,10 +3529,24 @@ a{color:var(--accent)}
         rateMeta = data.meta;
         renderRateLimits();
       }
+      updateOdRefreshHint();
     }).catch(function (err) {
       if (err.message && err.message.indexOf("未登录") === -1) toast(err.message, "error");
     });
   }
+
+  // OneDrive 刷新间隔的提示随"缓存 TTL"动态显示最大可设小时数
+  // （与后端 scheduled 的 maxHours 计算保持一致：Math.max(1, Math.floor(cacheTtl / 3600))）
+  function updateOdRefreshHint() {
+    var el = $("odRefreshHoursHint");
+    if (!el) return;
+    var cacheTtlEl = $("cacheTtl");
+    var cttl = cacheTtlEl ? Number(cacheTtlEl.value) || 0 : 0;
+    var maxHours = Math.max(1, Math.floor(cttl / 3600));
+    el.textContent = t("set.odRefreshHours.hint", { maxHours: maxHours });
+  }
+  var cacheTtlInput = $("cacheTtl");
+  if (cacheTtlInput) cacheTtlInput.addEventListener("input", updateOdRefreshHint);
 
   function renderRateLimits() {
     if (!rateMeta) return;
@@ -3596,6 +3616,7 @@ a{color:var(--accent)}
     if (lastImages !== null) renderGrid(lastImages, { anchor: true });
     refreshPreview();
     renderRateLimits();
+    updateOdRefreshHint();
   }
   function setLang(lang) {
     LANG = lang;
