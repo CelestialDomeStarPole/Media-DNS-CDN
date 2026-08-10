@@ -216,6 +216,8 @@ OneDrive share links are not directly hotlinkable. The path verified to work is 
 
 - **Why not store `@content.downloadUrl`?** Microsoft's downloadUrl expires in about 1 hour and can't be stored long-term. This site stores a **stable addressing URL** (the content endpoint); every media request follows the 302 to the freshest direct link, avoiding expiry issues.
 - **`tempauth` anonymous link**: the `download.aspx?tempauth=...` returned by the content endpoint needs no auth header and supports Range seeking. The Worker caches it as the media source and **automatically re-resolves when it expires (~1 hour)**.
+- **Hourly scheduled auto-refresh**: the Worker has a Cron Trigger (every hour on the hour, `scheduled` event) that walks every media item carrying OneDrive anchors (original share link + driveId/itemId), re-fetches BadgerAuth, resolves the freshest `tempauth` link and writes it back to KV — renewing the token before it expires, with no user action needed.
+- **On-demand fallback refresh**: even if a scheduled run is missed, a media request that hits 401 triggers an immediate re-resolve + single retry, keeping the link usable.
 - **Type detection**: OneDrive direct links return `application/octet-stream`, so the type can't be read from the response header. The site trusts the **type inferred from the file-name extension at add time**.
 - **Targeted SSRF bypass**: OneDrive domains (`my.microsoftpersonalcontent.com`, Microsoft CDN domains) are whitelisted internally; all other domains still obey the SSRF whitelist.
 

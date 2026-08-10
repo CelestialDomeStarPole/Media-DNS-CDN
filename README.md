@@ -226,6 +226,8 @@ OneDrive 共享链接并非可直接外链的直链。实测走通的是一条**
 
 - **为什么不直接用 `@content.downloadUrl` ？** 微软返回的 downloadUrl 约 1 小时过期，不可长期保存。本站存储的是**稳定寻址地址**（content 端点），每次媒体请求由 Worker **实时跟随 302 到最新直链**，天然规避时效问题。
 - **`tempauth` 匿名直链**：content 端点返回的 `download.aspx?tempauth=...` 无需任何认证头即可访问（支持 Range 分片，音视频拖动正常）。Worker 把它作为媒体源缓存，**约 1 小时后过期时自动重新解析**并回写新直链，因此媒体链接长期有效。
+- **每小时定时自动刷新**：Worker 配置了 Cron Trigger（每小时整点触发 `scheduled` 事件），遍历所有含 OneDrive 锚点（原始共享链接 + driveId/itemId）的媒体条目，重新获取 BadgerAuth 并解析最新 `tempauth` 直链回写 KV，在令牌过期前完成续期，用户无需干预。
+- **访问时兜底刷新**：即使定时任务恰好错过（如 Worker 休眠），媒体请求遇到 401 时也会**立即重新解析并重试一次**，最大限度保证链接可用。
 - **类型识别**：OneDrive 直链返回 `application/octet-stream`，无法从响应头识别媒体类型；本站以**文件名扩展名推断的类型**（添加时已确定）为准，因此直链也能正确显示图片/音频/视频。
 - **SSRF 定向放行**：OneDrive 相关域名（`my.microsoftpersonalcontent.com`、微软 CDN 域）由内部白名单定向放行，无需加入全局 SSRF 白名单，其他域名仍受白名单约束。
 

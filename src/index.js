@@ -201,6 +201,7 @@ async function handleLogin(request, env) {
 // extra 可携带 OneDrive 新格式所需的认证字段（odAuth=BadgerAuth, odShare=原始共享链接）
 async function addMediaRecord(env, { url, mode, name, folder, type, extra }) {
   const id = generateId();
+  const extras = extra || {};
   await putImage(env, id, {
     url,
     mode,
@@ -209,7 +210,9 @@ async function addMediaRecord(env, { url, mode, name, folder, type, extra }) {
     folder,
     type,
     createdAt: Date.now(),
-    ...(extra || {}),
+    // 链接分类：OneDrive 导入标记 onedrive，普通链接标记 normal
+    sourceType: typeof extras.odShare === "string" && extras.odShare ? "onedrive" : "normal",
+    ...extras,
   });
   // 新条目排在列表最前（与默认"新在前"一致）
   const order = (await getOrder(env)) || [];
@@ -397,10 +400,55 @@ async function handleOneDriveImport(request, env) {
 // 类型 → 大小限制设置键（与 proxy.js 的 validateMedia 保持一致）
 const TYPE_SIZE_KEY = { image: "maxImageSize", audio: "maxAudioSize", video: "maxVideoSize" };
 
-// 剔除不应暴露给前端的敏感字段（OneDrive BadgerAuth 凭证等）
+// 剔除不应暴露给前端的敏感字段（OneDrive BadgerAuth 凭证、内部锚点）。
+// 保留 odShare（OneDrive 原始共享链接，前端详情页需要展示）与 sourceType（链接分类）。
 function sanitizeImage(img) {
-  const { odAuth, odShare, ...safe } = img;
+  const { odAuth, odDriveId, odItemId, ...safe } = img;
   return safe;
+}
+
+// 定时任务：每小时刷新所有 OneDrive 媒体条目。
+// tempauth 直链约 1 小时过期，这里在到期前统一重新解析：
+//   - 用存储的原始共享链接 odShare 重新获取 BadgerAuth
+//   - 用 odDriveId/odItemId 重新解析 content -> 新的 download.aspx?tempauth= 直链
+//   - 回写 KV（url + 新 token），保证媒体链接长期可用
+// 返回 { ok, refreshed, failed }（仅作观测，不阻塞用户请求）
+async function refreshOneDriveMedia(env) {
+  let images;
+  try {
+    images = await listImages(env);
+  } catch {
+    return { ok: false, refreshed: 0, failed: 0 };
+  }
+  let refreshed = 0;
+  let failed = 0;
+  // 串行处理，避免瞬时大量出站请求；媒体量通常不大（≤ 几百）
+  for (const img of images) {
+    if (typeof img.odShare !== "string" || !img.odShare) continue;
+    // 仅当持有可刷新的锚点（odDriveId + odItemId）时才刷新直链
+    if (typeof img.odDriveId !== "string" || typeof img.odItemId !== "string") continue;
+    try {
+      const auth = await fetchBadgerAuth(img.odShare);
+      if (!auth || auth.error || !auth.token) {
+        failed++;
+        continue;
+      }
+      const t = await resolveTempAuthUrl(img.odDriveId, img.odItemId, auth.token);
+      if (t && t.url && t.url !== img.url) {
+        await putImage(env, img.id, { ...img, url: t.url, odAuth: auth.token });
+        refreshed++;
+      } else if (t && t.url) {
+        // 直链未变化，仅更新 token
+        await putImage(env, img.id, { ...img, odAuth: auth.token });
+        refreshed++;
+      } else {
+        failed++;
+      }
+    } catch {
+      failed++;
+    }
+  }
+  return { ok: true, refreshed, failed };
 }
 
 async function handleList(request, env) {
@@ -871,5 +919,11 @@ export default {
     }
 
     return new Response("Not Found", { status: 404 });
+  },
+
+  // Cron Trigger（wrangler.jsonc triggers.crons）：
+  // 每小时刷新所有 OneDrive 解析出的直链，规避 tempauth 约 1 小时过期问题
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(refreshOneDriveMedia(env));
   },
 };

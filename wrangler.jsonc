@@ -18,7 +18,7 @@
   // =====================================================================
   "name": "media-dns-cdn",  // Worker 名称（Cloudflare 仅允许小写字母数字和连字符）
   "main": "src/index.js",
-  "compatibility_date": "2026-08-06",
+  "compatibility_date": "2026-08-10",
 
   // 开启 Workers Caching：缓存命中时由边缘直接返回，Worker 不执行
   "cache": {
@@ -29,7 +29,7 @@
   "kv_namespaces": [
     {
     "binding": "MAPPINGS", // KV 命名空间绑定名
-    "id": "9d3519ce583b48e0b9b88876eb4ff8bc" // KV 命名空间 ID（部署前创建）
+    "id": "你的KV命名空间ID" // KV 命名空间 ID（部署前创建）
     }
   ],
 
@@ -102,5 +102,11 @@
 
   "observability": {
     "enabled": true
+  },
+
+  // 定时任务：每小时自动刷新所有 OneDrive 解析出的直链（tempauth 约 1 小时过期）
+  // 触发 Worker 的 scheduled 事件，遍历含 odShare 的媒体条目重新解析并回写
+  "triggers": {
+    "crons": ["0 * * * *"]
   }
 }

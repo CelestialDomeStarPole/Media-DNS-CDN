@@ -682,6 +682,7 @@ a{color:var(--accent)}
       <div class="detail-right">
         <div class="detail-meta">
           <div class="meta-row"><span data-i18n="detail.size"></span><b id="detail-size">-</b></div>
+          <div class="meta-row"><span data-i18n="detail.type"></span><b id="detail-type">-</b></div>
           <div class="meta-row"><span data-i18n="detail.id"></span><b id="detail-id" class="id-copy" data-i18n-title="detail.copyId">-</b></div>
           <div class="meta-row"><span data-i18n="detail.time"></span><b id="detail-time">-</b></div>
           <div class="meta-row"><span data-i18n="detail.dimension"></span><b id="detail-dim">-</b></div>
@@ -691,6 +692,7 @@ a{color:var(--accent)}
         <div class="detail-chips" id="detail-source">
           <button type="button" class="dchip active" data-src="site" data-i18n="detail.sourceSite"></button>
           <button type="button" class="dchip" data-src="upstream" data-i18n="detail.sourceUpstream"></button>
+          <button type="button" class="dchip" data-src="raw" data-i18n="detail.sourceRaw"></button>
         </div>
         <p class="dt-sec-title" data-i18n="detail.format"></p>
         <div class="detail-chips" id="detail-format">
@@ -841,6 +843,10 @@ a{color:var(--accent)}
       "detail.source": "复制源",
       "detail.sourceSite": "网站链接",
       "detail.sourceUpstream": "上游链接",
+      "detail.sourceRaw": "原始链接",
+      "detail.type": "类型",
+      "detail.typeOnedrive": "OneDrive 链接",
+      "detail.typeNormal": "普通链接",
       "detail.format": "复制格式",
       "detail.formatUrl": "URL",
       "detail.formatHtml": "HTML",
@@ -1025,6 +1031,10 @@ a{color:var(--accent)}
       "detail.source": "Source",
       "detail.sourceSite": "Site link",
       "detail.sourceUpstream": "Upstream link",
+      "detail.sourceRaw": "Raw link",
+      "detail.type": "Type",
+      "detail.typeOnedrive": "OneDrive link",
+      "detail.typeNormal": "Normal link",
       "detail.format": "Format",
       "detail.formatUrl": "URL",
       "detail.formatHtml": "HTML",
@@ -2343,12 +2353,27 @@ a{color:var(--accent)}
     }
     var grid = $("grid");
     if (matches) {
+      // 已有已渲染卡的整体后移一位索引，保持分组导航真实坐标定位与新顺序一致
+      var oldCards = grid.querySelectorAll(".img-card");
+      for (var k = 0; k < oldCards.length; k++) {
+        var oi = parseInt(oldCards[k].dataset.idx, 10);
+        if (!isNaN(oi)) oldCards[k].dataset.idx = oi + 1;
+      }
       var card = buildCard(im, 0);
-      if (gridSentinel) grid.insertBefore(card, gridSentinel);
-      else grid.insertBefore(card, grid.firstChild);
+      // 始终插入网格最前（顶部可见处）。不能插到 gridSentinel 前——
+      // 虚拟滚动未渲染完时 sentinel 在已渲染区末尾（视口下方），新卡会掉出视口
+      grid.insertBefore(card, grid.firstChild);
       gridState.rendered++;
+      var emptyEl = $("empty");
+      if (emptyEl) emptyEl.classList.add("hidden"); // 空态首次添加时收起空态提示
       if (!im._loading) { setupVideoThumbs(); observeThumbs(); }
       updateImgCount();
+      // 新卡未进入视口时平滑滚动到网格顶部，确保用户立即看到添加结果
+      var r = card.getBoundingClientRect();
+      var vh = window.innerHeight || document.documentElement.clientHeight;
+      if (r.bottom < 0 || r.top > vh) {
+        smoothScrollTo(gridDocTop(), undefined, updateCurrentGroup);
+      }
     } else {
       updateImgCount();
     }
@@ -3065,6 +3090,9 @@ a{color:var(--accent)}
         .catch(function () {});
     } catch (e) {}
   }
+  function isOneDriveImg(img) {
+    return !!(img && (img.sourceType === "onedrive" || (img.odShare && img.odShare)));
+  }
   function openDetailModal(img) {
     if (!img) return;
     detailModalImg = img;
@@ -3077,6 +3105,8 @@ a{color:var(--accent)}
     $("detail-time").textContent = fmtTime(img.createdAt);
     $("detail-size").textContent = "-";
     $("detail-dim").textContent = "-";
+    // 类型：OneDrive 链接 / 普通链接
+    $("detail-type").textContent = isOneDriveImg(img) ? t("detail.typeOnedrive") : t("detail.typeNormal");
     probeDetailSize(img);
     fillDetailCopy(img);
     $("detail-modal").classList.remove("hidden");
@@ -3100,7 +3130,12 @@ a{color:var(--accent)}
   // ---- 详情弹窗：右栏（复制源 / 格式 / 预览 / 复制）----
   function buildCopyText(img, source, format) {
     if (!img) return "";
-    var link = source === "upstream" ? img.url : (img.shortUrl || img.url);
+    // source: site=网站链接 / upstream=上游链接 / raw=OneDrive 原始共享链接
+    var link;
+    if (source === "raw") link = img.odShare || "";
+    else if (source === "upstream") link = img.url;
+    else link = img.shortUrl || img.url;
+    if (!link) return "";
     var name = displayName(img);
     var isImg = (img.type || guessTypeClient(img.url)) === "image";
     if (format === "html") {
@@ -3118,7 +3153,13 @@ a{color:var(--accent)}
   }
   function fillDetailCopy(img) {
     var srcs = $("detail-source").querySelectorAll(".dchip");
-    for (var i = 0; i < srcs.length; i++) srcs[i].classList.toggle("active", srcs[i].getAttribute("data-src") === detailSrc);
+    for (var i = 0; i < srcs.length; i++) {
+      var s = srcs[i].getAttribute("data-src");
+      // 原始链接 chip 仅 OneDrive 媒体显示
+      if (s === "raw") srcs[i].classList.toggle("hidden", !isOneDriveImg(img));
+      if (detailSrc === "raw" && !isOneDriveImg(img)) detailSrc = "site";
+      srcs[i].classList.toggle("active", s === detailSrc);
+    }
     var fmts = $("detail-format").querySelectorAll(".dchip");
     for (var j = 0; j < fmts.length; j++) fmts[j].classList.toggle("active", fmts[j].getAttribute("data-fmt") === detailFmt);
     $("detail-preview").value = buildCopyText(img, detailSrc, detailFmt);
