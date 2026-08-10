@@ -207,7 +207,44 @@ export async function listShareChildren(shareUrl, opts) {
     }
   }
 
-  await walk("", 0);
+  // startRelPath 用于"只导入某个子文件夹"：从该子文件夹开始递归
+  await walk(opts.startRelPath || "", 0);
+  return items;
+}
+
+// 共享文件夹第一层子项列表(旧格式, 不递归)。
+// 返回 [{ name, size, relPath, isFolder, childCount }], 受 max 限制。
+export async function listShareChildrenFlat(shareUrl, opts) {
+  opts = opts || {};
+  const max = opts.max || 100;
+  const items = [];
+  const root = buildShareApiUrl(shareUrl);
+  let next = `${root}/children`;
+  while (next && items.length < max) {
+    const res = await fetchJson(next);
+    if (!res || !res.ok) break;
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      break;
+    }
+    const list = Array.isArray(data.value) ? data.value : [];
+    for (const item of list) {
+      if (items.length >= max) break;
+      if (!item || typeof item !== "object") continue;
+      const name = typeof item.name === "string" ? item.name : "";
+      if (!name) continue;
+      items.push({
+        name,
+        size: Number(item.size) || 0,
+        relPath: name,
+        isFolder: Boolean(item.folder),
+        childCount: item.folder ? Number((item.folder && item.folder.childCount) || 0) : 0,
+      });
+    }
+    next = typeof data["@odata.nextLink"] === "string" ? data["@odata.nextLink"] : null;
+  }
   return items;
 }
 
@@ -282,19 +319,25 @@ export async function fetchBadgerAuth(shareUrl, timeoutMs) {
     badger = extractBadgerCookie(res.headers);
     if (badger) return { token: badger, finalUrl: url };
 
-    // photos 模式特殊处理：1drv.ms/v/c 链接可能跳转到 onedrive.live.com/?v=photos，
-    // 该页面本身不种 BadgerAuth（只有 /embed 页种），故从跳转 URL 提取 cid/id
+    // photos 模式 / redeem 直载形态特殊处理：1drv.ms/v/c 与 /f/c/ 链接可能跳转到
+    // onedrive.live.com/?v=photos 或 onedrive.live.com/?redeem=...&id=...&cid=...，
+    // 这些页面本身不种 BadgerAuth（只有 /embed 页种），故从跳转 URL 提取 cid/id
     // 构造等价 /embed 页请求以获取 BadgerAuth。
     try {
       const finalUrlObj = new URL(url);
-      // photos 模式判定：不同出口/UA 下 302 Location 可能带 v=photos 也可能不带，
-      // 以 photosData / qt=allmyphotos 参数为准更可靠。
+      // 判定：不同出口/UA 下 302 Location 可能带 v=photos 也可能不带，
+      // 以 photosData / qt=allmyphotos 参数为准；redeem 直载形态以 redeem+cid+id 为准。
       const vParam = finalUrlObj.searchParams.get("v");
-      const isPhotos =
+      const hasRedeemIds =
+        finalUrlObj.searchParams.has("redeem") &&
+        finalUrlObj.searchParams.has("cid") &&
+        (finalUrlObj.searchParams.has("id") || finalUrlObj.searchParams.has("resid"));
+      const isEmbedConvert =
         vParam === "photos" ||
         finalUrlObj.searchParams.has("photosData") ||
-        (finalUrlObj.searchParams.get("qt") || "").toLowerCase() === "allmyphotos";
-      if (isPhotos) {
+        (finalUrlObj.searchParams.get("qt") || "").toLowerCase() === "allmyphotos" ||
+        hasRedeemIds;
+      if (isEmbedConvert) {
         const embedUrl = photosUrlToEmbedUrl(url, base64UrlEncode(shareUrl.trim()));
         if (embedUrl) {
           url = embedUrl;
@@ -341,7 +384,9 @@ export async function fetchBadgerAuth(shareUrl, timeoutMs) {
   }
 }
 
-// photos 模式跳转 URL（https://onedrive.live.com/?qt=allmyphotos&photosData=...&cid=...&id=...&v=photos）
+// photos 模式 / redeem 直载形态跳转 URL
+//   https://onedrive.live.com/?qt=allmyphotos&photosData=...&cid=...&id=...&v=photos
+//   https://onedrive.live.com/?redeem=...&id=...&cid=...
 // -> 等价的 /embed URL（/embed 页面才会种 BadgerAuth）。
 // 必须原样透传 redeem 参数（=base64url(原始共享链接)），embed 页依赖它签发
 // 绑定该共享的完整权限 BadgerAuth；缺失 redeem 时签发的 BadgerAuth 权限不足，
@@ -356,9 +401,14 @@ function photosUrlToEmbedUrl(raw, fallbackRedeem) {
     // redeem 参数若缺失，用原始共享链接的 base64url 兜底
     let redeem = u.searchParams.get("redeem");
     if (!redeem && fallbackRedeem) redeem = fallbackRedeem;
+    // ithint 优先取独立参数，其次 photosData 内嵌，最后默认 video,mp4（仅影响 embed 页展示，不影响 token）
     let ithint = "video,mp4";
-    const m = photosData.match(/[?&]ithint=([^&]+)/i);
-    if (m && m[1]) ithint = decodeURIComponent(m[1]);
+    const direct = u.searchParams.get("ithint");
+    if (direct) ithint = direct;
+    else {
+      const m = photosData.match(/[?&]ithint=([^&]+)/i);
+      if (m && m[1]) ithint = decodeURIComponent(m[1]);
+    }
     const eid = encodeURIComponent(id);
     let url = `https://onedrive.live.com/embed?cid=${encodeURIComponent(cid)}&id=${eid}&resid=${eid}&ithint=${encodeURIComponent(ithint)}&embed=1&migratedtospo=true`;
     if (redeem) url += `&redeem=${encodeURIComponent(redeem)}`;
@@ -517,6 +567,42 @@ export async function listShareChildrenV2(driveId, rootItemId, badgerAuth, opts)
   }
 
   await walk(rootItemId, "", 0);
+  return items;
+}
+
+// 新格式：共享文件夹第一层子项列表（不递归），供前端选择部分导入。
+// 返回 [{ name, size, itemId, isFolder, childCount }]，受 max 限制。
+export async function listShareChildrenV2Flat(driveId, rootItemId, badgerAuth, opts) {
+  opts = opts || {};
+  const max = opts.max || 100;
+  const items = [];
+  const authHeader = { Authorization: `${BADGER_SCHEME} ${badgerAuth}` };
+  let next = `https://${MY_CONTENT_HOST}/_api/v2.0/drives/${encodeURIComponent(driveId)}/items/${encodeURIComponent(rootItemId)}/children?%24top=100&%24select=id%2Cname%2Csize%2Cfolder%2Cfile&ump=1`;
+  while (next && items.length < max) {
+    const res = await fetchJson(next, undefined, authHeader);
+    if (!res || !res.ok) break;
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      break;
+    }
+    const list = Array.isArray(data.value) ? data.value : [];
+    for (const item of list) {
+      if (items.length >= max) break;
+      if (!item || typeof item !== "object") continue;
+      const name = typeof item.name === "string" ? item.name : "";
+      if (!name || !item.id) continue;
+      items.push({
+        name,
+        size: Number(item.size) || 0,
+        itemId: String(item.id),
+        isFolder: Boolean(item.folder),
+        childCount: item.folder ? Number((item.folder && item.folder.childCount) || 0) : 0,
+      });
+    }
+    next = typeof data["@odata.nextLink"] === "string" ? data["@odata.nextLink"] : null;
+  }
   return items;
 }
 

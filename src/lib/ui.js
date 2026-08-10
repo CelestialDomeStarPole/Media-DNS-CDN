@@ -228,6 +228,18 @@ a{color:var(--accent)}
 .od-badge{flex-shrink:0;font-size:12px;padding:3px 10px;border-radius:999px;background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent);white-space:nowrap}
 .od-actions{display:flex;gap:10px;margin-top:14px}
 .od-hint{color:var(--muted);font-size:12px;margin-top:10px;line-height:1.5}
+/* 文件夹第一层子项选择列表 */
+.od-items{margin-top:12px;border:1px dashed rgba(0,0,0,.16);border-radius:9px;background:rgba(255,255,255,.5);max-height:240px;overflow:auto}
+.od-items-head{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;font-size:12px;color:var(--muted);border-bottom:1px dashed rgba(0,0,0,.1);background:rgba(255,255,255,.92);backdrop-filter:blur(4px)}
+.od-items-head label{display:flex;align-items:center;gap:6px;cursor:pointer;color:var(--text);font-weight:600;white-space:nowrap}
+.od-items-head .od-items-count{flex-shrink:0}
+.od-items-list{padding:4px 0}
+.od-items-list label{display:flex;align-items:center;gap:8px;padding:6px 12px;font-size:13px;cursor:pointer;color:var(--text)}
+.od-items-list label:hover{background:rgba(0,0,0,.04)}
+.od-items-list input[type="checkbox"]{flex-shrink:0;accent-color:var(--accent)}
+.od-item-name{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.od-item-icon{flex-shrink:0;font-size:12px;opacity:.75}
+.od-item-badge{flex-shrink:0;font-size:11px;color:var(--muted);white-space:nowrap}
 .add-row2 input:disabled{opacity:.55;cursor:not-allowed}
 /* 次级按钮 */
 .secondary{padding:11px 18px;border-radius:10px;font-size:14px;font-weight:600;background:rgba(255,255,255,.75);border:1px solid rgba(0,0,0,.14);color:var(--text);cursor:pointer;transition:all .15s ease;white-space:nowrap}
@@ -537,6 +549,7 @@ a{color:var(--accent)}
             <label class="mode-option"><input type="radio" name="od-mode" value="proxy" checked /><span data-i18n="mode.proxy"></span><em data-i18n="mode.proxy.em"></em></label>
           </div>
           <div id="od-info" class="od-info hidden"></div>
+          <div id="od-items" class="od-items hidden"></div>
           <div class="od-actions">
             <button id="od-add-btn" class="primary hidden" data-i18n="add.btn"></button>
             <button id="od-import-btn" class="primary hidden" data-i18n="add.od.import"></button>
@@ -682,6 +695,7 @@ a{color:var(--accent)}
       <div class="detail-right">
         <div class="detail-meta">
           <div class="meta-row"><span data-i18n="detail.size"></span><b id="detail-size">-</b></div>
+          <div class="meta-row"><span data-i18n="detail.fileType"></span><b id="detail-filetype">-</b></div>
           <div class="meta-row"><span data-i18n="detail.type"></span><b id="detail-type">-</b></div>
           <div class="meta-row"><span data-i18n="detail.id"></span><b id="detail-id" class="id-copy" data-i18n-title="detail.copyId">-</b></div>
           <div class="meta-row"><span data-i18n="detail.time"></span><b id="detail-time">-</b></div>
@@ -795,6 +809,9 @@ a{color:var(--accent)}
       "add.od.folder": "{n} 个文件",
       "add.od.folderReady": "文件夹共 {n} 个文件",
       "add.od.import": "批量导入",
+      "add.od.importSelected": "导入所选（{n}）",
+      "add.od.importEmpty": "请先勾选要导入的文件",
+      "add.od.selectAll": "全选",
       "add.od.importing": "正在导入 {n} 个文件…",
       "add.od.importDoneOk": "已导入 {n} 个文件",
       "add.od.importDoneFail": "已导入 {n} 个文件，{m} 个失败",
@@ -856,6 +873,7 @@ a{color:var(--accent)}
       "detail.copy": "复制",
       "detail.copyId": "点击复制 ID",
       "detail.size": "大小",
+      "detail.fileType": "文件类型",
       "detail.id": "ID",
       "detail.time": "上传时间",
       "detail.dimension": "尺寸",
@@ -984,6 +1002,9 @@ a{color:var(--accent)}
       "add.od.folder": "{n} files",
       "add.od.folderReady": "Folder contains {n} files",
       "add.od.import": "Import all",
+      "add.od.importSelected": "Import selected ({n})",
+      "add.od.importEmpty": "Select at least one item to import",
+      "add.od.selectAll": "Select all",
       "add.od.importing": "Importing {n} files…",
       "add.od.importDoneOk": "Imported {n} files",
       "add.od.importDoneFail": "Imported {n} files, {m} failed",
@@ -1045,6 +1066,7 @@ a{color:var(--accent)}
       "detail.copy": "Copy",
       "detail.copyId": "Click to copy ID",
       "detail.size": "Size",
+      "detail.fileType": "File type",
       "detail.id": "ID",
       "detail.time": "Uploaded",
       "detail.dimension": "Dimensions",
@@ -2601,10 +2623,122 @@ a{color:var(--accent)}
     box.classList.remove("hidden");
   }
 
+  // 渲染文件夹第一层子项勾选列表（后端 resolve 返回 items 时可用）
+  function renderOdItems(data) {
+    var box = $("od-items");
+    box.innerHTML = "";
+    if (!data || !data.isFolder || !Array.isArray(data.items) || !data.items.length) {
+      box.classList.add("hidden");
+      return;
+    }
+    var head = document.createElement("div");
+    head.className = "od-items-head";
+    var allLabel = document.createElement("label");
+    var allCheck = document.createElement("input");
+    allCheck.type = "checkbox";
+    allCheck.checked = true;
+    allCheck.className = "od-items-all";
+    var allText = document.createElement("span");
+    allText.textContent = t("add.od.selectAll");
+    allLabel.appendChild(allCheck);
+    allLabel.appendChild(allText);
+    var count = document.createElement("span");
+    count.className = "od-items-count";
+    head.appendChild(allLabel);
+    head.appendChild(count);
+    box.appendChild(head);
+
+    var list = document.createElement("div");
+    list.className = "od-items-list";
+    var items = data.items;
+    for (var i = 0; i < items.length; i++) {
+      (function (idx) {
+        var it = items[idx];
+        var label = document.createElement("label");
+        var ck = document.createElement("input");
+        ck.type = "checkbox";
+        ck.checked = true;
+        ck.dataset.odItem = "1";
+        ck.dataset.idx = String(idx);
+        var icon = document.createElement("span");
+        icon.className = "od-item-icon";
+        icon.textContent = it.isFolder ? "📁" : "📄";
+        var nameEl = document.createElement("span");
+        nameEl.className = "od-item-name";
+        nameEl.textContent = it.name || "-";
+        nameEl.title = it.name || "";
+        var badge = document.createElement("span");
+        badge.className = "od-item-badge";
+        badge.textContent = it.isFolder
+          ? t("add.od.folder", { n: it.childCount })
+          : fmtSize(it.size);
+        label.appendChild(ck);
+        label.appendChild(icon);
+        label.appendChild(nameEl);
+        label.appendChild(badge);
+        ck.addEventListener("change", updateOdItemsUi);
+        list.appendChild(label);
+      })(i);
+    }
+    box.appendChild(list);
+    box.classList.remove("hidden");
+
+    // 计数 / 全选 / 按钮文案联动
+    var refresh = function () {
+      var cks = box.querySelectorAll("input[data-od-item]");
+      var checked = box.querySelectorAll("input[data-od-item]:checked");
+      count.textContent = checked.length + " / " + cks.length;
+      allCheck.checked = checked.length === cks.length && cks.length > 0;
+      var btn = $("od-import-btn");
+      if (!cks.length || !checked.length) {
+        btn.disabled = true;
+        btn.textContent = t("add.od.importEmpty");
+      } else if (checked.length === cks.length) {
+        btn.disabled = false;
+        btn.textContent = t("add.od.import");
+      } else {
+        btn.disabled = false;
+        btn.textContent = t("add.od.importSelected", { n: checked.length });
+      }
+    };
+    allCheck.addEventListener("change", function () {
+      var cks = box.querySelectorAll("input[data-od-item]");
+      for (var k = 0; k < cks.length; k++) cks[k].checked = allCheck.checked;
+      refresh();
+    });
+    refresh();
+  }
+
+  // 子项勾选变化时刷新列表头计数与按钮文案
+  function updateOdItemsUi() {
+    var box = $("od-items");
+    if (!box || box.classList.contains("hidden")) return;
+    var cks = box.querySelectorAll("input[data-od-item]");
+    var checked = box.querySelectorAll("input[data-od-item]:checked");
+    var allCheck = box.querySelector(".od-items-all");
+    if (allCheck) allCheck.checked = checked.length === cks.length && cks.length > 0;
+    var count = box.querySelector(".od-items-count");
+    if (count) count.textContent = checked.length + " / " + cks.length;
+    var btn = $("od-import-btn");
+    if (!cks.length || !checked.length) {
+      btn.disabled = true;
+      btn.textContent = t("add.od.importEmpty");
+    } else if (checked.length === cks.length) {
+      btn.disabled = false;
+      btn.textContent = t("add.od.import");
+    } else {
+      btn.disabled = false;
+      btn.textContent = t("add.od.importSelected", { n: checked.length });
+    }
+  }
+
   function odResetForm(clearUrl) {
     odState = null;
     $("od-info").classList.add("hidden");
     $("od-info").innerHTML = "";
+    $("od-items").classList.add("hidden");
+    $("od-items").innerHTML = "";
+    $("od-import-btn").disabled = false;
     $("od-add-btn").classList.add("hidden");
     $("od-import-btn").classList.add("hidden");
     $("od-name").disabled = false;
@@ -2635,10 +2769,16 @@ a{color:var(--accent)}
           $("od-name").value = "";
           $("od-add-btn").classList.add("hidden");
           $("od-import-btn").classList.remove("hidden");
+          renderOdItems(data);
           toast(t("add.od.folderReady", { n: data.childCount }), "info");
         } else {
           $("od-name").disabled = false;
-          $("od-name").value = data.name || "";
+          // 默认名去掉扩展名，遵守「自定义名请勿带后缀」规则；
+          // 下载时 custom 模式会自动补回 OneDrive 原始扩展名（后端存有 odSrcName）
+          var baseName = data.name || "";
+          var di = baseName.lastIndexOf(".");
+          $("od-name").value =
+            di > 0 && di < baseName.length - 1 ? baseName.slice(0, di) : baseName;
           $("od-import-btn").classList.add("hidden");
           $("od-add-btn").classList.remove("hidden");
           toast(t("add.od.ready"), "success");
@@ -2684,7 +2824,7 @@ a{color:var(--accent)}
   }
   $("od-add-btn").addEventListener("click", odAdd);
 
-  // 文件夹批量导入
+  // 文件夹批量导入（支持只导入勾选的子项）
   function odImport() {
     if (!odState || !odState.isFolder) return;
     var raw = $("od-url").value.trim();
@@ -2692,9 +2832,28 @@ a{color:var(--accent)}
     var folder = $("od-folder").value;
     if (folder === "__new__") folder = addPendingFolder;
     var btn = $("od-import-btn");
-    var total = odState.childCount || 0;
+    // 收集勾选的子项：仅当有选择列表且未全选时传给后端做部分导入；
+    // 全选时走"全部导入"（后端完整递归，覆盖可能超出列表上限的深层文件）
+    var selItems = null;
+    var box = $("od-items");
+    var hasSelList = box && !box.classList.contains("hidden") && Array.isArray(odState.items) && odState.items.length;
+    if (hasSelList) {
+      var cks = box.querySelectorAll("input[data-od-item]");
+      var checked = box.querySelectorAll("input[data-od-item]:checked");
+      if (checked.length < cks.length) {
+        selItems = [];
+        for (var i = 0; i < checked.length; i++) {
+          var it = odState.items[+checked[i].dataset.idx];
+          if (it) selItems.push({ name: it.name, itemId: it.itemId, relPath: it.relPath, isFolder: it.isFolder });
+        }
+        if (!selItems.length) { toast(t("add.od.importEmpty"), "error"); return; }
+      }
+    }
+    var total = selItems ? selItems.length : (odState.childCount || 0);
     setBusy(btn, true, t("add.od.importing", { n: total }));
-    api("/api/onedrive/import", { method: "POST", body: JSON.stringify({ url: raw, mode: mode, folder: folder }) })
+    var body = { url: raw, mode: mode, folder: folder };
+    if (selItems) body.items = selItems;
+    api("/api/onedrive/import", { method: "POST", body: JSON.stringify(body) })
       .then(function (data) {
         if (folder && lastFolders.indexOf(folder) === -1) { lastFolders.push(folder); renderFolders(); }
         var items = data.items || [];
@@ -3106,6 +3265,27 @@ a{color:var(--accent)}
   function isOneDriveImg(img) {
     return !!(img && (img.sourceType === "onedrive" || (img.odShare && img.odShare)));
   }
+  // 从文件名提取扩展名（小写、不含点）；无扩展名或纯扩展名时返回空串
+  function extOfName(n) {
+    var s = String(n || "");
+    var i = s.lastIndexOf(".");
+    if (i <= 0 || i === s.length - 1) return "";
+    return s.slice(i + 1).toLowerCase();
+  }
+  // 媒体文件类型（ogg / mp4 等）：
+  //   OneDrive → odSrcName（原始完整文件名含扩展名，name 已去后缀）；
+  //   普通媒体 → fileExt（后端 Content-Type 嗅探，中转链接也可靠）→ URL 末段 → name 兜底
+  function fileTypeOf(img) {
+    if (!img) return "";
+    var t = extOfName(img.odSrcName);
+    if (!t && img.fileExt) t = String(img.fileExt).toLowerCase();
+    if (!t) t = extOfName(img.name);
+    if (!t && img.url) {
+      var seg = String(img.url).split(/[?#]/)[0].split("/").pop() || "";
+      t = extOfName(seg);
+    }
+    return t;
+  }
   function openDetailModal(img) {
     if (!img) return;
     detailModalImg = img;
@@ -3118,6 +3298,9 @@ a{color:var(--accent)}
     $("detail-time").textContent = fmtTime(img.createdAt);
     $("detail-size").textContent = "-";
     $("detail-dim").textContent = "-";
+    // 文件类型：ogg / mp4 等
+    var ft = fileTypeOf(img);
+    $("detail-filetype").textContent = ft ? ft : "-";
     // 类型：OneDrive 链接 / 普通链接
     $("detail-type").textContent = isOneDriveImg(img) ? t("detail.typeOnedrive") : t("detail.typeNormal");
     probeDetailSize(img);

@@ -44,6 +44,8 @@ import {
   parseShareLinkIds,
   listShareChildren,
   listShareChildrenV2,
+  listShareChildrenFlat,
+  listShareChildrenV2Flat,
   fetchBadgerAuth,
   resolveTempAuthUrl,
   isOneDriveTrustedUrl,
@@ -114,6 +116,15 @@ function upstreamExt(rawUrl) {
   return name.slice(i + 1).toLowerCase();
 }
 
+// 从文件名提取扩展名（小写、不含点）；无扩展名或纯扩展名时返回空串
+// 用于 OneDrive content URL（末段为 content，无法从 URL 推导扩展名）等场景
+function extFromName(name) {
+  const n = String(name || "");
+  const i = n.lastIndexOf(".");
+  if (i <= 0 || i === n.length - 1) return "";
+  return n.slice(i + 1).toLowerCase();
+}
+
 // 非 ASCII 兜底名：filename 参数仅允许 ASCII，其余字符替换为下划线
 function asciiFallback(name) {
   return name.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_");
@@ -150,12 +161,45 @@ async function purgeTag(ctx, tag) {
   } catch {}
 }
 
-// 多级探测媒体类型（图片/音频/视频）：
+// 从 Content-Type 提取文件扩展名（小写、不含点）；识别不出返回 ""
+// image/jpeg→jpg, image/svg+xml→svg, video/x-msvideo→avi, application/vnd.apple.mpegurl→m3u8 等
+function extFromContentType(contentType) {
+  if (!contentType) return "";
+  const ct = String(contentType).toLowerCase().split(";")[0].trim();
+  if (!ct.includes("/")) return "";
+  const special = {
+    "image/jpeg": "jpg",
+    "image/x-icon": "ico",
+    "video/x-msvideo": "avi",
+    "video/x-matroska": "mkv",
+    "audio/x-wav": "wav",
+    "audio/x-m4a": "m4a",
+    "audio/x-flac": "flac",
+    "application/x-mpegurl": "m3u8",
+    "application/vnd.apple.mpegurl": "m3u8",
+    "application/dash+xml": "mpd",
+    "application/mp4": "mp4",
+    "application/ogg": "ogg",
+    "text/plain": "txt",
+    "application/octet-stream": "",
+  };
+  if (Object.prototype.hasOwnProperty.call(special, ct)) return special[ct];
+  let sub = ct.split("/")[1] || "";
+  if (sub.startsWith("x-")) sub = sub.slice(2);
+  const plus = sub.lastIndexOf("+");
+  if (plus > 0) sub = sub.slice(plus + 1);
+  if (!/^[a-z0-9]+$/.test(sub)) return "";
+  return sub;
+}
+
+// 多级探测媒体类型（图片/音频/视频）与文件扩展名：
 // L1 HEAD 嗅探 Content-Type → L2 GET+Range(0-0)（仅读响应头后即断开，对 HEAD 不友好/重定向源可靠）
 // → L3 按 URL 扩展名兜底 → 仍失败返回 "unknown"。
+// 返回 { type, ext }：type 为 image/audio/video/unknown，ext 为具体扩展名（jpg/mp4/ogg 等，识别不出为 ""）。
+// 这样 picsum.photos/seed/1 这类"URL 无扩展名的中转链接"也能显示真实文件类型。
 // timeoutMs 供调用方控制：添加场景较宽松（5000ms），详情接口场景用短超时（2500ms）。
 // odAuth 可选：OneDrive 新格式 /c/ 媒体源需要 Authorization: badger 头。
-async function probeType(targetUrl, settings, timeoutMs = 5000, odAuth = null) {
+async function probeMediaInfo(targetUrl, settings, timeoutMs = 5000, odAuth = null) {
   const sniff = async (method) => {
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -171,8 +215,9 @@ async function probeType(targetUrl, settings, timeoutMs = 5000, odAuth = null) {
       const res = await fetchOrigin(settings, targetUrl, opts);
       response = res.response;
       if (response && response.status < 400) {
-        const t = classifyType(response.headers.get("Content-Type") || "");
-        if (t) return t;
+        const ct = response.headers.get("Content-Type") || "";
+        const t = classifyType(ct);
+        if (t) return { type: t, ext: extFromContentType(ct) };
       }
     } catch {
     } finally {
@@ -187,7 +232,19 @@ async function probeType(targetUrl, settings, timeoutMs = 5000, odAuth = null) {
   if (fromHead) return fromHead;
   const fromRange = await sniff("GET");
   if (fromRange) return fromRange;
-  return guessType(targetUrl) || "unknown";
+  const gt = guessType(targetUrl);
+  let ext = "";
+  if (gt) {
+    const seg = String(targetUrl).split(/[?#]/)[0].split("/").pop() || "";
+    ext = extFromName(seg);
+  }
+  return { type: gt || "unknown", ext };
+}
+
+// 兼容旧调用：仅返回类型
+async function probeType(targetUrl, settings, timeoutMs = 5000, odAuth = null) {
+  const info = await probeMediaInfo(targetUrl, settings, timeoutMs, odAuth);
+  return info.type;
 }
 
 async function handleLogin(request, env) {
@@ -246,8 +303,17 @@ async function handleConvert(request, env) {
         : settings.defaultMode;
   const name = sanitizeField(body.name, 60);
   const folder = sanitizeField(body.folder, 30);
-  const type = await probeType(raw, settings);
-  const id = await addMediaRecord(env, { url: raw, mode, name, folder, type });
+  const info = await probeMediaInfo(raw, settings);
+  const type = info.type;
+  const id = await addMediaRecord(env, {
+    url: raw,
+    mode,
+    name,
+    folder,
+    type,
+    // 具体文件类型（jpg/mp4/ogg 等），供详情页"文件类型"行显示；中转链接从 Content-Type 嗅探
+    extra: info.ext ? { fileExt: info.ext } : undefined,
+  });
   const link = await makeLink(request, env, settings, id);
   return json({ id, mode, url: link });
 }
@@ -299,7 +365,8 @@ async function resolveOneDriveInfo(raw) {
   return resolveShareItem(raw);
 }
 
-// OneDrive 共享链接解析预览：返回 { isFolder, name, size, childCount }
+// OneDrive 共享链接解析预览：
+// 返回 { isFolder, name, size, childCount }；文件夹额外返回 items（第一层子项，供勾选部分导入）
 async function handleOneDriveResolve(request, env) {
   const body = await request.json().catch(() => null);
   const raw = body && typeof body.url === "string" ? body.url.trim() : "";
@@ -309,13 +376,27 @@ async function handleOneDriveResolve(request, env) {
   const info = await resolveOneDriveInfo(raw);
   const err = odErrorResponse(info);
   if (err) return err;
-  return json({
+  const out = {
     ok: true,
     isFolder: info.isFolder,
     name: info.name,
     size: info.size,
     childCount: info.childCount,
-  });
+  };
+  // 文件夹：拉取第一层子项列表（文件+子文件夹），供前端勾选部分导入
+  if (info.isFolder) {
+    const newFormat = isNewFormatShareUrl(raw);
+    try {
+      if (newFormat && info.driveId && info.itemId && info.odAuth) {
+        out.items = await listShareChildrenV2Flat(info.driveId, info.itemId, info.odAuth);
+      } else if (!newFormat) {
+        out.items = await listShareChildrenFlat(raw);
+      }
+    } catch {
+      // 列表获取失败不影响基本信息展示（前端仍可全部导入）
+    }
+  }
+  return json(out);
 }
 
 // OneDrive 导入：单文件直接添加；文件夹递归遍历全部文件批量添加（串行，上限 MAX_CHILDREN）
@@ -367,17 +448,66 @@ async function handleOneDriveImport(request, env) {
       folder,
       type,
       extra: newFormat
-        ? { odAuth: info.odAuth, odShare: info.odShare, odDriveId: info.driveId, odItemId: info.itemId }
+        ? {
+            odAuth: info.odAuth,
+            odShare: info.odShare,
+            odDriveId: info.driveId,
+            odItemId: info.itemId,
+            // OneDrive 原始完整文件名（含扩展名），供下载名 custom/upstream 逻辑使用
+            odSrcName: info.name,
+          }
         : undefined,
     });
     const link = await makeLink(request, env, settings, id);
     return json({ ok: true, id, mode, type, url: link });
   }
 
-  // 文件夹：递归遍历全部文件，串行入库；单个失败不中断，汇总返回
-  const items = newFormat
-    ? await listShareChildrenV2(info.driveId, info.itemId, info.odAuth)
-    : await listShareChildren(raw);
+  // 文件夹：收集待导入文件列表
+  //  - body.items（勾选列表）提供时：只导入勾选项——文件直导、子文件夹递归；
+  //  - 否则：递归整个根（"全部导入"）。
+  const selected = Array.isArray(body.items) && body.items.length ? body.items : null;
+  const collectItems = async () => {
+    if (newFormat) {
+      if (selected) {
+        const all = [];
+        for (const sel of selected) {
+          if (!sel || typeof sel !== "object") continue;
+          if (sel.isFolder && sel.itemId) {
+            const sub = await listShareChildrenV2(info.driveId, String(sel.itemId), info.odAuth);
+            all.push(...sub);
+          } else if (sel.itemId) {
+            all.push({
+              name: String(sel.name || ""),
+              size: Number(sel.size) || 0,
+              itemId: String(sel.itemId),
+              relPath: "",
+            });
+          }
+        }
+        return all;
+      }
+      return listShareChildrenV2(info.driveId, info.itemId, info.odAuth);
+    }
+    if (selected) {
+      const all = [];
+      for (const sel of selected) {
+        if (!sel || typeof sel !== "object") continue;
+        if (sel.isFolder && sel.relPath) {
+          const sub = await listShareChildren(raw, { startRelPath: String(sel.relPath) });
+          all.push(...sub);
+        } else if (sel.relPath) {
+          all.push({
+            name: String(sel.name || ""),
+            size: Number(sel.size) || 0,
+            relPath: String(sel.relPath),
+          });
+        }
+      }
+      return all;
+    }
+    return listShareChildren(raw);
+  };
+  const items = await collectItems();
   const out = [];
   let added = 0;
   let failed = 0;
@@ -389,18 +519,34 @@ async function handleOneDriveImport(request, env) {
       const media = newFormat
         ? await buildV2Media(it.itemId)
         : { url: buildContentUrl(raw, it.relPath), anonymous: false };
+      // 与单文件添加一致：媒体名去除扩展名，遵守「自定义名请勿带后缀」规则；
+      // 完整文件名已存入 odSrcName，下载名 custom/upstream 模式会自动补回扩展名
+      const rawName = it.name;
+      let importName = rawName;
+      if (newFormat) {
+        const s = String(rawName || "");
+        const di = s.lastIndexOf(".");
+        if (di > 0 && di < s.length - 1) importName = s.slice(0, di);
+      }
       const id = await addMediaRecord(env, {
         url: media.url,
         mode,
-        name: it.name,
+        name: importName,
         folder,
         type,
         extra: newFormat
-          ? { odAuth: info.odAuth, odShare: info.odShare, odDriveId: info.driveId, odItemId: it.itemId }
+          ? {
+              odAuth: info.odAuth,
+              odShare: info.odShare,
+              odDriveId: info.driveId,
+              odItemId: it.itemId,
+              // OneDrive 原始完整文件名（含扩展名），供下载名 custom/upstream 逻辑使用
+              odSrcName: rawName,
+            }
           : undefined,
       });
       added++;
-      out.push({ name: it.name, ok: true, id });
+      out.push({ name: importName, ok: true, id });
     } catch {
       failed++;
       out.push({ name: it.name, ok: false });
@@ -486,17 +632,23 @@ async function handleImageDetail(request, env) {
   const img = await getImage(env, id);
   if (!img) return json({ error: "图片不存在" }, 404);
   const settings = await getSettings(env);
-  // 懒纠正：type 为 unknown 且通过白名单校验（或 OneDrive 可信源）时，
-  // 短超时探测真实类型并回写 KV，让管理面板卡片即时显示类型徽章（仅触发一次，纠正后不再探测）
-  if (img.type === "unknown" && (isAllowedUrl(img.url, settings) || isOneDriveTrustedUrl(img.url))) {
+  // 懒纠正：type 为 unknown，或缺失具体文件类型（fileExt）时，
+  // 短超时探测真实类型/扩展名并回写 KV，让卡片类型徽章与详情页"文件类型"行即时显示
+  // （仅触发一次，纠正后不再探测）
+  if (
+    (img.type === "unknown" || (!img.fileExt && !img.odSrcName)) &&
+    (isAllowedUrl(img.url, settings) || isOneDriveTrustedUrl(img.url))
+  ) {
     // OneDrive 新格式探测需带 BadgerAuth
     const odAuth =
       typeof img.odAuth === "string" && img.odAuth && isOneDriveTrustedUrl(img.url)
         ? img.odAuth
         : null;
-    const got = await probeType(img.url, settings, 2500, odAuth);
-    if (got && got !== "unknown") {
-      img.type = got;
+    const got = await probeMediaInfo(img.url, settings, 2500, odAuth);
+    if (got.type && got.type !== "unknown") {
+      img.type = got.type;
+      // 顺带回写具体文件类型（jpg/mp4 等），让详情页"文件类型"行也能显示
+      if (got.ext && !img.fileExt) img.fileExt = got.ext;
       await putImage(env, id, img).catch(() => {});
     }
   }
@@ -859,27 +1011,34 @@ async function handleImage(request, env, id, ctx) {
   }
 
   const cached = buildCachedResponse(response, settings, id, v.partial);
-  // OneDrive 新格式：name 即完整文件名（含扩展名），无论下载名来源都直接用它
-  // （v2 content URL 末段是 content，无法从 URL 推导真实文件名）
-  if (isODV2 && typeof image.name === "string" && image.name.trim()) {
-    cached.headers.set("Content-Disposition", buildContentDisposition(image.name.trim()));
-  } else if (settings.downloadNameSource === "custom") {
-    // 保存文件名来源：custom 时用「网站自定义名 + 上游扩展名」覆盖上游文件名
+  // 保存文件名统一遵循 downloadNameSource：
+  //  - upstream：上游文件名。普通媒体 = URL 末段；OneDrive content URL 末段是 content
+  //    无法推导，改用导入时记录的 odSrcName（OneDrive 原始完整文件名，含扩展名）。
+  //  - custom：网站自定义名 + 上游扩展名。OneDrive 的扩展名取自 odSrcName，
+  //    自动补回并去重，避免「名字.后缀.后缀」。
+  const odSrcName =
+    isODV2 && typeof image.odSrcName === "string" ? image.odSrcName.trim() : "";
+  const upstream = isODV2
+    ? odSrcName || (typeof image.name === "string" ? image.name.trim() : "")
+    : upstreamFileName(image.url);
+  if (settings.downloadNameSource === "custom") {
     const customName = typeof image.name === "string" ? image.name.trim() : "";
     let saveName;
     if (customName) {
-      const ext = upstreamExt(image.url);
+      const ext = isODV2 ? extFromName(odSrcName || customName) : upstreamExt(image.url);
       // 自定义名已含扩展名且与上游扩展名一致时不再追加，避免双后缀
-      // （如 OneDrive 导入自动填入的完整文件名 photo.jpg + 上游扩展名 jpg）
       const nameExt = customName.includes(".")
         ? customName.slice(customName.lastIndexOf(".") + 1).toLowerCase()
         : "";
       saveName = ext && nameExt !== ext ? `${customName}.${ext}` : customName;
     } else {
       // 自定义名为空时回退上游文件名（含原扩展名，避免双后缀）
-      saveName = upstreamFileName(image.url);
+      saveName = upstream;
     }
     if (saveName) cached.headers.set("Content-Disposition", buildContentDisposition(saveName));
+  } else if (isODV2 && upstream) {
+    // upstream 模式：OneDrive content URL 无法从 URL 得到文件名，必须显式设置
+    cached.headers.set("Content-Disposition", buildContentDisposition(upstream));
   }
   return cached;
 }
