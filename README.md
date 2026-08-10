@@ -39,7 +39,7 @@
 - **访问控制**：国家（地区） / IP / ASN 黑白名单，四层校验全部在边缘生效
 - **多级限流**：每 IP、每图片、每音视频独立限流（Rate Limit Binding，边缘执行）
 - **SSRF 防护**：代理目标必须位于允许域名白名单内
-- **OneDrive 嵌入链接适配**：支持 `1drv.ms/v/c/{cid}/{token}` 嵌入链接（及对应 embed 地址），自动解析为可用的媒体源；`tempauth` 匿名直链约 1 小时过期时自动重新解析回写，媒体链接长期可用
+- **OneDrive 共享链接适配**：支持 OneDrive 嵌入链接 `1drv.ms/v/c/{cid}/{token}`（含 embed 直达与 photos 模式两种跳转形态）以及普通共享链接（`1drv.ms/u/s!`、`1drv.ms/f/s!` 等），自动解析为可用的媒体源；`tempauth` 匿名直链约 1 小时过期时自动重新解析回写，媒体链接长期可用
 
 ## 快速开始
 
@@ -195,32 +195,43 @@ npm run dev
 
 ### 支持的链接格式
 
-实测**仅 OneDrive 嵌入链接**（`/v/c/` 单文件形式）可正常解析转换，例如：
+OneDrive **嵌入链接与普通共享链接**均可正常解析转换，例如：
 
 ```
 https://1drv.ms/v/c/d1c8a5e4bddc4ef4/IQQBQyjnUzI4SaB6B4YC6d8AAVBzhIDzcl6Ec95IL9xCZD4
 ```
 
-| 类型     | 示例                                                          | 说明                         |
-| -------- | ------------------------------------------------------------- | ---------------------------- |
-| 嵌入链接 | `https://1drv.ms/v/c/{cid}/{token}`                           | ✅ 实测生效（视频 / 文件单文件共享） |
-| 嵌入链接 | `https://onedrive.live.com/embed?cid=...&id=...&redeem=...`   | 同上的完整 embed 跳转地址    |
-| 其他格式 | `1drv.ms/u/s!`、`1drv.ms/f/s!`、`1drv.ms/f/c/...` 等          | ⚠️ 代码支持但未实测，不保证可用 |
+| 类型       | 示例                                                          | 说明                         |
+| ---------- | ------------------------------------------------------------- | ---------------------------- |
+| 嵌入链接   | `https://1drv.ms/v/c/{cid}/{token}`                           | ✅ 实测生效（视频 / 文件单文件共享） |
+| 嵌入链接   | `https://onedrive.live.com/embed?cid=...&id=...&redeem=...`   | 同上的完整 embed 跳转地址    |
+| 普通共享链接 | `1drv.ms/u/s!`、`1drv.ms/f/s!`、`1drv.ms/f/c/...` 等        | ✅ 实测生效（单文件 / 文件夹共享） |
+
+> 同一文件的两个 `/v/c/` 链接可能对应**不同的跳转形态**：一个直达 `/embed` 页，另一个经 `photos.onedrive.com` 转到 `onedrive.live.com/?qt=allmyphotos&v=photos`（photos 模式）。两者均已支持，photos 模式会自动转换为等价 `/embed` 地址解析，解析失败时再走 `v2.1 drives/items` 兜底，无需用户区分。
 
 > 仅支持「任何人可访问」的无密码共享；需要密码（403 `password_required`）或非公开（401 `unauthenticated`）的共享会给出对应提示。
 
 ### 工作原理
 
-OneDrive 共享链接并非可直接外链的直链。实测走通的是一条**嵌入链接解析链路**（`/v/c/` 单文件共享）：
+OneDrive 共享链接并非可直接外链的直链。实测走通的主要是**嵌入链接解析链路**（`/v/c/` 单文件共享，同一文件可能落入两种跳转形态），普通共享链接（`u/s!`、`f/s!` 等）则经 `api.onedrive.com` shares API 解析，处理方式如下：
 
 ```
-【嵌入链接】1drv.ms/v/c/{cid}/{token}（或 onedrive.live.com/embed?...）
-   └─> 跟随 302 跳转，从 onedrive.live.com 响应中提取匿名会话凭证 BadgerAuth
-   └─> Authorization: badger <BadgerAuth>
-   └─> my.microsoftpersonalcontent.com/_api/v2.0/shares/u!{编码}/driveitem  → 元数据（文件名/大小）
+【形态 A：embed 直达】1drv.ms/v/c/{cid}/{token} → 301/302 → onedrive.live.com/embed?...
+   └─> embed 页面 Set-Cookie 直接携带完整权限 BadgerAuth
+
+【形态 B：photos 模式】1drv.ms/v/c/{cid}/{token} → 301 → photos.onedrive.com/share/...（种 photosredir）
+   └─> 302 → onedrive.live.com/?qt=allmyphotos&photosData=...&v=photos   （此页不种 BadgerAuth）
+   └─> 自动从跳转 URL 提取 cid/id，构造等价 /embed 地址（透传 redeem=base64url(原始链接)）
+   └─> /embed 页面依赖 redeem 签发「绑定该共享」的完整权限 BadgerAuth
+
+【统一后续】Authorization: badger <BadgerAuth>
+   └─> my.microsoftpersonalcontent.com/_api/v2.0/shares/u!{编码}/driveitem → 元数据（文件名/大小）
+        └─> 若该 token 形态对 v2.0 shares 仍返回 403，自动回退 v2.1 drives/items（cid + {cid}!{shareToken}）
    └─> 媒体源: /_api/v2.0/drives/{driveId}/items/{itemId}/content
         → 302 → download.aspx?UniqueId=...&tempauth=...      （匿名可访问，约 1 小时有效）
 ```
+
+> **为什么 photos 模式拿不到 BadgerAuth？** 只有 `/embed` 页面会在响应中种下 BadgerAuth（且需带 `redeem` 参数才会签发绑定该共享的完整权限 token）；`?v=photos` 页面不种。若直接用低权限兜底 token 访问数据 API，会返回 403（表现为"需要密码"的误报）。因此本站会自动把 photos 跳转转换为等价 `/embed` 请求来换取完整权限凭证。
 
 **关键设计**：
 
@@ -231,12 +242,12 @@ OneDrive 共享链接并非可直接外链的直链。实测走通的是一条**
 - **类型识别**：OneDrive 直链返回 `application/octet-stream`，无法从响应头识别媒体类型；本站以**文件名扩展名推断的类型**（添加时已确定）为准，因此直链也能正确显示图片/音频/视频。
 - **SSRF 定向放行**：OneDrive 相关域名（`my.microsoftpersonalcontent.com`、微软 CDN 域）由内部白名单定向放行，无需加入全局 SSRF 白名单，其他域名仍受白名单约束。
 
-> 代码中也保留了旧格式（`1drv.ms/u/s!`、`/f/s!`）经 `api.onedrive.com` shares API 解析的链路，但**未经实测**，不保证可用。
+> 普通共享链接（`1drv.ms/u/s!`、`1drv.ms/f/s!` 等）走 `api.onedrive.com` shares API 解析链路，单文件与文件夹共享均已实测可用。
 
 ## 使用方式
 
 1. 登录管理页 → 粘贴媒体直链 → 选择模式 → 添加（粘贴后自动出现音视频实时小预览）
-2. **添加 OneDrive 链接**：点击添加卡片顶部的「OneDrive 链接」切换按钮 → 粘贴 `https://1drv.ms/v/c/{cid}/{token}` 嵌入链接 → 点「解析」→ 显示文件名+大小后点「添加」
+2. **添加 OneDrive 链接**：点击添加卡片顶部的「OneDrive 链接」切换按钮 → 粘贴 OneDrive 嵌入链接 `https://1drv.ms/v/c/{cid}/{token}` 或普通共享链接 → 点「解析」→ 显示文件名+大小后点「添加」（文件夹共享可批量导入）
 3. 点击卡片「预览」按钮在灯箱中查看大图 / 播放音视频，可一键「在新标签打开原图」或「在新标签打开网站外链」
 4. 复制生成的短链接 `https://你的域名/i/<id>`（开启签名时带 `?e=过期时间&s=签名`）
 5. 将该链接用于 `<img>` / `<video>` / `<audio>` / 任意下载场景
@@ -288,9 +299,10 @@ OneDrive 共享链接并非可直接外链的直链。实测走通的是一条**
 - **HLS/DASH**：仅作为整体文件代理，不做分片 URL 重写；多数 HLS 源站会拒绝非标准请求，如需完整流媒体适配请自行扩展
 - **视频缩略图依赖 CORS**：缓存代理模式自动支持（Worker 返回 `Access-Control-Allow-Origin: *`）；仅DNS模式依赖原站 CORS，不支持时自动回退为图标占位
 - **Referer 校验为尽力而为**：浏览器并不总是发送 Referer
-- **OneDrive 嵌入链接需要海外网络**：解析 `1drv.ms/v/c/...` 嵌入链接需访问 `onedrive.live.com`（获取匿名凭证）与 `my.microsoftpersonalcontent.com`（数据 API）。Cloudflare Worker 海外节点默认可达；本地调试（`wrangler dev`）在国内网络下可能超时
+- **OneDrive 链接需要海外网络**：解析 OneDrive 嵌入/共享链接需访问 `onedrive.live.com`（获取匿名凭证）与微软数据 API。Cloudflare Worker 海外节点默认可达；本地调试（`wrangler dev`）在国内网络下可能超时
+- **微软接口偶发超时**：上游偶发返回 `signal is aborted without reason`（连接被中断）。此时网站会提示「网络异常，请过一会再试」，稍候重试即可，不影响已添加的媒体
 - **OneDrive 仅「任何人可访问」共享可解析**：密码保护（403）与非公开/仅限指定用户（401）会给出对应提示，无法转链
-- **OneDrive 媒体源强制缓存代理模式**：嵌入链接解析出的媒体源需依赖 Worker 代理跟随，强制走「缓存代理+DNS」，不可切换「仅DNS」
+- **OneDrive 媒体源强制缓存代理模式**：嵌入链接解析出的媒体源需依赖 Worker 代理跟随，强制走「缓存代理+DNS」，不可切换「仅DNS」（普通共享链接同理）
 
 ## 许可证
 

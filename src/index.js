@@ -40,6 +40,8 @@ import {
   buildContentUrlV2,
   resolveShareItem,
   resolveShareItemV2,
+  resolveShareItemV21,
+  parseShareLinkIds,
   listShareChildren,
   listShareChildrenV2,
   fetchBadgerAuth,
@@ -277,7 +279,17 @@ async function resolveOneDriveInfo(raw) {
   if (isNewFormatShareUrl(raw)) {
     const auth = await fetchBadgerAuth(raw);
     if (!auth || auth.error) return { error: auth ? auth.error : "network" };
-    const info = await resolveShareItemV2(raw, auth.token);
+    let info = await resolveShareItemV2(raw, auth.token);
+    // photos 模式回退：1drv.ms/v/c 部分 token 会跳转到 onedrive.live.com/?v=photos，
+    // v2.0 shares API 对这类原始链接可能 403（误报"需要密码"）。
+    // 页面本身走 v2.1 drives/items（cid + {cid}!{shareToken}），这里兜底复用同款端点。
+    if ((!info || info.error) && auth.finalUrl) {
+      const ids = parseShareLinkIds(auth.finalUrl);
+      if (ids) {
+        const info21 = await resolveShareItemV21(ids.cid, ids.itemId, auth.token);
+        if (info21 && !info21.error) info = info21;
+      }
+    }
     if (info && !info.error) {
       info.odAuth = auth.token;
       info.odShare = raw.trim();

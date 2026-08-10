@@ -219,29 +219,102 @@ export async function fetchBadgerAuth(shareUrl, timeoutMs) {
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs || RESOLVE_TIMEOUT_MS);
   try {
-    let url = shareUrl.trim();
-    let res = await fetch(url, {
-      redirect: "manual",
-      signal: ctrl.signal,
-      headers: { "User-Agent": OD_UA, Accept: "text/html" },
-    });
-    const badger = extractBadgerCookie(res.headers);
-    if (badger) return { token: badger };
+    // 简易 cookie jar：Workers fetch 不会自动保存/回传 Cookie。
+    // photos 模式跳转链 1drv.ms(301) -> photos.onedrive.com(302, 种 photosredir=1)
+    // -> onedrive.live.com(200) 中，onedrive.live.com 依赖上一步种下的会话 cookie
+    // 才会返回携带 BadgerAuth 的完整响应，因此必须把中间 Set-Cookie 手动回传。
+    // BadgerAuth 单独按 Authorization: badger <token> 使用，不放入 jar。
+    const jar = new Map();
+    const pickCookie = (res) => {
+      try {
+        const raw =
+          typeof res.headers.getSetCookie === "function"
+            ? res.headers.getSetCookie()
+            : res.headers.get("Set-Cookie")
+              ? [res.headers.get("Set-Cookie")]
+              : [];
+        for (const c of raw) {
+          const m = String(c).match(/^([^=;\s]+)=([^;]*)/);
+          if (m && m[1] && m[1].toLowerCase() !== "badgerauth") {
+            jar.set(m[1], m[2]); // 保留原始编码值，与浏览器回传行为一致
+          }
+        }
+      } catch {
+        /* 忽略 */
+      }
+    };
+    const buildHeaders = () => {
+      const h = { "User-Agent": OD_UA, Accept: "text/html" };
+      if (jar.size) {
+        h.Cookie = Array.from(jar.entries())
+          .map(([k, v]) => `${k}=${v}`)
+          .join("; ");
+      }
+      return h;
+    };
+    const fetchHop = (u) =>
+      fetch(u, { redirect: "manual", signal: ctrl.signal, headers: buildHeaders() });
 
-    // 跟随有限跳转（最多 3 跳）
+    let url = shareUrl.trim();
+    let res = await fetchHop(url);
+    pickCookie(res);
+    let badger = extractBadgerCookie(res.headers);
+    if (badger) return { token: badger, finalUrl: url };
+
+    // 跟随有限跳转（最多 5 跳）。
+    // 注意：BadgerAuth 往往由最后一跳的 onedrive.live.com 200 HTML 响应携带，
+    // 而非中间 3xx 跳转响应。故循环结束后必须再检查最终响应的 Set-Cookie，
+    // 否则像 1drv.ms(301) -> photos.onedrive.com(302) -> onedrive.live.com(200)
+    // 这类"最后落在 200"的三跳链会错过 BadgerAuth，误落到低权限兜底 token。
     let hops = 0;
-    while (res.status >= 300 && res.status < 400 && hops < 3) {
+    while (res.status >= 300 && res.status < 400 && hops < 5) {
       const loc = res.headers.get("Location");
       if (!loc) break;
       url = new URL(loc, url).toString();
-      res = await fetch(url, {
-        redirect: "manual",
-        signal: ctrl.signal,
-        headers: { "User-Agent": OD_UA, Accept: "text/html" },
-      });
-      const b = extractBadgerCookie(res.headers);
-      if (b) return { token: b };
+      res = await fetchHop(url);
+      pickCookie(res);
+      badger = extractBadgerCookie(res.headers);
+      if (badger) return { token: badger, finalUrl: url };
       hops++;
+    }
+
+    // 兜底：最终响应（可能为 200 页面）仍可能携带 BadgerAuth
+    badger = extractBadgerCookie(res.headers);
+    if (badger) return { token: badger, finalUrl: url };
+
+    // photos 模式特殊处理：1drv.ms/v/c 链接可能跳转到 onedrive.live.com/?v=photos，
+    // 该页面本身不种 BadgerAuth（只有 /embed 页种），故从跳转 URL 提取 cid/id
+    // 构造等价 /embed 页请求以获取 BadgerAuth。
+    try {
+      const finalUrlObj = new URL(url);
+      // photos 模式判定：不同出口/UA 下 302 Location 可能带 v=photos 也可能不带，
+      // 以 photosData / qt=allmyphotos 参数为准更可靠。
+      const vParam = finalUrlObj.searchParams.get("v");
+      const isPhotos =
+        vParam === "photos" ||
+        finalUrlObj.searchParams.has("photosData") ||
+        (finalUrlObj.searchParams.get("qt") || "").toLowerCase() === "allmyphotos";
+      if (isPhotos) {
+        const embedUrl = photosUrlToEmbedUrl(url, base64UrlEncode(shareUrl.trim()));
+        if (embedUrl) {
+          url = embedUrl;
+          hops = 0;
+          do {
+            res = await fetchHop(url);
+            pickCookie(res);
+            badger = extractBadgerCookie(res.headers);
+            if (badger) return { token: badger, finalUrl: url };
+            const loc = res.status >= 300 && res.status < 400 ? res.headers.get("Location") : null;
+            if (!loc) break;
+            url = new URL(loc, url).toString();
+            hops++;
+          } while (hops < 5);
+          badger = extractBadgerCookie(res.headers);
+          if (badger) return { token: badger, finalUrl: url };
+        }
+      }
+    } catch {
+      /* 忽略 */
     }
 
     // 兜底：尝试独立签发端点（此 token 权限通常不足，仅作为最后手段探测）
@@ -265,6 +338,33 @@ export async function fetchBadgerAuth(shareUrl, timeoutMs) {
     return { error: "network" };
   } finally {
     clearTimeout(timer);
+  }
+}
+
+// photos 模式跳转 URL（https://onedrive.live.com/?qt=allmyphotos&photosData=...&cid=...&id=...&v=photos）
+// -> 等价的 /embed URL（/embed 页面才会种 BadgerAuth）。
+// 必须原样透传 redeem 参数（=base64url(原始共享链接)），embed 页依赖它签发
+// 绑定该共享的完整权限 BadgerAuth；缺失 redeem 时签发的 BadgerAuth 权限不足，
+// 后续 shares/drives API 会返回 403（误报"需要密码"）。失败返回 null。
+function photosUrlToEmbedUrl(raw, fallbackRedeem) {
+  try {
+    const u = new URL(raw);
+    const cid = u.searchParams.get("cid");
+    const id = u.searchParams.get("id") || u.searchParams.get("resid");
+    if (!cid || !id) return null;
+    const photosData = u.searchParams.get("photosData") || "";
+    // redeem 参数若缺失，用原始共享链接的 base64url 兜底
+    let redeem = u.searchParams.get("redeem");
+    if (!redeem && fallbackRedeem) redeem = fallbackRedeem;
+    let ithint = "video,mp4";
+    const m = photosData.match(/[?&]ithint=([^&]+)/i);
+    if (m && m[1]) ithint = decodeURIComponent(m[1]);
+    const eid = encodeURIComponent(id);
+    let url = `https://onedrive.live.com/embed?cid=${encodeURIComponent(cid)}&id=${eid}&resid=${eid}&ithint=${encodeURIComponent(ithint)}&embed=1&migratedtospo=true`;
+    if (redeem) url += `&redeem=${encodeURIComponent(redeem)}`;
+    return url;
+  } catch {
+    return null;
   }
 }
 
@@ -321,6 +421,57 @@ export async function resolveShareItemV2(shareUrl, badgerAuth, timeoutMs) {
     driveId,
     itemId: String(data.id),
     shareEnc: enc,
+  };
+}
+
+// 从 OneDrive 跳转 URL（/embed、photos、redir 等）提取 cid 与 itemId（格式 {cid}!{shareToken}）
+export function parseShareLinkIds(raw) {
+  try {
+    const u = new URL(raw);
+    const cid = (u.searchParams.get("cid") || "").trim();
+    const id = (u.searchParams.get("id") || u.searchParams.get("resid") || "").trim();
+    if (!cid || !id) return null;
+    return { cid, itemId: id };
+  } catch {
+    return null;
+  }
+}
+
+// 新格式（photos 模式回退）：直接用 cid + {cid}!{shareToken} 调 v2.1 drives/items 解析共享项。
+// 页面本身即用此端点。返回结构与 resolveShareItemV2 一致（driveId/itemId 为真实存储标识），
+// 后续 content/tempauth 可直接复用 v2.0 的 buildContentUrlV2 / resolveTempAuthUrl。
+// 成功: { isFolder, name, size, childCount, driveId, itemId, shareEnc }
+// 失败: { error: "password_required" | "unauthenticated" | "invalid" | "network" }
+export async function resolveShareItemV21(cid, itemId, badgerAuth, timeoutMs) {
+  const url = `https://${MY_CONTENT_HOST}/_api/v2.1/drives/${encodeURIComponent(cid)}/items/${encodeURIComponent(itemId)}?%24select=id%2CparentReference%2Cfolder%2Cname%2Csize%2Cfile`;
+  const res = await fetchJson(url, timeoutMs, {
+    Authorization: `${BADGER_SCHEME} ${badgerAuth}`,
+  });
+  if (!res) return { error: "network" };
+  if (res.status === 401) return { error: "unauthenticated" };
+  if (res.status === 403) return { error: "password_required" };
+  if (!res.ok) return { error: "invalid" };
+  let data;
+  try {
+    data = await res.json();
+  } catch {
+    return { error: "invalid" };
+  }
+  if (!data || typeof data !== "object" || !data.id) return { error: "invalid" };
+  const isFolder = Boolean(data.folder);
+  const driveId =
+    data.parentReference && typeof data.parentReference.driveId === "string"
+      ? data.parentReference.driveId
+      : "";
+  if (!driveId) return { error: "invalid" };
+  return {
+    isFolder,
+    name: String(data.name || ""),
+    size: Number(data.size) || 0,
+    childCount: isFolder ? Number((data.folder && data.folder.childCount) || 0) : 0,
+    driveId,
+    itemId: String(data.id),
+    shareEnc: "",
   };
 }
 

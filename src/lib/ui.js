@@ -770,6 +770,7 @@ a{color:var(--accent)}
       "login.busy": "登录中…",
       "login.err": "登录失败：PASSWORD 错误",
       "net.err": "网络错误",
+      "net.retry": "网络异常，请过一会再试",
       "auth.invalid": "未登录或登录已失效",
       "nav.images": "媒体管理",
       "nav.settings": "设置",
@@ -958,6 +959,7 @@ a{color:var(--accent)}
       "login.busy": "Logging in…",
       "login.err": "Login failed: wrong PASSWORD",
       "net.err": "Network error",
+      "net.retry": "Network error, please try again later",
       "auth.invalid": "Not logged in or session expired",
       "nav.images": "Media",
       "nav.settings": "Settings",
@@ -1173,6 +1175,17 @@ a{color:var(--accent)}
         if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
         return data;
       });
+    }).catch(function (err) {
+      // 网络中断 / 请求被中止（15s 超时、Cloudflare 偶发断连等）统一提示稍后重试，
+      // 避免直接把 "signal is aborted without reason" 这类原始异常展示给用户
+      var msg = err && err.message ? String(err.message) : "";
+      if (
+        (err && err.name === "AbortError") ||
+        /signal is aborted|The operation was aborted|Failed to fetch|networkerror|aborted/i.test(msg)
+      ) {
+        throw new Error(t("net.retry"));
+      }
+      throw err;
     }).finally(function () { if (timer) clearTimeout(timer); });
   }
 
