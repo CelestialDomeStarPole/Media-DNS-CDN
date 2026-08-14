@@ -241,6 +241,26 @@ a{color:var(--accent)}
 .od-item-icon{flex-shrink:0;font-size:12px;opacity:.75}
 .od-item-badge{flex-shrink:0;font-size:11px;color:var(--muted);white-space:nowrap}
 .add-row2 input:disabled{opacity:.55;cursor:not-allowed}
+/* 普通链接批量添加开关 */
+.batch-toggle{display:flex;align-items:center;gap:5px;font-size:13px;cursor:pointer;white-space:nowrap;color:var(--muted);flex-shrink:0}
+.add-row .batch-toggle{align-self:center;margin-right:2px}
+.batch-toggle input{accent-color:var(--accent);cursor:pointer;margin:0}
+.add-row.batch-on{align-items:flex-start}
+.add-row.batch-on .batch-toggle{align-self:flex-start;margin-top:12px}
+.add-row #add-btn{flex-shrink:0;white-space:nowrap}
+.add-row textarea{flex:1;min-width:0;resize:vertical;min-height:88px;padding:11px 14px;border:1px solid rgba(0,0,0,.12);border-radius:9px;outline:none;background:rgba(255,255,255,.85);font-family:inherit;font-size:14px;line-height:1.6;color:inherit}
+.add-row textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent)}
+.add-row2.batch-name-hidden #add-name{display:none}
+.add-row2.batch-name-hidden #add-folder{max-width:none;flex:1}
+/* 批量添加结果（成功汇总 + 失败明细） */
+.batch-result{margin-top:12px;border:1px dashed rgba(0,0,0,.16);border-radius:9px;background:rgba(255,255,255,.5);padding:10px 14px;font-size:13px}
+.batch-result .br-summary{display:flex;align-items:center;gap:8px;font-weight:600}
+.batch-result .br-fail{list-style:none;margin:8px 0 0;padding:0;max-height:200px;overflow:auto}
+.batch-result .br-fail li{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-top:1px dashed rgba(0,0,0,.1)}
+.batch-result .br-url{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+.batch-result .br-err{flex-shrink:0;font-size:12px;color:#d33}
+.batch-result .br-retry{flex-shrink:0;font-size:12px;padding:2px 10px;border-radius:999px;border:1px solid rgba(0,0,0,.15);cursor:pointer;background:#fff;color:var(--text)}
+.batch-result .br-retry:hover{border-color:var(--accent);color:var(--accent)}
 /* 次级按钮 */
 .secondary{padding:11px 18px;border-radius:10px;font-size:14px;font-weight:600;background:rgba(255,255,255,.75);border:1px solid rgba(0,0,0,.14);color:var(--text);cursor:pointer;transition:all .15s ease;white-space:nowrap}
 .secondary:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-1px)}
@@ -519,10 +539,12 @@ a{color:var(--accent)}
         </div>
         <div id="add-form-normal">
           <div class="add-row">
+            <label class="batch-toggle" data-i18n-title="add.batch.toggleTitle" title="批量添加模式"><input type="checkbox" id="add-batch-toggle" /><span data-i18n="add.batch.toggle"></span></label>
             <input id="add-url" type="url" data-i18n-ph="add.url.ph" />
+            <textarea id="add-batch-area" class="hidden" rows="4" spellcheck="false" data-i18n-ph="add.batch.url.ph"></textarea>
             <button id="add-btn" class="primary" data-i18n="add.btn"></button>
           </div>
-          <div class="add-row2">
+          <div class="add-row2" id="add-name-row">
             <input id="add-name" type="text" data-i18n-ph="add.name.ph" />
             <select id="add-folder" aria-label="Folder"></select>
           </div>
@@ -534,6 +556,7 @@ a{color:var(--accent)}
             <div id="preview-media"></div>
             <div id="preview-info" class="muted"></div>
           </div>
+          <div id="add-batch-result" class="batch-result hidden"></div>
         </div>
         <div id="add-form-onedrive" class="hidden">
           <div class="add-row">
@@ -820,6 +843,18 @@ a{color:var(--accent)}
       "add.od.unauth": "该共享为非公开（需登录/仅限指定用户），无法匿名转链，请更换为「任何人可访问」的共享链接",
       "add.od.fail": "OneDrive 解析失败",
       "add.od.hint": "OneDrive 模式默认「缓存代理+DNS」，可手动切换；支持旧格式（1drv.ms/u/s!…）与新格式（1drv.ms/f/c/…）的「任何人可访问」共享链接。",
+      "add.batch.toggle": "批量",
+      "add.batch.toggleTitle": "勾选后按行粘贴多个链接，一次批量添加",
+      "add.batch.url.ph": "每行粘贴一个媒体直链地址",
+      "add.batch.btn": "批量添加（{n}）",
+      "add.batch.btnEmpty": "批量添加",
+      "add.batch.adding": "正在添加 {n} 条…",
+      "add.batch.doneOk": "已添加 {n} 条",
+      "add.batch.doneFail": "成功 {n} 条，失败 {m} 条",
+      "add.batch.failTitle": "以下链接添加失败：",
+      "add.batch.retry": "重试",
+      "add.batch.retrying": "重试中…",
+      "add.batch.retryDone": "已重试添加",
       "type.image": "图片",
       "type.audio": "音频",
       "type.video": "视频",
@@ -1015,6 +1050,18 @@ a{color:var(--accent)}
       "add.od.unauth": "This share is not public (requires sign-in / limited to specific people) and can't be converted anonymously. Please use an “Anyone with the link” share.",
       "add.od.fail": "Failed to resolve OneDrive link",
       "add.od.hint": "OneDrive mode defaults to “Cache proxy + DNS”, switchable to DNS-only; supports both legacy (1drv.ms/u/s!…) and new-format (1drv.ms/f/c/…) “Anyone with the link” shares.",
+      "add.batch.toggle": "Batch",
+      "add.batch.toggleTitle": "Check to paste multiple links (one per line) and add them in batch",
+      "add.batch.url.ph": "Paste one media direct link per line",
+      "add.batch.btn": "Batch add ({n})",
+      "add.batch.btnEmpty": "Batch add",
+      "add.batch.adding": "Adding {n}…",
+      "add.batch.doneOk": "Added {n}",
+      "add.batch.doneFail": "Added {n}, failed {m}",
+      "add.batch.failTitle": "Failed to add these links:",
+      "add.batch.retry": "Retry",
+      "add.batch.retrying": "Retrying…",
+      "add.batch.retryDone": "Retry added",
       "type.image": "Image",
       "type.audio": "Audio",
       "type.video": "Video",
@@ -2887,6 +2934,151 @@ a{color:var(--accent)}
   }
   $("od-import-btn").addEventListener("click", odImport);
 
+  // ===== 普通链接批量添加（集成在普通链接 Tab 内） =====
+  var addBatchMode = false; // 批量开关状态：false=单条添加，true=批量添加
+
+  // 从批量输入框读取有效链接列表（按行拆分、trim、过滤空行）
+  function batchUrlList() {
+    var v = $("add-batch-area").value || "";
+    var out = [];
+    var lines = v.split(/\\r?\\n/);
+    for (var i = 0; i < lines.length; i++) {
+      var s = lines[i].trim();
+      if (s) out.push(s);
+    }
+    return out;
+  }
+
+  // 添加按钮文字：单条固定「添加」，批量模式实时显示「批量添加（N）」
+  function updateAddBtnLabel() {
+    var btn = $("add-btn");
+    if (addBatchMode) {
+      var n = batchUrlList().length;
+      btn.textContent = n ? t("add.batch.btn", { n: n }) : t("add.batch.btnEmpty");
+    } else {
+      btn.textContent = t("add.btn");
+    }
+  }
+
+  // 切换批量模式：输入框变 textarea、隐藏名称框与预览区（保留文件夹与模式选择）
+  function setBatchMode(on) {
+    addBatchMode = on;
+    $("add-batch-toggle").checked = on;
+    $("add-url").classList.toggle("hidden", on);
+    $("add-batch-area").classList.toggle("hidden", !on);
+    $("add-url").parentNode.classList.toggle("batch-on", on);
+    $("add-name-row").classList.toggle("batch-name-hidden", on);
+    if (on) {
+      stopPreviewMedia();
+      $("add-preview").classList.add("hidden");
+    }
+    updateAddBtnLabel();
+    if (on) $("add-batch-area").focus();
+  }
+  $("add-batch-toggle").addEventListener("change", function () {
+    setBatchMode(this.checked);
+  });
+  $("add-batch-area").addEventListener("input", updateAddBtnLabel);
+
+  // 渲染失败明细（URL + 原因 + 单条重试按钮）
+  function renderBatchFail(failList) {
+    var box = $("add-batch-result");
+    var h = '<div class="br-summary">' + esc(t("add.batch.failTitle")) + '</div><ul class="br-fail">';
+    for (var i = 0; i < failList.length; i++) {
+      var it = failList[i];
+      h += '<li data-url="' + esc(it.url) + '">' +
+        '<span class="br-url" title="' + esc(it.url) + '">' + esc(it.url) + "</span>" +
+        '<span class="br-err">' + esc(it.error || "") + "</span>" +
+        '<button type="button" class="br-retry">' + esc(t("add.batch.retry")) + "</button></li>";
+    }
+    h += "</ul>";
+    box.innerHTML = h;
+    box.classList.remove("hidden");
+    var btns = box.querySelectorAll(".br-retry");
+    for (var k = 0; k < btns.length; k++) {
+      btns[k].addEventListener("click", function () { retryBatchUrl(this); });
+    }
+  }
+  function hideBatchFail() {
+    var box = $("add-batch-result");
+    box.classList.add("hidden");
+    box.innerHTML = "";
+  }
+
+  // 失败项单条重试：复用现有 /api/convert，成功后插入卡片并从失败列表移除
+  function retryBatchUrl(btn) {
+    var li = btn.closest("li");
+    if (!li) return;
+    var url = li.getAttribute("data-url") || "";
+    if (!url) return;
+    var modeEl = document.querySelector('input[name="mode"]:checked');
+    var mode = modeEl ? modeEl.value : "proxy";
+    var folder = $("add-folder").value;
+    if (folder === "__new__") folder = addPendingFolder;
+    setBusy(btn, true, t("add.batch.retrying"));
+    api("/api/convert", { method: "POST", body: JSON.stringify({ url: url, name: "", mode: mode, folder: folder }) })
+      .then(function (data) {
+        if (folder && lastFolders.indexOf(folder) === -1) { lastFolders.push(folder); renderFolders(); }
+        lastImages = lastImages || [];
+        lastImages.unshift({ id: data.id, _loading: true });
+        renderGrid(lastImages, { anchor: true });
+        ensureInfoLoads();
+        li.parentNode.removeChild(li);
+        if (!$("add-batch-result").querySelectorAll("li").length) hideBatchFail();
+        toast(t("add.batch.retryDone"), "success");
+      })
+      .catch(function (err) { toast(err.message || t("add.err"), "error"); })
+      .finally(function () { setBusy(btn, false); });
+  }
+
+  // 批量添加：POST /api/convert/batch，成功项逆序前插 lastImages，失败项展开明细
+  function batchAdd() {
+    var urls = batchUrlList();
+    if (!urls.length) { toast(t("add.err.empty"), "error"); $("add-batch-area").focus(); return; }
+    var modeEl = document.querySelector('input[name="mode"]:checked');
+    var mode = modeEl ? modeEl.value : "proxy";
+    var folder = $("add-folder").value;
+    if (folder === "__new__") folder = addPendingFolder;
+    var btn = $("add-btn");
+    setBusy(btn, true, t("add.batch.adding", { n: urls.length }));
+    api("/api/convert/batch", { method: "POST", body: JSON.stringify({ urls: urls, mode: mode, folder: folder }) })
+      .then(function (data) {
+        if (folder && lastFolders.indexOf(folder) === -1) { lastFolders.push(folder); renderFolders(); }
+        var items = data.items || [];
+        var okCount = 0;
+        var failList = [];
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].ok) okCount++;
+          else failList.push({ url: items[i].url, error: items[i].error || "" });
+        }
+        // 后端按遍历顺序逐个 unshift 到 order 首位，前端逆序前插 lastImages，
+        // 保证列表顺序与后端一致（最后一个成功项显示在最前）
+        lastImages = lastImages || [];
+        for (var j = items.length - 1; j >= 0; j--) {
+          if (items[j].ok) lastImages.unshift({ id: items[j].id, _loading: true });
+        }
+        renderGrid(lastImages, { anchor: true });
+        ensureInfoLoads();
+        if (failList.length) {
+          toast(t("add.batch.doneFail", { n: okCount, m: failList.length }), "error");
+          renderBatchFail(failList);
+        } else {
+          toast(t("add.batch.doneOk", { n: okCount }), "success");
+          hideBatchFail();
+        }
+        // 清空输入，保持批量开关状态
+        $("add-batch-area").value = "";
+        updateAddBtnLabel();
+      })
+      .catch(function (err) {
+        toast(err.message || t("add.err"), "error");
+      })
+      .finally(function () {
+        setBusy(btn, false);
+        updateAddBtnLabel();
+      });
+  }
+
   function addImage() {
     var url = $("add-url").value.trim();
     var modeEl = document.querySelector('input[name="mode"]:checked');
@@ -2926,9 +3118,16 @@ a{color:var(--accent)}
         removeCardLocal(tempId);
         toast(err.message || t("add.err"), "error");
       })
-      .finally(function () { setBusy(btn, false); });
+      .finally(function () {
+        setBusy(btn, false);
+        updateAddBtnLabel(); // 请求期间可能切换了批量开关，恢复后按当前模式刷新按钮文字
+      });
   }
-  $("add-btn").addEventListener("click", addImage);
+  function onAddClick() {
+    if (addBatchMode) batchAdd();
+    else addImage();
+  }
+  $("add-btn").addEventListener("click", onAddClick);
   $("add-url").addEventListener("keydown", function (e) {
     if (e.key === "Enter") { e.preventDefault(); addImage(); }
   });
@@ -3615,6 +3814,7 @@ a{color:var(--accent)}
     renderFolders();
     if (lastImages !== null) renderGrid(lastImages, { anchor: true });
     refreshPreview();
+    updateAddBtnLabel(); // 批量模式下按钮文字含计数，需在语言切换后刷新
     renderRateLimits();
     updateOdRefreshHint();
   }

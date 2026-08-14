@@ -318,6 +318,86 @@ async function handleConvert(request, env) {
   return json({ id, mode, url: link });
 }
 
+// 批量添加普通媒体链接：一次请求处理多条。
+// 与 OneDrive 批量导入同构——不逐个网络探测（探测请求数=条数，50 条会轻易超时），
+// 按 URL 扩展名兜底类型，unknown 交给详情页懒纠正回写。
+// KV 写入从 2N 合并为 N+2（N 条 img + 1 次 order + 至多 1 次 folders），保护免费版每日写配额。
+const MAX_BATCH = 50;
+
+async function handleConvertBatch(request, env) {
+  const body = await request.json().catch(() => null);
+  const raw = body && Array.isArray(body.urls) ? body.urls : [];
+  if (!raw.length) return json({ error: "请粘贴媒体链接" }, 400);
+  if (raw.length > MAX_BATCH) return json({ error: `单次最多 ${MAX_BATCH} 个` }, 400);
+  const settings = await getSettings(env);
+  const mode =
+    body.mode === "proxy"
+      ? "proxy"
+      : body.mode === "redirect"
+        ? "redirect"
+        : settings.defaultMode;
+  const folder = sanitizeField(body.folder, 30);
+  // 归一化 + 批次内去重；单条超长计入失败明细，不中断其他项
+  const seen = new Set();
+  const urls = [];
+  const out = [];
+  let added = 0;
+  let failed = 0;
+  for (const x of raw) {
+    const s = typeof x === "string" ? x.trim() : "";
+    if (!s || seen.has(s)) continue;
+    seen.add(s);
+    if (s.length > 2048) {
+      failed++;
+      out.push({ url: s, ok: false, error: "链接过长（超过 2048 字符）" });
+      continue;
+    }
+    urls.push(s);
+  }
+  if (!urls.length) return json({ error: "请粘贴媒体链接" }, 400);
+  // 预读 order/folders，循环内仅内存累积，最后合并写，减少 KV 写入次数
+  const order = (await getOrder(env)) || [];
+  const folders = await getFolders(env);
+  const folderNeed = Boolean(folder) && !folders.includes(folder);
+  for (const url of urls) {
+    try {
+      if (!isAllowedUrl(url, settings)) throw new Error("域名不在允许列表（SSRF 白名单）");
+      // 名称取文件名去扩展名（遵守「自定义名请勿带后缀」规则）
+      const seg = url.split(/[?#]/)[0].split("/").pop() || "";
+      const type = guessType(url) || "unknown";
+      const ext = extFromName(seg);
+      let name = upstreamFileName(url);
+      const di = name.lastIndexOf(".");
+      if (di > 0 && di < name.length - 1) name = name.slice(0, di);
+      name = sanitizeField(name, 60);
+      const id = generateId();
+      await putImage(env, id, {
+        url,
+        mode,
+        enabled: true,
+        name,
+        folder,
+        type,
+        createdAt: Date.now(),
+        sourceType: "normal",
+        ...(ext ? { fileExt: ext } : {}),
+      });
+      order.unshift(id);
+      added++;
+      out.push({ url, ok: true, id });
+    } catch (e) {
+      failed++;
+      out.push({ url, ok: false, error: e && e.message ? e.message : "添加失败" });
+    }
+  }
+  await saveOrder(env, order);
+  if (folderNeed) {
+    folders.push(folder);
+    await saveFolders(env, folders);
+  }
+  return json({ ok: true, added, failed, items: out });
+}
+
 // OneDrive 错误统一映射：兼容 v1(旧格式) 与 v2(新格式 /c/) 的解析结果
 // 注意: 非公开共享不能用 401 返回——前端 api() 对 401 统一按"登录失效"处理并弹出登录框，
 // 故复用 403，仅 error 字符串区分，供前端 odErrorToast 识别。
@@ -1077,6 +1157,7 @@ export default {
     }
     if (pathname === "/api/login") return handleLogin(request, env);
     if (pathname === "/api/convert") return requireAuth(request, env, () => handleConvert(request, env));
+    if (pathname === "/api/convert/batch") return requireAuth(request, env, () => handleConvertBatch(request, env));
     if (pathname === "/api/onedrive/resolve")
       return requireAuth(request, env, () => handleOneDriveResolve(request, env));
     if (pathname === "/api/onedrive/import")
