@@ -928,6 +928,7 @@ a{color:var(--accent)}
       "op.saved": "已保存",
       "op.moved": "已移动",
       "op.sorted": "已更新排序",
+      "op.sortOk": "排序保存成功，KV同步需要一会",
       "op.updated": "已更新",
       "lightbox.open": "在新标签打开原图",
       "lightbox.openSite": "在新标签打开网站外链",
@@ -1135,6 +1136,7 @@ a{color:var(--accent)}
       "op.saved": "Saved",
       "op.moved": "Moved",
       "op.sorted": "Order updated",
+      "op.sortOk": "Order saved, KV sync may take a moment",
       "op.updated": "Updated",
       "lightbox.open": "Open original in new tab",
       "lightbox.openSite": "Open site link in new tab",
@@ -1236,8 +1238,10 @@ a{color:var(--accent)}
     if (opts.headers) {
       for (var k in opts.headers) headers[k] = opts.headers[k];
     }
+    // 单请求可覆盖默认超时（如批量添加按设置使用更长超时）
+    var timeoutMs = opts.timeout || API_TIMEOUT;
     var ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
-    var timer = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, API_TIMEOUT) : null;
+    var timer = ctrl ? setTimeout(function () { try { ctrl.abort(); } catch (e) {} }, timeoutMs) : null;
     return fetch(path, {
       method: opts.method || "GET",
       headers: headers,
@@ -1748,7 +1752,7 @@ a{color:var(--accent)}
       }
     }
     api("/api/images/order", { method: "POST", body: JSON.stringify({ ids: newFull }) })
-      .then(function () { /* 拖拽本身已即时反馈，成功静默，避免打扰 */ })
+      .then(function () { toast(t("op.sortOk"), "success"); })
       .catch(function (err) {
         toast(err.message || t("op.fail"), "error");
         // 失败回滚为拖拽前顺序（本地重排 + 就地重建，不再全量重拉网络）
@@ -3041,7 +3045,13 @@ a{color:var(--accent)}
     if (folder === "__new__") folder = addPendingFolder;
     var btn = $("add-btn");
     setBusy(btn, true, t("add.batch.adding", { n: urls.length }));
-    api("/api/convert/batch", { method: "POST", body: JSON.stringify({ urls: urls, mode: mode, folder: folder }) })
+    // 批量添加一次最多 50 条、需串行写多条记录，用更长超时（30s，覆盖通用 15s；
+    // Cloudflare 单次请求墙钟上限即 30s）
+    api("/api/convert/batch", {
+      method: "POST",
+      body: JSON.stringify({ urls: urls, mode: mode, folder: folder }),
+      timeout: 30000,
+    })
       .then(function (data) {
         if (folder && lastFolders.indexOf(folder) === -1) { lastFolders.push(folder); renderFolders(); }
         var items = data.items || [];

@@ -67,12 +67,12 @@ npx wrangler login
 1. Open the Cloudflare dashboard → avatar (top-right) → **My Profile** → **API Tokens** → **Create Token**
 2. Pick the **Edit Cloudflare Workers** template (or a custom token covering):
 
-   | Permission | Scope |
-   | --- | --- |
-   | Account → Workers Scripts → Edit | required |
+   | Permission                          | Scope                                          |
+   | ----------------------------------- | ---------------------------------------------- |
+   | Account → Workers Scripts → Edit    | required                                       |
    | Account → Workers KV Storage → Edit | required (create / read / write KV namespaces) |
-   | Account → Account Settings → Read | recommended |
-   | Zone → Workers Routes → Edit | optional (custom domain routes) |
+   | Account → Account Settings → Read   | recommended                                    |
+   | Zone → Workers Routes → Edit        | optional (custom domain routes)                |
 
 3. After creating the token, export it as an environment variable (wrangler reads it automatically — no `wrangler login` needed):
 
@@ -80,6 +80,7 @@ npx wrangler login
    # Windows PowerShell
    $env:CLOUDFLARE_API_TOKEN = "your-token"
    ```
+
    ```bash
    # macOS / Linux
    export CLOUDFLARE_API_TOKEN="your-token"
@@ -162,39 +163,39 @@ npm run dev
 
 ### Secrets
 
-| Name | Description |
-| --- | --- |
-| `PASSWORD` | Admin panel login password (Bearer Token auth) |
+| Name             | Description                                                        |
+| ---------------- | ------------------------------------------------------------------ |
+| `PASSWORD`       | Admin panel login password (Bearer Token auth)                     |
 | `SIGNING_SECRET` | HMAC link signing key, required when `requireSignature` is enabled |
 
 ### Environment variables (deploy-time defaults; after deployment they can be changed at runtime in the admin panel and take effect immediately)
 
-| Name | Default | Description |
-| --- | --- | --- |
-| `ALLOWED_ORIGINS` | empty | SSRF whitelist: domains allowed to be proxied, comma separated, **required** |
-| `ALLOWED_COUNTRIES` / `BLOCKED_COUNTRIES` | empty | Country allow / block lists (ISO codes) |
-| `ALLOWED_IPS` / `BLOCKED_IPS` | empty | IP allow / block lists |
-| `ALLOWED_ASN` / `BLOCKED_ASN` | empty | ASN allow / block lists |
-| `ALLOWED_REFERERS` | empty | Referer allow list (best effort; spoofable) |
-| `REQUIRE_SIGNATURE` | `false` | Generate links with expiring HMAC signatures (strongest hotlink protection) |
-| `SIGNATURE_TTL` | `3600` | Signature validity (seconds) |
-| `CACHE_TTL` | `2592000` | Cache TTL (seconds), only applies to cache proxy mode |
-| `MAX_IMAGE_SIZE` | `52428800` | Max image size (bytes, 50MB) |
-| `MAX_AUDIO_SIZE` | `104857600` | Max audio size (bytes, 100MB) |
-| `MAX_VIDEO_SIZE` | `524288000` | Max video size (bytes, 500MB) |
-| `DEFAULT_MODE` | `redirect` | Default link type: `redirect` / `proxy` |
-| `DOWNLOAD_NAME_SOURCE` | `upstream` | Download name source: `upstream` (upstream file name) / `custom` (name set on this site) |
-| `THUMB_SOURCE` | `upstream` | Thumbnail media source: `upstream` / `site` (proxied link, cache proxy mode only) |
-| `PREVIEW_SOURCE` | `upstream` | Preview media source: `upstream` / `site` (proxied link, cache proxy mode only) |
-| `ORIGIN_REFERER` / `ORIGIN_USER_AGENT` | empty | Upstream headers forwarded to the origin (to pass origin anti-leech checks) |
+| Name                                      | Default     | Description                                                                              |
+| ----------------------------------------- | ----------- | ---------------------------------------------------------------------------------------- |
+| `ALLOWED_ORIGINS`                         | empty       | SSRF whitelist: domains allowed to be proxied, comma separated, **required**             |
+| `ALLOWED_COUNTRIES` / `BLOCKED_COUNTRIES` | empty       | Country allow / block lists (ISO codes)                                                  |
+| `ALLOWED_IPS` / `BLOCKED_IPS`             | empty       | IP allow / block lists                                                                   |
+| `ALLOWED_ASN` / `BLOCKED_ASN`             | empty       | ASN allow / block lists                                                                  |
+| `ALLOWED_REFERERS`                        | empty       | Referer allow list (best effort; spoofable)                                              |
+| `REQUIRE_SIGNATURE`                       | `false`     | Generate links with expiring HMAC signatures (strongest hotlink protection)              |
+| `SIGNATURE_TTL`                           | `3600`      | Signature validity (seconds)                                                             |
+| `CACHE_TTL`                               | `2592000`   | Cache TTL (seconds), only applies to cache proxy mode                                    |
+| `MAX_IMAGE_SIZE`                          | `52428800`  | Max image size (bytes, 50MB)                                                             |
+| `MAX_AUDIO_SIZE`                          | `104857600` | Max audio size (bytes, 100MB)                                                            |
+| `MAX_VIDEO_SIZE`                          | `524288000` | Max video size (bytes, 500MB)                                                            |
+| `DEFAULT_MODE`                            | `redirect`  | Default link type: `redirect` / `proxy`                                                  |
+| `DOWNLOAD_NAME_SOURCE`                    | `upstream`  | Download name source: `upstream` (upstream file name) / `custom` (name set on this site) |
+| `THUMB_SOURCE`                            | `upstream`  | Thumbnail media source: `upstream` / `site` (proxied link, cache proxy mode only)        |
+| `PREVIEW_SOURCE`                          | `upstream`  | Preview media source: `upstream` / `site` (proxied link, cache proxy mode only)          |
+| `ORIGIN_REFERER` / `ORIGIN_USER_AGENT`    | empty       | Upstream headers forwarded to the origin (to pass origin anti-leech checks)              |
 
 ### Rate limits (Rate Limit Binding — edit wrangler.jsonc and re-deploy)
 
-| Binding | Default | Description |
-| --- | --- | --- |
-| `RATE_LIMITER_IP` | 100 / 60s | Per-IP limit |
-| `RATE_LIMITER_IMG` | 40 / 10s | Per-image limit |
-| `RATE_LIMITER_AV` | 300 / 10s | Per audio/video limit (playback produces many partial-range requests) |
+| Binding            | Default   | Description                                                           |
+| ------------------ | --------- | --------------------------------------------------------------------- |
+| `RATE_LIMITER_IP`  | 100 / 60s | Per-IP limit                                                          |
+| `RATE_LIMITER_IMG` | 40 / 10s  | Per-image limit                                                       |
+| `RATE_LIMITER_AV`  | 300 / 10s | Per audio/video limit (playback produces many partial-range requests) |
 
 ## OneDrive Share Link Support
 
@@ -214,10 +215,10 @@ Open the OneDrive web app, right-click the target file → **Embed** → **Gener
 
 Both OneDrive **embed links and ordinary share links** resolve successfully, for example:
 
-| Type | Example | Notes |
-| --- | --- | --- |
-| Embed link | `https://1drv.ms/v/c/{cid}/{token}` | ✅ verified working (single-file share: video / file) |
-| Ordinary share link | `1drv.ms/u/s!`, `1drv.ms/f/s!`, `1drv.ms/f/c/...` etc. | ✅ verified working (single-file / folder share) |
+| Type                | Example                                                | Notes                                                 |
+| ------------------- | ------------------------------------------------------ | ----------------------------------------------------- |
+| Embed link          | `https://1drv.ms/v/c/{cid}/{token}`                    | ✅ verified working (single-file share: video / file) |
+| Ordinary share link | `1drv.ms/u/s!`, `1drv.ms/f/s!`, `1drv.ms/f/c/...` etc. | ✅ verified working (single-file / folder share)      |
 
 > Two `/v/c/` links for the same file may land on **different redirect shapes**: one goes straight to the `/embed` page, the other hops through `photos.onedrive.com` to `onedrive.live.com/?qt=allmyphotos&v=photos` (photos mode). Both are supported — the photos mode is automatically converted to an equivalent `/embed` address for resolution, with a `v2.1 drives/items` fallback if needed, so you don't have to tell them apart.
 
@@ -237,21 +238,21 @@ Every request passes a 4-layer validation in both modes: **rate limit → countr
 
 All endpoints return JSON; admin endpoints require `Authorization: Bearer <PASSWORD>`.
 
-| Method | Path | Description |
-| --- | --- | --- |
-| POST | `/api/login` | Validate login `{ token }` |
-| POST | `/api/convert` | Add media `{ url, mode, name?, folder? }`, auto-detects type |
-| POST | `/api/onedrive/resolve` | Resolve an OneDrive share link `{ url }` → `{ isFolder, name, size, childCount }` |
-| POST | `/api/onedrive/import` | Import an OneDrive file or bulk folder `{ url, mode, name?, folder? }` |
-| GET | `/api/images` | Media list + folder list |
-| POST | `/api/image/delete` | Delete `{ id }` |
-| POST | `/api/image/toggle` | Enable / disable `{ id, enabled }` |
-| POST | `/api/image/update` | Rename / move `{ id, name?, folder? }` |
-| POST | `/api/folder/create` | Create folder `{ name }` |
-| POST | `/api/folder/rename` | Rename folder `{ from, to }` |
-| POST | `/api/folder/delete` | Delete folder `{ name }` |
-| GET / PUT | `/api/settings` | Read / save settings |
-| GET / HEAD | `/i/<id>` | Media entry (302 or cached proxy) |
+| Method     | Path                    | Description                                                                       |
+| ---------- | ----------------------- | --------------------------------------------------------------------------------- |
+| POST       | `/api/login`            | Validate login `{ token }`                                                        |
+| POST       | `/api/convert`          | Add media `{ url, mode, name?, folder? }`, auto-detects type                      |
+| POST       | `/api/onedrive/resolve` | Resolve an OneDrive share link `{ url }` → `{ isFolder, name, size, childCount }` |
+| POST       | `/api/onedrive/import`  | Import an OneDrive file or bulk folder `{ url, mode, name?, folder? }`            |
+| GET        | `/api/images`           | Media list + folder list                                                          |
+| POST       | `/api/image/delete`     | Delete `{ id }`                                                                   |
+| POST       | `/api/image/toggle`     | Enable / disable `{ id, enabled }`                                                |
+| POST       | `/api/image/update`     | Rename / move `{ id, name?, folder? }`                                            |
+| POST       | `/api/folder/create`    | Create folder `{ name }`                                                          |
+| POST       | `/api/folder/rename`    | Rename folder `{ from, to }`                                                      |
+| POST       | `/api/folder/delete`    | Delete folder `{ name }`                                                          |
+| GET / PUT  | `/api/settings`         | Read / save settings                                                              |
+| GET / HEAD | `/i/<id>`               | Media entry (302 or cached proxy)                                                 |
 
 ## How OneDrive direct links are resolved
 

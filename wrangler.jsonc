@@ -24,7 +24,7 @@
  // 绑定自定义域名（custom_domain: true = Custom Domain 方式，自动签发证书）
  // "routes": [
  //   {
- //     "pattern": "你想设置的子域名.你的域名",
+ //     "pattern": "你想设置的子域名.你的域名",  // 域名须在你的CloudFlare账号下
  //     "custom_domain": true
  //   }
  // ]
