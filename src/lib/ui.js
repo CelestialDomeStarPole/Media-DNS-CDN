@@ -759,7 +759,7 @@ a{color:var(--accent)}
     (navigator.language && navigator.language.toLowerCase().indexOf("zh") === 0 ? "zh" : "en");
   var lastImages = null;
   var lastFolders = [];
-  var currentFolder = "";
+  var selectedFolders = []; // 多选文件夹筛选；空数组 = 全部
   var searchQuery = "";
   var addPendingFolder = "";
   var lastPreviewHost = "";
@@ -1841,13 +1841,34 @@ a{color:var(--accent)}
   window.addEventListener("pointerup", endCardDrag);
   window.addEventListener("pointercancel", endCardDrag);
 
+  // 文件夹多选匹配：空数组 = 全选（显示所有）；否则图片 folder 命中任一选中项即通过
+  function folderMatchesSelection(img) {
+    if (!selectedFolders.length) return true;
+    for (var i = 0; i < selectedFolders.length; i++) {
+      var f = selectedFolders[i];
+      if (f === "__uncat__") { if (!img.folder) return true; }
+      else if (img.folder === f) return true;
+    }
+    return false;
+  }
+  // 全部按钮高亮条件：没有任何筛选（点击了全部）或已手动选中所有文件夹（含未分类）
+  function isAllSelected() {
+    if (!selectedFolders.length) return true;
+    var total = lastFolders.length + 1; // +1 为未分类
+    if (selectedFolders.length < total) return false;
+    if (selectedFolders.indexOf("__uncat__") === -1) return false;
+    for (var i = 0; i < lastFolders.length; i++) {
+      if (selectedFolders.indexOf(lastFolders[i]) === -1) return false;
+    }
+    return true;
+  }
+
   function filterImages(images) {
     var q = searchQuery.toLowerCase();
     return images.filter(function (img) {
       // 占位卡信息未就绪，暂不过滤，先以占位显示
       if (img && img._loading) return true;
-      if (currentFolder === "__uncat__") { if (img.folder) return false; }
-      else if (currentFolder && img.folder !== currentFolder) return false;
+      if (!folderMatchesSelection(img)) return false;
       if (q) {
         var hay = ((img.name || "") + " " + img.id + " " + (img.url || "")).toLowerCase();
         if (hay.indexOf(q) === -1) return false;
@@ -1858,8 +1879,7 @@ a{color:var(--accent)}
   // 单卡过滤判断，用于增量加载后即时隐藏不匹配当前筛选的卡片
   function cardMatchesFilter(img) {
     if (img && img._loading) return true;
-    if (currentFolder === "__uncat__") { if (img.folder) return false; }
-    else if (currentFolder && img.folder !== currentFolder) return false;
+    if (!folderMatchesSelection(img)) return false;
     if (searchQuery) {
       var hay = ((img.name || "") + " " + img.id + " " + (img.url || "")).toLowerCase();
       if (hay.indexOf(searchQuery.toLowerCase()) === -1) return false;
@@ -2219,10 +2239,10 @@ a{color:var(--accent)}
 
   function renderFolders() {
     var bar = $("folder-bar");
-    var h = '<button class="fchip' + (currentFolder === "" ? " active" : "") + '" data-f="">' + esc(t("all")) + "</button>";
-    h += '<button class="fchip' + (currentFolder === "__uncat__" ? " active" : "") + '" data-f="__uncat__">' + esc(t("folder.uncat")) + "</button>";
+    var h = '<button class="fchip' + (isAllSelected() ? " active" : "") + '" data-f="">' + esc(t("all")) + "</button>";
+    h += '<button class="fchip' + (selectedFolders.indexOf("__uncat__") !== -1 ? " active" : "") + '" data-f="__uncat__">' + esc(t("folder.uncat")) + "</button>";
     lastFolders.forEach(function (f) {
-      h += '<span class="fchip-wrap"><button class="fchip' + (currentFolder === f ? " active" : "") + '" data-f="' + esc(f) + '">' + esc(f) + "</button>" +
+      h += '<span class="fchip-wrap"><button class="fchip' + (selectedFolders.indexOf(f) !== -1 ? " active" : "") + '" data-f="' + esc(f) + '">' + esc(f) + "</button>" +
         '<button class="fchip-menu" data-folder="' + esc(f) + '" aria-label="' + esc(t("folder.rename")) + '">▾</button></span>';
     });
     h += '<button id="folder-add" class="fchip add" aria-label="' + esc(t("folder.new")) + '">+</button>';
@@ -3438,23 +3458,42 @@ a{color:var(--accent)}
   function detailSetFolder(id, folder) {
     setFolder(id, folder, function () { renderDetailFolder(); });
   }
+  // 详情页媒体源回退：仅在走上游链接（如 OneDrive tempauth 直链超过 1 小时过期）且加载失败时自动切换到网站链接
+  function attachDetailSrcFallback(el, img, src) {
+    if (src !== img.url) return;
+    var fallback = img.shortUrl;
+    if (!fallback) return;
+    var done = false;
+    el.addEventListener("error", function () {
+      if (done) return;
+      done = true;
+      el.src = fallback;
+    });
+  }
   function fillDetailMedia(img) {
     var box = $("detail-thumb");
     box.innerHTML = "";
     var tp = img.type || guessTypeClient(img.url);
     if (tp === "audio") {
       // 音频详情：♪ 占位符（横排）+ 可播放的音频控件，媒体源跟随「缩略图媒体源」设置
-      box.innerHTML =
-        '<div class="detail-audio-wrap"><div class="thumb-fallback"><span class="tf-icon">♪</span><span class="tf-id">' + esc(t("type.audio")) + "</span></div>" +
-        '<audio controls preload="metadata" src="' + esc(mediaSrc(img, appSettings.thumbSource)) + '"></audio></div>';
+      var a = document.createElement("audio");
+      a.controls = true;
+      a.preload = "metadata";
+      a.src = mediaSrc(img, appSettings.thumbSource);
+      attachDetailSrcFallback(a, img, a.src);
+      var wrap = document.createElement("div");
+      wrap.className = "detail-audio-wrap";
+      wrap.innerHTML = '<div class="thumb-fallback"><span class="tf-icon">♪</span><span class="tf-id">' + esc(t("type.audio")) + "</span></div>";
+      wrap.appendChild(a);
+      box.appendChild(wrap);
       return;
     }
     var el = tp === "video" ? document.createElement("video") : document.createElement("img");
     if (tp === "video") {
-      el.muted = true;
+      // 详情页视频：可播放（带控件），媒体源仍遵循「缩略图媒体源」设置
+      el.controls = true;
       el.playsInline = true;
       el.preload = "metadata";
-      el.crossOrigin = "anonymous";
       el.src = videoThumbSrc(img, appSettings.thumbSource);
       el.addEventListener("loadedmetadata", function () { setDetailDim(el.videoWidth, el.videoHeight); });
     } else {
@@ -3462,6 +3501,7 @@ a{color:var(--accent)}
       el.onload = function () { setDetailDim(el.naturalWidth, el.naturalHeight); };
       el.src = mediaSrc(img, appSettings.thumbSource);
     }
+    attachDetailSrcFallback(el, img, el.src);
     box.appendChild(el);
   }
   function probeDetailSize(img) {
@@ -3622,7 +3662,15 @@ a{color:var(--accent)}
       pop.style.left = Math.round(r.left) + "px";
       pop.classList.remove("hidden");
     } else if (el.classList.contains("fchip") && el.id !== "folder-add") {
-      currentFolder = el.getAttribute("data-f");
+      var f = el.getAttribute("data-f");
+      if (f === "") {
+        // 点击全部：清空筛选 = 全部文件夹都被选择
+        selectedFolders = [];
+      } else {
+        var idx = selectedFolders.indexOf(f);
+        if (idx === -1) selectedFolders.push(f); // 未选则加入
+        else selectedFolders.splice(idx, 1);     // 已选则取消
+      }
       if (lastImages !== null) {
         // 就地显隐（保留缩略图与滚动），切换文件夹无需全量重建网格
         renderFolders();
@@ -3637,7 +3685,7 @@ a{color:var(--accent)}
       apiCreateFolder(name).then(function () {
         // 就地更新：无需全量重拉，仅补文件夹栏 + 切换到新文件夹
         if (lastFolders.indexOf(name) === -1) lastFolders.push(name);
-        currentFolder = name;
+        selectedFolders = [name];
         renderFolders();
         toast(t("folder.createOk"), "success");
         if (lastImages !== null) syncFilterInPlace();
@@ -3661,11 +3709,14 @@ a{color:var(--accent)}
       var from = chipMenuFolder;
       var savedImgs = (lastImages || []).map(function (x) { return x ? { ...x } : null; });
       var savedFolders = lastFolders.slice();
+      var savedSel = selectedFolders.slice();
       // 乐观：就地重命名文件夹及其下所有卡
       lastImages.forEach(function (im) { if (im && im.folder === from) im.folder = name; });
       lastFolders = lastFolders.filter(function (f) { return f !== from; });
       if (lastFolders.indexOf(name) === -1) lastFolders.push(name);
-      if (currentFolder === from) currentFolder = name;
+      for (var si = 0; si < selectedFolders.length; si++) {
+        if (selectedFolders[si] === from) selectedFolders[si] = name;
+      }
       renderFolders();
       refreshCardBodies();
       syncFilterInPlace();
@@ -3674,7 +3725,7 @@ a{color:var(--accent)}
         .catch(function (err) {
           restoreImagesFrom(savedImgs);
           lastFolders = savedFolders;
-          if (currentFolder === name) currentFolder = from;
+          selectedFolders = savedSel;
           renderFolders();
           refreshCardBodies();
           syncFilterInPlace();
@@ -3685,10 +3736,12 @@ a{color:var(--accent)}
       var delName = chipMenuFolder;
       var savedImgs2 = (lastImages || []).map(function (x) { return x ? { ...x } : null; });
       var savedFolders2 = lastFolders.slice();
+      var savedSel2 = selectedFolders.slice();
       // 乐观：就地删除文件夹，其下卡移入未分类
       lastImages.forEach(function (im) { if (im && im.folder === delName) im.folder = ""; });
       lastFolders = lastFolders.filter(function (f) { return f !== delName; });
-      if (currentFolder === delName) currentFolder = "";
+      var di = selectedFolders.indexOf(delName);
+      if (di !== -1) selectedFolders.splice(di, 1);
       renderFolders();
       refreshCardBodies();
       syncFilterInPlace();
@@ -3697,7 +3750,7 @@ a{color:var(--accent)}
         .catch(function (err) {
           restoreImagesFrom(savedImgs2);
           lastFolders = savedFolders2;
-          if (currentFolder === "" && savedFolders2.indexOf(delName) !== -1) currentFolder = delName;
+          selectedFolders = savedSel2;
           renderFolders();
           refreshCardBodies();
           syncFilterInPlace();
