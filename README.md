@@ -15,6 +15,7 @@
 ## 目录
 
 - [功能特色](#功能特色)
+- [截图](#截图)
 - [快速开始](#快速开始)
 - [配置说明](#配置说明)
 - [OneDrive 共享链接支持](#onedrive-共享链接支持)
@@ -26,7 +27,6 @@
 
 ## 功能特色
 
-- **多媒体支持**：图片（jpg/png/webp/gif 等）、音频（mp3/m4a/flac 等）、视频（mp4/webm/mov 等）均可转接
 - **两种链接模式**：
   - **仅DNS**：302 直跳原站，不占用 Worker 带宽，每次请求都过校验
   - **缓存代理+DNS**：Worker 拉取原站并写入 Cloudflare 边缘缓存，命中后由边缘直接返回
@@ -35,7 +35,14 @@
 - **下载文件名可定制**：下载时文件名可取自上游文件名，或使用管理页设置的自定义名
 - **访问控制**：国家（地区） / IP / ASN 黑白名单，四层校验全部在边缘生效
 - **SSRF 防护**：代理目标必须位于允许域名白名单内
-- **OneDrive 共享链接适配**：支持 OneDrive链接
+- **OneDrive 共享链接适配**：支持 OneDrive链接，能将OneDrive链接转换为本站直链
+
+## 截图
+
+<p align="center">
+  <img src="https://media.starpole.cc.cd/i/be016a2756cd34b5" alt="MediaDNS-CDN 截图 1" width="49%" />
+  <img src="https://media.starpole.cc.cd/i/a106c82feaf4caa1" alt="MediaDNS-CDN 截图 2" width="49%" />
+</p>
 
 ## 快速开始
 
@@ -288,7 +295,6 @@ OneDrive 共享链接并非可直接外链的直链。**嵌入链接解析链路
 - **Range 分片不缓存**：206 分片响应直接透传；全量 200 入缓存后，后续 Range 请求由边缘从缓存对象切片返回
 - **HLS/DASH**：仅作为整体文件代理，不做分片 URL 重写；多数 HLS 源站会拒绝非标准请求，如需完整流媒体适配请自行扩展
 - **视频缩略图依赖 CORS**：缓存代理模式自动支持（Worker 返回 `Access-Control-Allow-Origin: *`）；仅DNS模式依赖原站 CORS，不支持时自动回退为图标占位
-- **Referer 校验为尽力而为**：浏览器并不总是发送 Referer
 - **OneDrive 链接需要海外网络**：解析 OneDrive 嵌入/共享链接需访问 `onedrive.live.com`（获取匿名凭证）与微软数据 API。Cloudflare Worker 海外节点默认可达；本地调试（`wrangler dev`）在国内网络下可能超时
 - **微软接口偶发超时**：上游偶发返回 `signal is aborted without reason`（连接被中断）。此时网站会提示「网络异常，请过一会再试」，稍候重试即可，不影响已添加的媒体
 - **OneDrive 媒体源强制缓存代理模式**：嵌入链接解析出的媒体源需依赖 Worker 代理跟随，强制走「缓存代理+DNS」，不可切换「仅DNS」（普通共享链接同理）

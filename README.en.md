@@ -15,6 +15,7 @@ Image / Audio / Video hotlink relay · Cache · Anti-leech Cloudflare Worker
 ## Table of Contents
 
 - [Features](#features)
+- [Screenshots](#screenshots)
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
 - [OneDrive Share Link Support](#onedrive-share-link-support)
@@ -26,7 +27,6 @@ Image / Audio / Video hotlink relay · Cache · Anti-leech Cloudflare Worker
 
 ## Features
 
-- **Multi-media support**: images (jpg/png/webp/gif…), audio (mp3/m4a/flac…) and video (mp4/webm/mov…)
 - **Two link modes**:
   - **DNS-only**: 302 redirect to the origin; no Worker bandwidth cost; every request passes validation
   - **Cache proxy + DNS**: the Worker fetches the origin and writes into Cloudflare edge cache; hits are served from the edge directly
@@ -35,7 +35,14 @@ Image / Audio / Video hotlink relay · Cache · Anti-leech Cloudflare Worker
 - **Customizable download names**: downloaded file names come from the upstream or from the custom name set in the admin panel
 - **Access control**: country / IP / ASN allow & block lists, all validated at the edge
 - **SSRF protection**: proxied targets must be on the allowed-origin whitelist
-- **OneDrive share-link support**: supports OneDrive links
+- **OneDrive share-link support**: supports OneDrive links,can convert a OneDrive link into a direct link.
+
+## Screenshots
+
+<p align="center">
+  <img src="https://media.starpole.cc.cd/i/be016a2756cd34b5" alt="MediaDNS-CDN screenshot 1" width="49%" />
+  <img src="https://media.starpole.cc.cd/i/a106c82feaf4caa1" alt="MediaDNS-CDN screenshot 2" width="49%" />
+</p>
 
 ## Quick Start
 
@@ -121,26 +128,21 @@ npx wrangler kv namespace create MAPPINGS
 # If it doesn't, run `npx wrangler kv namespace list` to look it up and fill it in manually.
 # If it asks "Would you like Wrangler to add it on your behalf? [Y/N]", Y is recommended
 # If it asks "What binding name would you like to use?", just press Enter
-# If it asks "For local dev, do you want to connect to the remote resource instead of a local resource? [Y/N]",
-# N is recommended. Choosing Yes makes your local `wrangler dev` operate on the real KV / R2 / D1 data in your
-# Cloudflare account over the network; dev code may contain bugs, and one wrong move (e.g. a delete) removes real data.
+# If it asks "For local dev, do you want to connect to the remote resource instead of a local resource? [Y/N]",N is recommended. Choosing Yes makes your local `wrangler dev` operate on the real KV / R2 / D1 data in your Cloudflare account over the network; dev code may contain bugs, and one wrong move (e.g. a delete) removes real data.
 
 # 5. Configure secrets (admin password / signing key)
 npx wrangler secret put PASSWORD        # admin panel login password
 # Type your admin password
-# It may then ask: There doesn't seem to be a Worker called "media-dns-cdn".
-# Do you want to create a new Worker with that name and add secrets to it? [Y/N]  Choose Y
+# It may then ask: There doesn't seem to be a Worker called "media-dns-cdn". Do you want to create a new Worker with that name and add secrets to it? [Y/N]  Choose Y
 npx wrangler secret put SIGNING_SECRET  # HMAC link signing key (required when signed links are enabled)
 # Type your signing key
 
-# You may also deploy first and then run the two commands above — no prompts then, but remember
-# to add them, otherwise the service won't work.
-# PASSWORD and SIGNING_SECRET can also be added after deployment in the dashboard:
-# Workers -> Settings -> Variables and Secrets (encrypted Secrets are recommended; plain Variables also work)
+# You may also deploy first and then run the two commands above — no prompts then, but remember to add them, otherwise the service won't work.
+# PASSWORD and SIGNING_SECRET can also be added after deployment in the dashboard: Workers -> Settings -> Variables and Secrets (encrypted Secrets are recommended; plain Variables also work)
 
 # 6. (Optional) Make sure rate-limit namespace_ids are unique
-# The ratelimits namespace_ids in wrangler.jsonc (1001/1002/1003) are custom positive
-# integers; just keep them unique within your account, change them if they collide.
+# The ratelimits namespace_ids in wrangler.jsonc (1001/1002/1003) are custom positive integers;
+# just keep them unique within your account, change them if they collide.
 
 # 7. Deploy
 npm run deploy
@@ -295,7 +297,6 @@ OneDrive share links are not directly hotlinkable. **Embed-link resolution** (`/
 - **Partial responses are not cached**: 206 responses pass through; once the full 200 object is cached, subsequent range requests are sliced by the edge from the cached object
 - **HLS/DASH**: proxied as whole files only, no segment URL rewriting; most HLS origins reject non-standard requests — extend it yourself if you need full streaming support
 - **Video thumbnails require CORS**: cache proxy mode works out of the box (the Worker returns `Access-Control-Allow-Origin: *`); DNS-only mode depends on the origin's CORS, falling back to an icon placeholder otherwise
-- **Referer checks are best effort**: browsers don't always send a Referer header
 - **OneDrive links need overseas network**: resolving OneDrive embed/share links needs `onedrive.live.com` (anonymous credential) and Microsoft data APIs. Cloudflare Workers on overseas edges can reach them; local `wrangler dev` may time out behind restrictive networks
 - **Occasional upstream timeouts**: Microsoft occasionally returns `signal is aborted without reason` (dropped connection). The site then shows "Network error, please try again later" — just retry after a moment; already-added media is unaffected
 - **OneDrive media sources are proxy-only**: the media source resolved from an embed link relies on Worker proxying, so it is forced to "Cache proxy + DNS" and can't switch to "DNS-only" (same for ordinary share links)
