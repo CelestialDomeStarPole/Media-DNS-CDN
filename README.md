@@ -8,7 +8,7 @@
 
 </div>
 
-> 一个部署在 Cloudflare Workers 上的媒体外链转接 + 缓存 + 限流服务。给任意图片 / 音频 / 视频直链生成带防护的短链接：支持 302 直跳（仅 DNS）与缓存代理（Worker 缓存 + DNS）两种模式，内置地区 / IP / ASN / Referer 黑白名单、HMAC 签名链接、多级限流。
+> 一个部署在 Cloudflare Workers 上的媒体外链转接 + 缓存 + 限流服务。给任意图片 / 音频 / 视频直链生成带防护的短链接：支持 302 直跳（仅 DNS）与缓存代理（Worker 缓存 + DNS）两种模式，内置地区 / IP / ASN / Referer 黑白名单、HMAC 签名链接、多级限流。 [演示Demo](https://media.cdsp.us.ci)
 
 ---
 
@@ -186,27 +186,6 @@ npm run dev
 | `PASSWORD`       | 管理页登录密码（Bearer Token 鉴权）               |
 | `SIGNING_SECRET` | HMAC 链接签名密钥，启用 `requireSignature` 时必填 |
 
-### 环境变量（vars，均为部署默认值，之后可在管理页运行时修改并即时生效）
-
-| 名称                                      | 默认值      | 说明                                                                   |
-| ----------------------------------------- | ----------- | ---------------------------------------------------------------------- |
-| `ALLOWED_ORIGINS`                         | 空          | SSRF 白名单：允许代理的域名，逗号分隔，**必填**                        |
-| `ALLOWED_COUNTRIES` / `BLOCKED_COUNTRIES` | 空          | 地区白/黑名单（ISO 国家代码）                                          |
-| `ALLOWED_IPS` / `BLOCKED_IPS`             | 空          | IP 白/黑名单                                                           |
-| `ALLOWED_ASN` / `BLOCKED_ASN`             | 空          | ASN 白/黑名单                                                          |
-| `ALLOWED_REFERERS`                        | 空          | Referer 白名单（尽力而为，可伪造）                                     |
-| `REQUIRE_SIGNATURE`                       | `false`     | 生成带过期 HMAC 签名的链接（最强防外链）                               |
-| `SIGNATURE_TTL`                           | `3600`      | 签名有效期（秒）                                                       |
-| `CACHE_TTL`                               | `2592000`   | 缓存 TTL（秒），仅缓存代理模式生效                                     |
-| `MAX_IMAGE_SIZE`                          | `52428800`  | 单张图片大小上限（字节，50MB）                                         |
-| `MAX_AUDIO_SIZE`                          | `104857600` | 单个音频大小上限（字节，100MB）                                        |
-| `MAX_VIDEO_SIZE`                          | `524288000` | 单个视频大小上限（字节，500MB）                                        |
-| `DEFAULT_MODE`                            | `redirect`  | 默认链接类型：`redirect` / `proxy`                                     |
-| `DOWNLOAD_NAME_SOURCE`                    | `upstream`  | 下载文件名来源：`upstream`（上游文件名）/ `custom`（网站自定义名）     |
-| `THUMB_SOURCE`                            | `upstream`  | 缩略图媒体源：`upstream`（上游）/ `site`（网站代理源，仅缓存代理模式） |
-| `PREVIEW_SOURCE`                          | `upstream`  | 预览媒体源：`upstream`（上游）/ `site`（网站代理源，仅缓存代理模式）   |
-| `ORIGIN_REFERER` / `ORIGIN_USER_AGENT`    | 空          | 转发给原站的上游请求头（应对原站防盗链）                               |
-
 ### 限流（Rate Limit Binding，需改 wrangler.jsonc 后重新部署）
 
 | 绑定               | 默认值         | 说明                                   |
@@ -314,7 +293,8 @@ OneDrive 共享链接并非可直接外链的直链。**嵌入链接解析链路
 - **视频缩略图依赖 CORS**：缓存代理模式自动支持（Worker 返回 `Access-Control-Allow-Origin: *`）；仅DNS模式依赖原站 CORS，不支持时自动回退为图标占位
 - **OneDrive 链接需要海外网络**：解析 OneDrive 嵌入/共享链接需访问 `onedrive.live.com`（获取匿名凭证）与微软数据 API。Cloudflare Worker 海外节点默认可达；本地调试（`wrangler dev`）在国内网络下可能超时
 - **微软接口偶发超时**：上游偶发返回 `signal is aborted without reason`（连接被中断）。此时网站会提示「网络异常，请过一会再试」，稍候重试即可，不影响已添加的媒体
-- **OneDrive 媒体源强制缓存代理模式**：嵌入链接解析出的媒体源需依赖 Worker 代理跟随，强制走「缓存代理+DNS」，不可切换「仅DNS」（普通共享链接同理）
+- **OneDrive 媒体源强制缓存代理模式**：OneDrive链接解析出的媒体源需依赖 Worker 代理跟随，强制走「缓存代理+DNS」，不可切换「仅DNS」
+- **AI工作**：项目99%vibe coding，有大量无用代码，异常的逻辑以及简陋的ui界面
 
 ## 许可证
 

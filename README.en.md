@@ -8,7 +8,7 @@ Image / Audio / Video hotlink relay · Cache · Anti-leech Cloudflare Worker
 
 </div>
 
-> A media hotlink relay + cache + anti-leech service deployed on Cloudflare Workers. Generate protected short links for any image / audio / video direct URL: supports both 302 redirect (DNS-only) and cached proxy (Worker cache + DNS) modes, with built-in country / IP / ASN / Referer allow & block lists, HMAC signed links, and multi-level rate limiting.
+> A media hotlink relay + cache + anti-leech service deployed on Cloudflare Workers. Generate protected short links for any image / audio / video direct URL: supports both 302 redirect (DNS-only) and cached proxy (Worker cache + DNS) modes, with built-in country / IP / ASN / Referer allow & block lists, HMAC signed links, and multi-level rate limiting. [Live Demo](https://media.cdsp.us.ci)
 
 ---
 
@@ -188,27 +188,6 @@ npm run dev
 | `PASSWORD`       | Admin panel login password (Bearer Token auth)                     |
 | `SIGNING_SECRET` | HMAC link signing key, required when `requireSignature` is enabled |
 
-### Environment variables (deploy-time defaults; after deployment they can be changed at runtime in the admin panel and take effect immediately)
-
-| Name                                      | Default     | Description                                                                              |
-| ----------------------------------------- | ----------- | ---------------------------------------------------------------------------------------- |
-| `ALLOWED_ORIGINS`                         | empty       | SSRF whitelist: domains allowed to be proxied, comma separated, **required**             |
-| `ALLOWED_COUNTRIES` / `BLOCKED_COUNTRIES` | empty       | Country allow / block lists (ISO codes)                                                  |
-| `ALLOWED_IPS` / `BLOCKED_IPS`             | empty       | IP allow / block lists                                                                   |
-| `ALLOWED_ASN` / `BLOCKED_ASN`             | empty       | ASN allow / block lists                                                                  |
-| `ALLOWED_REFERERS`                        | empty       | Referer allow list (best effort; spoofable)                                              |
-| `REQUIRE_SIGNATURE`                       | `false`     | Generate links with expiring HMAC signatures (strongest hotlink protection)              |
-| `SIGNATURE_TTL`                           | `3600`      | Signature validity (seconds)                                                             |
-| `CACHE_TTL`                               | `2592000`   | Cache TTL (seconds), only applies to cache proxy mode                                    |
-| `MAX_IMAGE_SIZE`                          | `52428800`  | Max image size (bytes, 50MB)                                                             |
-| `MAX_AUDIO_SIZE`                          | `104857600` | Max audio size (bytes, 100MB)                                                            |
-| `MAX_VIDEO_SIZE`                          | `524288000` | Max video size (bytes, 500MB)                                                            |
-| `DEFAULT_MODE`                            | `redirect`  | Default link type: `redirect` / `proxy`                                                  |
-| `DOWNLOAD_NAME_SOURCE`                    | `upstream`  | Download name source: `upstream` (upstream file name) / `custom` (name set on this site) |
-| `THUMB_SOURCE`                            | `upstream`  | Thumbnail media source: `upstream` / `site` (proxied link, cache proxy mode only)        |
-| `PREVIEW_SOURCE`                          | `upstream`  | Preview media source: `upstream` / `site` (proxied link, cache proxy mode only)          |
-| `ORIGIN_REFERER` / `ORIGIN_USER_AGENT`    | empty       | Upstream headers forwarded to the origin (to pass origin anti-leech checks)              |
-
 ### Rate limits (Rate Limit Binding — edit wrangler.jsonc and re-deploy)
 
 | Binding            | Default   | Description                                                           |
@@ -317,7 +296,8 @@ OneDrive share links are not directly hotlinkable. **Embed-link resolution** (`/
 - **Video thumbnails require CORS**: cache proxy mode works out of the box (the Worker returns `Access-Control-Allow-Origin: *`); DNS-only mode depends on the origin's CORS, falling back to an icon placeholder otherwise
 - **OneDrive links need overseas network**: resolving OneDrive embed/share links needs `onedrive.live.com` (anonymous credential) and Microsoft data APIs. Cloudflare Workers on overseas edges can reach them; local `wrangler dev` may time out behind restrictive networks
 - **Occasional upstream timeouts**: Microsoft occasionally returns `signal is aborted without reason` (dropped connection). The site then shows "Network error, please try again later" — just retry after a moment; already-added media is unaffected
-- **OneDrive media sources are proxy-only**: the media source resolved from an embed link relies on Worker proxying, so it is forced to "Cache proxy + DNS" and can't switch to "DNS-only" (same for ordinary share links)
+- **OneDrive media sources are proxy-only**: the media source resolved from a OneDrive link relies on Worker proxying, so it is forced to "Cache proxy + DNS" and can't switch to "DNS-only"
+- **AI-built**: this project is ~99% vibe coding, with lots of dead code, quirky logic, and a crude UI
 
 ## License
 
