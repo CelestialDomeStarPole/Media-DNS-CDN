@@ -50,14 +50,27 @@
 
 - [Node.js](https://nodejs.org/) 18+ 与 npm
 - 一个 [Cloudflare](https://dash.cloudflare.com) 账号
-- 安装 wrangler（项目已将其列为开发依赖，二选一）：
+- 克隆此仓库到本地
+
+  > 点击右上角code → Download ZIP  
+  > 或者在文件夹内
 
   ```bash
-  # 方式一：项目本地安装（推荐，版本随项目锁定）
-  # 在项目根目录下
-  npm install
+  git clone https://github.com/starpole/MediaDNS-CDN.git
+  ```
 
-  # 方式二：全局安装（任意目录可直接使用 wrangler 命令）
+- 安装 wrangler（项目已将其列为开发依赖，二选一）：
+
+  > 方式一：项目本地安装（推荐，版本随项目锁定）  
+  > 在项目根目录下
+
+  ```bash
+  npm install
+  ```
+
+  > 方式二：全局安装（任意目录可直接使用 wrangler 命令）
+
+  ```
   npm install -g wrangler
   ```
 
@@ -65,15 +78,16 @@
 
 **方式一：OAuth 浏览器授权（推荐）**
 
+> 浏览器中完成授权，凭据保存在本地
+
 ```bash
 npx wrangler login
-# 浏览器中完成授权，凭据保存在本地
 ```
 
 **方式二：API Token（适合 CI / 服务器 / 无法开浏览器等场景）**
 
 1. 打开 Cloudflare 控制台 → 左下角管理账户 → **账户API令牌** → **创建令牌**
-2. **权限策略** 选择模板 **Edit Cloudflare Workers**（或自定义，需包含以下权限）：
+2. 在**权限策略** 选择模板 **Edit Cloudflare Workers** （或自定义，需包含以下权限）：
 
    | 权限                                            | 范围                           |
    | ----------------------------------------------- | ------------------------------ |
@@ -82,19 +96,21 @@ npx wrangler login
    | Account（整个账户）→ Account Settings → Read    | 建议                           |
    | Zone（指定域名） → Workers Routes → Edit        | 可选（如需绑定自定义域名路由） |
 
-3. 创建后复制 Token，写入环境变量（wrangler 会自动读取，无需 `wrangler login`）：
+3. 创建后复制 Token，执行下面指令
+
+   > 如果是 Windows PowerShell
 
    ```powershell
-   # Windows PowerShell
    $env:CLOUDFLARE_API_TOKEN = "你的Token"
    ```
 
+   > 如果是 macOS / Linux
+
    ```bash
-   # macOS / Linux
    export CLOUDFLARE_API_TOKEN="你的Token"
    ```
 
-   如果已经全局安装wrangler，不想使用全局账号，在根目录下创建文件 **.env**在其中写入
+   > 如果已经全局安装wrangler，不想使用全局账号，在项目根目录下创建文件 **.env**在其中写入
 
    ```.env 文件内容
    CLOUDFLARE_API_TOKEN=粘贴你的Token
@@ -107,8 +123,9 @@ npx wrangler login
 
    ```bash
    npx wrangler whoami
-   # 应显示你的账号信息（Account ID 等）
    ```
+
+   > 应显示你的账号信息（Account ID 等）
 
 > Token 请妥善保管（有权限时等同账户凭证），建议限定账户/权限范围、设置过期时间，并避免提交到仓库。
 

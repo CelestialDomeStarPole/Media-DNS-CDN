@@ -50,13 +50,27 @@ Image / Audio / Video hotlink relay · Cache · Anti-leech Cloudflare Worker
 
 - [Node.js](https://nodejs.org/) 18+ and npm
 - A [Cloudflare](https://dash.cloudflare.com) account
-- Install wrangler (the project lists it as a dev dependency — pick one):
+- Clone this repository to your local machine:
+
+  > Click the **Code** button at the top-right → **Download ZIP**
+  > Or run it in a folder:
 
   ```bash
-  # Option 1: project-local install (recommended, version locked with the project)
-  npm install
+  git clone https://github.com/starpole/MediaDNS-CDN.git
+  ```
 
-  # Option 2: global install (the wrangler command is available anywhere)
+- Install wrangler (the project lists it as a dev dependency — pick one):
+
+  > Option 1: project-local install (recommended, version locked with the project)
+  > Run in the project root:
+
+  ```bash
+  npm install
+  ```
+
+  > Option 2: global install (the wrangler command is available anywhere)
+
+  ```
   npm install -g wrangler
   ```
 
@@ -64,15 +78,16 @@ Image / Audio / Video hotlink relay · Cache · Anti-leech Cloudflare Worker
 
 **Option 1: OAuth browser authorization (recommended)**
 
+> Authorize in the browser; credentials are stored locally
+
 ```bash
 npx wrangler login
-# Authorize in the browser; credentials are stored locally
 ```
 
 **Option 2: API Token (for CI / servers / environments without a browser)**
 
-1. Open the Cloudflare dashboard → avatar (top-right) → **My Profile** → **API Tokens** → **Create Token**
-2. Pick the **Edit Cloudflare Workers** template (or a custom token covering):
+1. Open the Cloudflare dashboard → account management (bottom-left) → **API Tokens** → **Create Token**
+2. In **Permission policies**, pick the **Edit Cloudflare Workers** template (or customize, including the permissions below):
 
    | Permission                          | Scope                                          |
    | ----------------------------------- | ---------------------------------------------- |
@@ -81,19 +96,21 @@ npx wrangler login
    | Account → Account Settings → Read   | recommended                                    |
    | Zone → Workers Routes → Edit        | optional (custom domain routes)                |
 
-3. After creating the token, export it as an environment variable (wrangler reads it automatically — no `wrangler login` needed):
+3. After creating the token, copy it and run the commands below:
+
+   > If using Windows PowerShell:
 
    ```powershell
-   # Windows PowerShell
    $env:CLOUDFLARE_API_TOKEN = "your-token"
    ```
 
+   > If using macOS / Linux:
+
    ```bash
-   # macOS / Linux
    export CLOUDFLARE_API_TOKEN="your-token"
    ```
 
-   If you don't want to use the global account, create a file named **.env** in the project root and write:
+   > If you already installed wrangler globally and don't want to use the global account, create a file named **.env** in the project root and write:
 
    ```.env file content
    CLOUDFLARE_API_TOKEN=paste-your-token
@@ -106,8 +123,9 @@ npx wrangler login
 
    ```bash
    npx wrangler whoami
-   # Should print your account info (Account ID, etc.)
    ```
+
+   > Should print your account info (Account ID, etc.)
 
 > Keep the token secret (with permissions it equals account credentials). Scope it to the account, restrict permissions, set an expiry, and never commit it to a repository.
 
@@ -124,11 +142,11 @@ npm install
 
 # 4. Create the KV namespace (mappings & settings storage)
 npx wrangler kv namespace create MAPPINGS
-# Wrangler fills the returned id into kv_namespaces[0].id automatically.
-# If it doesn't, run `npx wrangler kv namespace list` to look it up and fill it in manually.
 # If it asks "Would you like Wrangler to add it on your behalf? [Y/N]", Y is recommended
 # If it asks "What binding name would you like to use?", just press Enter
-# If it asks "For local dev, do you want to connect to the remote resource instead of a local resource? [Y/N]",N is recommended. Choosing Yes makes your local `wrangler dev` operate on the real KV / R2 / D1 data in your Cloudflare account over the network; dev code may contain bugs, and one wrong move (e.g. a delete) removes real data.
+# If it asks "For local dev, do you want to connect to the remote resource instead of a local resource? [Y/N]", N is recommended. Choosing Yes makes your local `wrangler dev` operate on the real KV / R2 / D1 data in your Cloudflare account over the network; dev code may contain bugs, and one wrong move (e.g. a delete) removes real data.
+# Wrangler fills the returned id into kv_namespaces[0].id automatically.
+# If it doesn't, run `npx wrangler kv namespace list` to look it up and fill it in manually.
 
 # 5. Configure secrets (admin password / signing key)
 npx wrangler secret put PASSWORD        # admin panel login password
