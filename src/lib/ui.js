@@ -351,28 +351,32 @@ a{color:var(--accent)}
 .img-id .zoom-inline:hover{background:#fff;color:var(--accent2);border-color:var(--accent)}
 /* 列表展示：横条一行 */
 .img-card.view-list{grid-column:1/-1;height:48px;justify-content:center;cursor:grab}
-.img-card.view-list .lst-body{display:flex;align-items:center;padding:0;flex:1;min-width:0}
-.img-card.view-list .lst-row{display:flex;align-items:center;gap:10px;width:100%;padding:0 12px;min-width:0}
-.img-card.view-list .lst-name{flex:1 1 240px;max-width:30%;min-width:0;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;line-height:1;cursor:pointer}
+.img-card.view-list .lst-body{display:flex;align-items:center;justify-content:center;padding:0;flex:1;min-width:0}
+.img-card.view-list .lst-row{display:flex;align-items:center;gap:10px;width:100%;height:100%;padding:0 12px;min-width:0}
+.img-card.view-list .lst-name{flex:1 1 240px;max-width:36%;min-width:0;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;line-height:1;cursor:pointer}
 .img-card.view-list .lst-name .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .img-card.view-list .lst-name .pen{flex:none;font-size:11px;color:var(--muted);opacity:0;transition:opacity .15s}
 .img-card.view-list .lst-name:hover .pen{opacity:1}
 .img-card.view-list .badge{flex:none;white-space:nowrap;line-height:1}
-.img-card.view-list .lst-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#4b5563;flex:0 0 120px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1}
-.img-card.view-list .fsel{flex:0 0 130px;width:130px;padding:3px 6px;font-size:12px}
-.img-card.view-list .lst-time{flex:0 0 100px;color:var(--muted);font-size:12px;line-height:1}
+.img-card.view-list .lst-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#4b5563;flex:0 1 120px;min-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1}
+.img-card.view-list .fsel{flex:0 1 130px;width:auto;min-width:90px;padding:3px 6px;font-size:12px}
+.img-card.view-list .lst-time{flex:0 1 100px;min-width:78px;color:var(--muted);font-size:12px;line-height:1}
 .img-card.view-list .lst-size{flex:0 0 72px;color:var(--muted);font-size:12px;text-align:right;line-height:1}
 .img-card.view-list .zoom-inline{flex:none;background:rgba(255,255,255,.85);border:1px solid rgba(0,0,0,.12);color:var(--accent);font-size:11px;line-height:18px;padding:0 8px;border-radius:6px;transition:background .15s,color .15s,border-color .15s}
 .img-card.view-list .zoom-inline:hover{background:#fff;color:var(--accent2);border-color:var(--accent)}
 .img-card.view-list .mini{padding:3px 9px;font-size:11px;line-height:1.4}
 .img-card.view-list .switch{margin-right:0}
 .img-card.view-list .lst-skel .sk-line{margin:0 auto}
+/* 中等宽度：隐藏文件大小列 */
+@media (max-width:1000px){
+  .img-card.view-list .lst-size{display:none}
+}
 /* 窄屏：隐藏次要列（时间/大小/类型），保留核心列避免横向溢出 */
 @media (max-width:720px){
   .img-card.view-list .lst-time,
   .img-card.view-list .lst-size,
   .img-card.view-list .badge-type{display:none}
-  .img-card.view-list .fsel{width:96px}
+  .img-card.view-list .fsel{min-width:80px}
 }
 .img-url{font-size:11px;color:var(--muted);line-height:15px;min-height:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fsel{width:100%;padding:5px 8px;font-size:12px;border:1px solid rgba(0,0,0,.12);border-radius:7px;background:rgba(255,255,255,.85);color:#374151;cursor:pointer}
@@ -500,8 +504,8 @@ a{color:var(--accent)}
 .detail-preview textarea:focus{border-color:var(--accent);outline:none}
 .detail-copy-btn{align-self:flex-start;margin-top:3px}
 .detail-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}
-.detail-del-btn{flex:none;padding:11px 22px;font-size:14px;font-weight:700;border-radius:10px;border:1px solid #f3c1c1;background:#fff;color:#dc2626;transition:background .15s,color .15s}
-.detail-del-btn:hover{background:#fef2f2}
+.detail-del-btn{flex:none;padding:11px 22px;font-size:14px;font-weight:700;border-radius:10px;border:none;background:#dc2626;color:#fff;transition:background .15s}
+.detail-del-btn:hover{background:#b91c1c}
 
 @media (max-width:720px){
   .sidebar{width:64px;padding:18px 8px}
@@ -2201,9 +2205,10 @@ a{color:var(--accent)}
     thumbInFlight = 0;
     thumbLoaded = 0;
   }
-  // FLIP 过渡：重建后把新卡片用 transform 补偿回旧位置旧尺寸，再过渡到目标（移动 + 变宽/变窄）
-  // 关键：目标 transform 与逆变换同为 translate+scale 结构，浏览器按参数平滑插值，
-  //       避免 translate+scale → none 时的矩阵插值产生旋转/剪切扭曲（"抽搐"）
+  // FLIP 过渡：重建后把新卡片用 transform 补偿回旧位置旧尺寸，再平滑过渡到目标——
+  // 以卡片中心为缩放原点（transform-origin:50% 50%），位移用视口中心坐标差
+  // （无论滚动位置如何变化都自动补偿），移动与缩放同时进行；
+  // cubic-bezier(.34,.1,.28,1) 提供先加速后减速的平滑缓动
   function flipTransition(firsts) {
     var cards = $("grid").querySelectorAll(".img-card");
     var list = [];
@@ -2211,20 +2216,23 @@ a{color:var(--accent)}
       var old = firsts[cards[i].dataset.id];
       if (!old) continue;
       var r = cards[i].getBoundingClientRect();
-      list.push({ el: cards[i], dx: old.left - r.left, dy: old.top - r.top, sx: old.width / r.width, sy: old.height / r.height });
+      // 视口中心差：滚动变化不影响位移准确性
+      var dx = (old.left + old.width / 2) - (r.left + r.width / 2);
+      var dy = (old.top + old.height / 2) - (r.top + r.height / 2);
+      list.push({ el: cards[i], dx: dx, dy: dy, sx: old.width / r.width, sy: old.height / r.height });
     }
     if (!list.length) { viewSwitching = false; return; }
     for (var k = 0; k < list.length; k++) {
       var it = list[k];
       it.el.style.transition = "none";
-      it.el.style.transformOrigin = "0 0";
-      it.el.style.opacity = "0.45"; // 半透明弱化大形变（thumb↔list 尺寸差异极大）
+      it.el.style.transformOrigin = "50% 50%";
+      it.el.style.opacity = "0.6"; // 轻度半透明弱化大形变观感
       it.el.style.transform = "translate(" + it.dx + "px," + it.dy + "px) scale(" + it.sx + "," + it.sy + ")";
     }
     void $("grid").offsetWidth; // 强制 reflow，确保逆变换先应用
     for (var m = 0; m < list.length; m++) {
       var it2 = list[m];
-      it2.el.style.transition = "transform .5s cubic-bezier(.22,.61,.36,1), opacity .45s ease";
+      it2.el.style.transition = "transform .6s cubic-bezier(.34,.1,.28,1), opacity .5s ease";
       it2.el.style.transform = "translate(0px,0px) scale(1,1)";
       it2.el.style.opacity = "1";
     }
@@ -2236,7 +2244,7 @@ a{color:var(--accent)}
         list[n].el.style.opacity = "";
       }
       viewSwitching = false;
-    }, 550);
+    }, 650);
   }
   // 主切换流程：更新控件 → 记录视口内卡片旧位置 → 重建网格 → FLIP 过渡（仅可视区卡片有动画）
   function switchViewMode(next) {
@@ -2252,9 +2260,7 @@ a{color:var(--accent)}
     if (lastImages === null) { viewSwitching = false; return; } // 数据未加载：仅切换控件
     if (viewMode === "list") clearThumbLoads();
     var firsts = {};
-    var keepScroll = 0;
     if (!REDUCED) {
-      keepScroll = window.pageYOffset || document.documentElement.scrollTop || 0;
       var vh = window.innerHeight || document.documentElement.clientHeight;
       var cards = $("grid").querySelectorAll(".img-card");
       for (var j = 0; j < cards.length; j++) {
@@ -2265,11 +2271,7 @@ a{color:var(--accent)}
     }
     renderGrid(lastImages, {
       anchor: true, noAnim: true,
-      onDone: REDUCED ? null : function () {
-        // 锁定滚动：重建后 rowH/sentinel 变化可能引发滚动跳动，恢复切换前位置再测量做 FLIP
-        if (keepScroll) window.scrollTo(0, keepScroll);
-        flipTransition(firsts);
-      }
+      onDone: REDUCED ? null : function () { flipTransition(firsts); }
     });
     if (REDUCED) viewSwitching = false; // 无动画：重建即完成
     // 兜底：空态/无卡片等 flipTransition 未执行时确保解锁
