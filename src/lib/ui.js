@@ -299,10 +299,20 @@ a{color:var(--accent)}
 .search-clear{position:absolute;right:7px;top:50%;transform:translateY(-50%);width:20px;height:20px;border-radius:50%;color:var(--muted);font-size:14px;line-height:1}
 .search-clear:hover{background:rgba(0,0,0,.08);color:var(--text)}
 .empty{color:var(--muted);text-align:center;padding:50px 0;font-size:14px}
+/* 展示样式切换控件 */
+.toolbar-right{display:flex;align-items:center;gap:10px}
+.view-toggle{display:flex;align-items:center;background:rgba(255,255,255,.72);border:1px solid rgba(0,0,0,.1);border-radius:999px;padding:3px;gap:3px}
+.view-toggle.flip{animation:langFlip .45s ease}
+.vt-opt{display:flex;align-items:center;justify-content:center;width:30px;height:26px;border-radius:999px;color:var(--accent);transition:color .2s ease,background .25s ease,box-shadow .2s ease}
+.vt-opt svg{width:16px;height:16px;display:block}
+.vt-opt:hover{color:var(--accent2)}
+.vt-opt.active{background:var(--grad);background-size:200% 200%;color:#fff;box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 35%,transparent);animation:segPop .4s cubic-bezier(.34,1.56,.64,1)}
+.vt-opt.active svg{filter:drop-shadow(0 1px 2px rgba(0,0,0,.2))}
 
 /* 图片网格 */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;align-items:stretch}
 .img-card{overflow:hidden;display:flex;flex-direction:column;transition:transform .14s ease,box-shadow .14s ease;animation:cardIn .4s ease;cursor:grab}
+.img-card.no-anim{animation:none}
 .img-card:hover{transform:translateY(-3px);box-shadow:0 14px 34px color-mix(in srgb,var(--accent) 28%,rgba(31,41,55,.10))}
 .img-card:active{cursor:grabbing}
 .img-card.drag-pickup{transition:transform .18s ease,opacity .18s ease,box-shadow .18s ease}
@@ -335,7 +345,35 @@ a{color:var(--accent)}
 .img-name .pen{flex:none;font-size:11px;color:var(--muted);opacity:0;transition:opacity .15s}
 .img-name:hover .pen{opacity:1}
 .name-edit{width:100%;padding:5px 8px;font-size:14px;font-weight:600;border:1px solid var(--accent);border-radius:7px;outline:none}
-.img-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#4b5563;line-height:16px;min-height:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.img-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#4b5563;line-height:16px;min-height:16px;display:flex;align-items:center;gap:6px}
+.img-id .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.img-id .zoom-inline{flex:none;background:rgba(255,255,255,.85);border:1px solid rgba(0,0,0,.12);color:var(--accent);font-size:11px;line-height:18px;padding:0 8px;border-radius:6px;transition:background .15s,color .15s,border-color .15s}
+.img-id .zoom-inline:hover{background:#fff;color:var(--accent2);border-color:var(--accent)}
+/* 列表展示：横条一行 */
+.img-card.view-list{grid-column:1/-1;height:48px;justify-content:center;cursor:grab}
+.img-card.view-list .lst-body{display:flex;align-items:center;padding:0;flex:1;min-width:0}
+.img-card.view-list .lst-row{display:flex;align-items:center;gap:10px;width:100%;padding:0 12px;min-width:0}
+.img-card.view-list .lst-name{flex:1 1 240px;max-width:30%;min-width:0;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;line-height:1;cursor:pointer}
+.img-card.view-list .lst-name .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.img-card.view-list .lst-name .pen{flex:none;font-size:11px;color:var(--muted);opacity:0;transition:opacity .15s}
+.img-card.view-list .lst-name:hover .pen{opacity:1}
+.img-card.view-list .badge{flex:none;white-space:nowrap;line-height:1}
+.img-card.view-list .lst-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#4b5563;flex:0 0 120px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1}
+.img-card.view-list .fsel{flex:0 0 130px;width:130px;padding:3px 6px;font-size:12px}
+.img-card.view-list .lst-time{flex:0 0 100px;color:var(--muted);font-size:12px;line-height:1}
+.img-card.view-list .lst-size{flex:0 0 72px;color:var(--muted);font-size:12px;text-align:right;line-height:1}
+.img-card.view-list .zoom-inline{flex:none;background:rgba(255,255,255,.85);border:1px solid rgba(0,0,0,.12);color:var(--accent);font-size:11px;line-height:18px;padding:0 8px;border-radius:6px;transition:background .15s,color .15s,border-color .15s}
+.img-card.view-list .zoom-inline:hover{background:#fff;color:var(--accent2);border-color:var(--accent)}
+.img-card.view-list .mini{padding:3px 9px;font-size:11px;line-height:1.4}
+.img-card.view-list .switch{margin-right:0}
+.img-card.view-list .lst-skel .sk-line{margin:0 auto}
+/* 窄屏：隐藏次要列（时间/大小/类型），保留核心列避免横向溢出 */
+@media (max-width:720px){
+  .img-card.view-list .lst-time,
+  .img-card.view-list .lst-size,
+  .img-card.view-list .badge-type{display:none}
+  .img-card.view-list .fsel{width:96px}
+}
 .img-url{font-size:11px;color:var(--muted);line-height:15px;min-height:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .fsel{width:100%;padding:5px 8px;font-size:12px;border:1px solid rgba(0,0,0,.12);border-radius:7px;background:rgba(255,255,255,.85);color:#374151;cursor:pointer}
 .fsel:focus{border-color:var(--accent)}
@@ -461,6 +499,9 @@ a{color:var(--accent)}
 .detail-preview textarea{width:100%;min-height:97px;resize:vertical;padding:14px 16px;border-radius:10px;border:1px solid rgba(0,0,0,.12);background:#fafafa;color:#374151;font-size:17px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.6;word-break:break-all}
 .detail-preview textarea:focus{border-color:var(--accent);outline:none}
 .detail-copy-btn{align-self:flex-start;margin-top:3px}
+.detail-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}
+.detail-del-btn{flex:none;padding:11px 22px;font-size:14px;font-weight:700;border-radius:10px;border:1px solid #f3c1c1;background:#fff;color:#dc2626;transition:background .15s,color .15s}
+.detail-del-btn:hover{background:#fef2f2}
 
 @media (max-width:720px){
   .sidebar{width:64px;padding:18px 8px}
@@ -585,9 +626,19 @@ a{color:var(--accent)}
 
       <div class="toolbar">
         <h2><span data-i18n="list.title"></span> <span id="img-count" class="count"></span><small class="sort-hint" data-i18n="list.sortHint"></small></h2>
-        <div class="search-wrap">
-          <input id="search" type="search" data-i18n-ph="search.ph" />
-          <button id="search-clear" class="search-clear hidden" data-i18n-aria="search.clear" aria-label="清空搜索">&times;</button>
+        <div class="toolbar-right">
+          <div class="view-toggle" id="view-toggle" role="group" data-i18n-aria="view.toggle" aria-label="展示样式">
+            <button type="button" class="vt-opt" data-view="thumb" data-i18n-aria="view.thumb" aria-label="图片展示" title="图片展示">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 11-1.296-1.296a2.4 2.4 0 0 0-3.408 0L11 16"/><path d="M4 8a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2"/><circle cx="13" cy="7" r="1" fill="currentColor"/><rect x="8" y="2" width="14" height="14" rx="2"/></svg>
+            </button>
+            <button type="button" class="vt-opt" data-view="list" data-i18n-aria="view.list" aria-label="列表展示" title="列表展示">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5h6"/><path d="M15 12h6"/><path d="M3 19h18"/><path d="m3 12 3.553-7.724a.5.5 0 0 1 .894 0L11 12"/><path d="M3.92 10h6.16"/></svg>
+            </button>
+          </div>
+          <div class="search-wrap">
+            <input id="search" type="search" data-i18n-ph="search.ph" />
+            <button id="search-clear" class="search-clear hidden" data-i18n-aria="search.clear" aria-label="清空搜索">&times;</button>
+          </div>
         </div>
       </div>
       <div id="empty" class="empty hidden"></div>
@@ -742,7 +793,10 @@ a{color:var(--accent)}
         <div class="detail-preview">
           <textarea id="detail-preview" readonly spellcheck="false"></textarea>
         </div>
-        <button id="detail-copy-btn" class="primary detail-copy-btn" data-i18n="detail.copy"></button>
+        <div class="detail-actions">
+          <button id="detail-copy-btn" class="primary detail-copy-btn" data-i18n="detail.copy"></button>
+          <button id="detail-del-btn" class="detail-del-btn" data-i18n="card.del"></button>
+        </div>
         </div>
       </div>
     </div>
@@ -771,6 +825,9 @@ a{color:var(--accent)}
   var THUMB_CACHE_KEY = "media_dns_thumb_cache";
   var thumbCacheMax = parseInt(localStorage.getItem(THUMB_CACHE_KEY), 10);
   if (!thumbCacheMax || thumbCacheMax < 8) { thumbCacheMax = 50; localStorage.setItem(THUMB_CACHE_KEY, "50"); }
+  var VIEW_MODE_KEY = "mdn_view_mode";
+  var viewMode = localStorage.getItem(VIEW_MODE_KEY) === "list" ? "list" : "thumb"; // thumb=图片展示 / list=列表展示
+  var sizeCache = {}; // 列表模式文件大小缓存（id → 格式化字符串）
   var gridState = { cols: 1, rowH: 320, groupSize: 20, rendered: 0, vis: null };
   var gridSentinel = null;
   var gridObserver = null;
@@ -869,6 +926,9 @@ a{color:var(--accent)}
       "list.sortHint": "按住卡片空白处拖动可排序",
       "search.ph": "搜索名称 / ID / 地址…",
       "search.clear": "清空搜索",
+      "view.toggle": "展示样式",
+      "view.thumb": "图片展示",
+      "view.list": "列表展示",
       "empty": "还没有媒体，粘贴一个链接开始吧。",
       "empty.filtered": "没有匹配的媒体。",
       "all": "全部",
@@ -1077,6 +1137,9 @@ a{color:var(--accent)}
       "list.sortHint": "Drag a card's empty area to reorder",
       "search.ph": "Search name / ID / URL…",
       "search.clear": "Clear search",
+      "view.toggle": "Display style",
+      "view.thumb": "Image view",
+      "view.list": "List view",
       "empty": "No media yet. Paste a link to start.",
       "empty.filtered": "No matching media.",
       "all": "All",
@@ -1914,10 +1977,11 @@ a{color:var(--accent)}
     var w = grid.clientWidth || Math.max(1, document.documentElement.clientWidth - 300);
     var cols = Math.max(1, Math.round((w + 16) / (240 + 16)));
     var cardW = (w - 16 * (cols - 1)) / cols;
-    gridState.cols = cols;
-    gridState.rowH = cardW * 0.96 + 152;
+    // 列表展示：一卡一行，虚拟滚动按行计数
+    gridState.cols = viewMode === "list" ? 1 : cols;
+    gridState.rowH = viewMode === "list" ? 48 : cardW * 0.96 + 152;
     var rows = Math.max(2, Math.round(window.innerHeight / gridState.rowH));
-    gridState.groupSize = cols * rows;
+    gridState.groupSize = gridState.cols * rows;
     return cols;
   }
   function thumbWrapHtml(img) {
@@ -1925,40 +1989,57 @@ a{color:var(--accent)}
       '<button class="zoom" data-url="' + esc(img.url) + '" data-short="' + esc(img.shortUrl || img.url) + '" data-mode="' + esc(img.mode || "") + '" data-type="' + esc(img.type || "") + '" aria-label="' + esc(t("card.preview")) + '">' + esc(t("card.preview.short")) + "</button></div>";
   }
   function cardBodyHtml(img) {
+    if (viewMode === "list") {
+      // 列表展示：横条一行（无缩略图 / URL / 删除 / 详情按钮，删除移入详情弹窗，整行点击开详情）
+      return '<div class="card-body lst-body">' +
+        '<div class="lst-row">' +
+        '<label class="switch" title="' + esc(t("card.toggle")) + '"><input type="checkbox" class="tgl" data-id="' + esc(img.id) + '"' + (img.enabled ? " checked" : "") + ' /><span></span></label>' +
+        '<span class="lst-name img-name" data-id="' + esc(img.id) + '" data-name="' + esc(img.name || "") + '" title="' + esc(t("card.renameTitle")) + '"><span class="t">' + esc(displayName(img)) + '</span><span class="pen">✎</span></span>' +
+        modeBadge(img.mode) + typeBadge(img.type || guessTypeClient(img.url)) +
+        '<span class="lst-id" title="' + esc(img.id) + '">' + esc(img.id) + "</span>" +
+        '<select class="fsel" data-id="' + esc(img.id) + '" aria-label="' + esc(t("card.folderAria")) + '">' + folderOptions(img.folder || "") + "</select>" +
+        '<span class="lst-time">' + fmtTime(img.createdAt) + "</span>" +
+        '<span class="lst-size" data-id="' + esc(img.id) + '">' + (sizeCache[img.id] || "-") + "</span>" +
+        '<button class="zoom zoom-inline" data-url="' + esc(img.url) + '" data-short="' + esc(img.shortUrl || img.url) + '" data-mode="' + esc(img.mode || "") + '" data-type="' + esc(img.type || "") + '" aria-label="' + esc(t("card.preview")) + '">' + esc(t("card.preview.short")) + "</button>" +
+        '<button class="mini copy" data-url="' + esc(img.shortUrl || img.url) + '" aria-label="' + esc(t("card.copy.aria")) + '">' + esc(t("card.copy")) + "</button>" +
+        "</div></div>";
+    }
+    // 缩略图卡片（thumb 模式）：一级界面不显示删除按钮（删除移入详情弹窗）
     return '<div class="card-body">' +
       '<div class="card-top">' + modeBadge(img.mode) + typeBadge(img.type || guessTypeClient(img.url)) + '<span class="muted">' + fmtTime(img.createdAt) + "</span></div>" +
       '<div class="img-name" data-id="' + esc(img.id) + '" data-name="' + esc(img.name || "") + '" title="' + esc(t("card.renameTitle")) + '"><span class="t">' + esc(displayName(img)) + '</span><span class="pen">✎</span></div>' +
-      '<div class="img-id" title="' + esc(img.id) + '">' + esc(img.id) + "</div>" +
+      '<div class="img-id" title="' + esc(img.id) + '"><span class="t">' + esc(img.id) + "</span></div>" +
       '<div class="img-url" title="' + esc(img.shortUrl || img.url) + '">' + esc(img.shortUrl || img.url) + "</div>" +
       '<select class="fsel" data-id="' + esc(img.id) + '" aria-label="' + esc(t("card.folderAria")) + '">' + folderOptions(img.folder || "") + "</select>" +
       '<div class="actions">' +
       '<label class="switch" title="' + esc(t("card.toggle")) + '"><input type="checkbox" class="tgl" data-id="' + esc(img.id) + '"' + (img.enabled ? " checked" : "") + ' /><span></span></label>' +
       '<button class="mini detail" data-id="' + esc(img.id) + '" aria-label="' + esc(t("card.detail")) + '">' + esc(t("card.detail")) + "</button>" +
       '<button class="mini copy" data-url="' + esc(img.shortUrl || img.url) + '" aria-label="' + esc(t("card.copy.aria")) + '">' + esc(t("card.copy")) + "</button>" +
-      '<button class="mini danger del" data-id="' + esc(img.id) + '" aria-label="' + esc(t("card.del")) + '">' + esc(t("card.del")) + "</button>" +
       "</div></div>";
   }
-  function buildCard(img, i) {
+  function buildCard(img, i, noAnim) {
     var card = document.createElement("div");
-    card.className = "card img-card" + (img.enabled ? "" : " disabled");
+    card.className = "card img-card" + (img.enabled ? "" : " disabled") + (viewMode === "list" ? " view-list" : "");
     card.dataset.id = img.id;
     card.dataset.idx = i;
-    card.style.animationDelay = Math.min(i * 45, 360) + "ms";
+    if (noAnim) card.classList.add("no-anim");
+    else card.style.animationDelay = Math.min(i * 45, 360) + "ms";
     if (img._loading) {
       // 占位卡：基本信息未就绪，保持固定尺寸与顺序，待信息到达后再填充
       card.dataset.loading = "1";
-      card.innerHTML =
-        '<div class="thumb thumb-loading"><span class="thumb-spin"></span></div>' +
-        '<div class="card-body body-skeleton">' +
-        '<div class="sk-line ht" style="width:55%"></div>' +
-        '<div class="sk-line" style="width:35%"></div>' +
-        '<div class="sk-line" style="width:85%"></div>' +
-        '<div class="sk-line" style="width:60%"></div>' +
-        '<div class="sk-line" style="width:70%"></div>' +
-        "</div>";
+      card.innerHTML = viewMode === "list"
+        ? '<div class="card-body body-skeleton lst-skel"><div class="sk-line" style="width:70%"></div></div>'
+        : '<div class="thumb thumb-loading"><span class="thumb-spin"></span></div>' +
+          '<div class="card-body body-skeleton">' +
+          '<div class="sk-line ht" style="width:55%"></div>' +
+          '<div class="sk-line" style="width:35%"></div>' +
+          '<div class="sk-line" style="width:85%"></div>' +
+          '<div class="sk-line" style="width:60%"></div>' +
+          '<div class="sk-line" style="width:70%"></div>' +
+          "</div>";
       return card;
     }
-    card.innerHTML = thumbWrapHtml(img) + cardBodyHtml(img);
+    card.innerHTML = (viewMode === "list" ? "" : thumbWrapHtml(img)) + cardBodyHtml(img);
     return card;
   }
   function resetSentinel() {
@@ -1980,11 +2061,11 @@ a{color:var(--accent)}
     thumbQueue = [];
     thumbInFlight = 0;
   }
-  function enqueueCardRange(start, end, before) {
+  function enqueueCardRange(start, end, before, noAnim) {
     var vis = gridState.vis;
     if (!vis || start >= end) { if (!cardQueue.length) finishCardQueue(); return; }
     for (var i = start; i < end; i++) {
-      cardQueue.push({ card: buildCard(vis[i], i), before: before });
+      cardQueue.push({ card: buildCard(vis[i], i, noAnim), before: before });
     }
     if (!cardQueueTimer) cardQueueTimer = setTimeout(pumpCardQueue, 16);
   }
@@ -2010,6 +2091,7 @@ a{color:var(--accent)}
     else { ensureSentinel(); updateSentinelHeight(); }
     setupVideoThumbs();
     observeThumbs();
+    probeListSizes(); // 列表模式：惰性探测文件大小
     var cb = renderDoneCb;
     renderDoneCb = null;
     if (cb) cb();
@@ -2047,7 +2129,7 @@ a{color:var(--accent)}
     if (start >= end) { resetSentinel(); return; }
     enqueueCardRange(start, end, true);
   }
-  function renderWindow(vis, start, onDone) {
+  function renderWindow(vis, start, onDone, noAnim) {
     resetGridNodes();
     gridState.vis = vis;
     renderDoneCb = onDone || null;
@@ -2055,7 +2137,7 @@ a{color:var(--accent)}
     var s0 = Math.max(0, start - 2 * gridState.cols);
     var end = Math.min(vis.length, start + gridState.groupSize + 2 * gridState.cols);
     gridState.rendered = s0;
-    enqueueCardRange(s0, end, false);
+    enqueueCardRange(s0, end, false, noAnim);
   }
   // 增量渲染：确保 [0, end) 区间已渲染。不清空网格，只补渲染缺失区间（插到哨兵前），
   // 已渲染卡片全部保留、页面总高度不变（哨兵撑高），避免分组跳转时"前组卡片消失"与"先跳顶再滑动"
@@ -2098,10 +2180,133 @@ a{color:var(--accent)}
       var sy = window.pageYOffset || document.documentElement.scrollTop;
       if (gridState.rowH > 0) start = Math.floor(sy / gridState.rowH) * gridState.cols;
     }
-    renderWindow(vis, start);
+    renderWindow(vis, start, opts.onDone || null, opts.noAnim);
     renderGroupNav(vis);
     // 重建网格后续载未就绪的基本信息（删除/搜索/重命名/切语言等场景）
     ensureInfoLoads();
+  }
+
+  // ===== 展示样式切换 =====
+  var viewSwitching = false;
+  // 按当前 viewMode 同步控件 active 状态（HTML 静态渲染，初始态由 JS 校正）
+  function syncViewToggle() {
+    var opts = document.querySelectorAll(".vt-opt");
+    for (var i = 0; i < opts.length; i++) {
+      opts[i].classList.toggle("active", opts[i].getAttribute("data-view") === viewMode);
+    }
+  }
+  // 切 list：停止进行中的缩略图加载（list 模式无需缩略图）
+  function clearThumbLoads() {
+    thumbQueue = [];
+    thumbInFlight = 0;
+    thumbLoaded = 0;
+  }
+  // FLIP 过渡：重建后把新卡片用 transform 补偿回旧位置旧尺寸，再过渡到目标（移动 + 变宽/变窄）
+  // 关键：目标 transform 与逆变换同为 translate+scale 结构，浏览器按参数平滑插值，
+  //       避免 translate+scale → none 时的矩阵插值产生旋转/剪切扭曲（"抽搐"）
+  function flipTransition(firsts) {
+    var cards = $("grid").querySelectorAll(".img-card");
+    var list = [];
+    for (var i = 0; i < cards.length; i++) {
+      var old = firsts[cards[i].dataset.id];
+      if (!old) continue;
+      var r = cards[i].getBoundingClientRect();
+      list.push({ el: cards[i], dx: old.left - r.left, dy: old.top - r.top, sx: old.width / r.width, sy: old.height / r.height });
+    }
+    if (!list.length) { viewSwitching = false; return; }
+    for (var k = 0; k < list.length; k++) {
+      var it = list[k];
+      it.el.style.transition = "none";
+      it.el.style.transformOrigin = "0 0";
+      it.el.style.opacity = "0.45"; // 半透明弱化大形变（thumb↔list 尺寸差异极大）
+      it.el.style.transform = "translate(" + it.dx + "px," + it.dy + "px) scale(" + it.sx + "," + it.sy + ")";
+    }
+    void $("grid").offsetWidth; // 强制 reflow，确保逆变换先应用
+    for (var m = 0; m < list.length; m++) {
+      var it2 = list[m];
+      it2.el.style.transition = "transform .5s cubic-bezier(.22,.61,.36,1), opacity .45s ease";
+      it2.el.style.transform = "translate(0px,0px) scale(1,1)";
+      it2.el.style.opacity = "1";
+    }
+    setTimeout(function () {
+      for (var n = 0; n < list.length; n++) {
+        list[n].el.style.transition = "";
+        list[n].el.style.transformOrigin = "";
+        list[n].el.style.transform = "";
+        list[n].el.style.opacity = "";
+      }
+      viewSwitching = false;
+    }, 550);
+  }
+  // 主切换流程：更新控件 → 记录视口内卡片旧位置 → 重建网格 → FLIP 过渡（仅可视区卡片有动画）
+  function switchViewMode(next) {
+    if (viewSwitching || next === viewMode) return;
+    viewSwitching = true;
+    viewMode = next;
+    localStorage.setItem(VIEW_MODE_KEY, viewMode);
+    syncViewToggle();
+    var tg = $("view-toggle");
+    tg.classList.remove("flip");
+    void tg.offsetWidth;
+    tg.classList.add("flip");
+    if (lastImages === null) { viewSwitching = false; return; } // 数据未加载：仅切换控件
+    if (viewMode === "list") clearThumbLoads();
+    var firsts = {};
+    var keepScroll = 0;
+    if (!REDUCED) {
+      keepScroll = window.pageYOffset || document.documentElement.scrollTop || 0;
+      var vh = window.innerHeight || document.documentElement.clientHeight;
+      var cards = $("grid").querySelectorAll(".img-card");
+      for (var j = 0; j < cards.length; j++) {
+        var r = cards[j].getBoundingClientRect();
+        if (r.bottom < -40 || r.top > vh + 40) continue; // 仅记录视口内（含缓冲）卡片
+        firsts[cards[j].dataset.id] = { left: r.left, top: r.top, width: r.width, height: r.height };
+      }
+    }
+    renderGrid(lastImages, {
+      anchor: true, noAnim: true,
+      onDone: REDUCED ? null : function () {
+        // 锁定滚动：重建后 rowH/sentinel 变化可能引发滚动跳动，恢复切换前位置再测量做 FLIP
+        if (keepScroll) window.scrollTo(0, keepScroll);
+        flipTransition(firsts);
+      }
+    });
+    if (REDUCED) viewSwitching = false; // 无动画：重建即完成
+    // 兜底：空态/无卡片等 flipTransition 未执行时确保解锁
+    setTimeout(function () { if (viewSwitching) viewSwitching = false; }, 700);
+  }
+  // 列表模式：对窗口内未缓存大小的行做 HEAD 惰性探测（错峰并发，滚动/重建时命中缓存不再请求）
+  var sizeQueue = [];
+  var sizeInFlight = 0;
+  var SIZE_CONCURRENCY = 4;
+  function probeListSizes() {
+    if (viewMode !== "list") return;
+    var rows = $("grid").querySelectorAll(".lst-size");
+    for (var i = 0; i < rows.length; i++) {
+      var id = rows[i].getAttribute("data-id");
+      if (!id || sizeCache[id]) continue;
+      var img = findInLast(id);
+      if (!img) continue;
+      var url = img.shortUrl || img.url;
+      if (url) sizeQueue.push({ id: id, url: url });
+    }
+    pumpSizeQueue();
+  }
+  function pumpSizeQueue() {
+    while (sizeInFlight < SIZE_CONCURRENCY && sizeQueue.length) {
+      var item = sizeQueue.shift();
+      sizeInFlight++;
+      probeHeadLen(item.url).then(function (len) {
+        if (len) {
+          sizeCache[item.id] = fmtSize(len);
+          var el = document.querySelector('.lst-size[data-id="' + item.id + '"]');
+          if (el) el.textContent = sizeCache[item.id];
+        }
+      }).then(function () {
+        sizeInFlight--;
+        pumpSizeQueue();
+      });
+    }
   }
 
   function gridDocTop() {
@@ -3286,6 +3491,11 @@ a{color:var(--accent)}
       });
     } else if (el.closest(".img-name")) {
       enterNameEdit(el.closest(".img-name"));
+    } else if (el.closest(".img-card.view-list") && !dragBlocked(el)) {
+      // 列表横条：点击行内非交互区域打开详情
+      var lid = el.closest(".img-card.view-list").getAttribute("data-id");
+      var limg = (lastImages || []).filter(function (x) { return x.id === lid; })[0];
+      if (limg) openDetailModal(limg);
     }
   });
 
@@ -3351,6 +3561,13 @@ a{color:var(--accent)}
     if (lastImages !== null) { window.scrollTo(0, 0); renderGrid(lastImages); }
     $("search").focus();
   });
+  // 展示样式切换（图片/列表）
+  syncViewToggle(); // 初始同步：HTML 静态渲染，active 由 localStorage 校正
+  $("view-toggle").addEventListener("click", function (e) {
+    var btn = e.target.closest(".vt-opt");
+    if (!btn) return;
+    switchViewMode(btn.getAttribute("data-view"));
+  });
 
   function fallbackCopy(text) {
     var ta = document.createElement("textarea");
@@ -3378,6 +3595,8 @@ a{color:var(--accent)}
         toast(err.message || t("op.delFail"), "error");
         loadImages({ anchor: true });
       });
+    // 从详情弹窗删除时同步关闭
+    if (detailModalImg && detailModalImg.id === id) closeDetailModal();
   });
   $("confirm-modal").addEventListener("click", function (e) { if (e.target === this) closeConfirm(); });
   function closeConfirm() { pendingDelete = null; $("confirm-modal").classList.add("hidden"); }
@@ -3504,17 +3723,22 @@ a{color:var(--accent)}
     attachDetailSrcFallback(el, img, el.src);
     box.appendChild(el);
   }
-  function probeDetailSize(img) {
-    var url = img.shortUrl || img.url;
-    if (!url) return;
+  // 公共 HEAD 探测：读取 content-length（字节数），失败或缺失返回 null（详情弹窗与列表大小探测共用）
+  function probeHeadLen(url) {
+    if (!url) return Promise.resolve(null);
     try {
-      fetch(url, { method: "HEAD", cache: "no-store" })
+      return fetch(url, { method: "HEAD", cache: "no-store" })
         .then(function (r) {
           var len = r.headers.get("content-length");
-          if (len) $("detail-size").textContent = fmtSize(Number(len));
+          return len ? Number(len) : null;
         })
-        .catch(function () {});
-    } catch (e) {}
+        .catch(function () { return null; });
+    } catch (e) { return Promise.resolve(null); }
+  }
+  function probeDetailSize(img) {
+    probeHeadLen(img.shortUrl || img.url).then(function (len) {
+      if (len) $("detail-size").textContent = fmtSize(len);
+    });
   }
   function isOneDriveImg(img) {
     return !!(img && (img.sourceType === "onedrive" || (img.odShare && img.odShare)));
@@ -3639,6 +3863,14 @@ a{color:var(--accent)}
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text); done(); });
     } else { fallbackCopy(text); done(); }
+  });
+  // 详情弹窗：删除媒体（复用 confirm 确认 + 乐观删除流程）
+  $("detail-del-btn").addEventListener("click", function () {
+    if (!detailModalImg) return;
+    pendingDelete = detailModalImg.id;
+    $("confirm-text").textContent = t("confirm.text", { name: displayName(detailModalImg) });
+    $("confirm-modal").classList.remove("hidden");
+    $("confirm-ok").focus();
   });
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") {
