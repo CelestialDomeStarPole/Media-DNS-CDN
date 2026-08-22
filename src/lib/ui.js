@@ -68,7 +68,7 @@ export function renderUI() {
   --grad:linear-gradient(135deg,var(--c1),var(--c2),var(--c3));
 }
 html,body{height:100%}
-html{background-color:#f4f2fb}
+html{background-color:#f4f2fb;scrollbar-gutter:stable} /* 始终为滚动条预留槽位（避免切换瞬间滚动条消失/回归导致网页左右拉伸），且不强制显示滚动条，避免双重滚动条 */
 body{
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
   color:var(--text);font-size:14px;line-height:1.5;overflow-x:hidden;
@@ -2205,48 +2205,103 @@ a{color:var(--accent)}
     thumbInFlight = 0;
     thumbLoaded = 0;
   }
-  // FLIP 过渡：重建后把新卡片用 transform 补偿回旧位置旧尺寸，再平滑过渡到目标——
-  // 以卡片中心为缩放原点（transform-origin:50% 50%），位移用视口中心坐标差
-  // （无论滚动位置如何变化都自动补偿），移动与缩放同时进行；
-  // cubic-bezier(.34,.1,.28,1) 提供先加速后减速的平滑缓动
-  function flipTransition(firsts) {
+  // 堆叠推平动画：切换样式后，重建的新网格卡片先"堆叠"到目标位置，再依次推平到各自位置。
+  // 列表→图片：每行的卡片堆叠到该行行首，向右推平；
+  // 图片→列表：全部堆叠到第一行，向下推平。
+  // 堆叠通过 translate 微偏移 + z-index 递增体现"一叠牌"的层次；错峰 transitionDelay 让推平带节奏；
+  // cubic-bezier(.34,.1,.28,1) 提供先加速后减速的加速度（符合人体观感）。仅当前视口内卡片参与。
+  function playDeckAnimation() {
     var cards = $("grid").querySelectorAll(".img-card");
-    var list = [];
+    var vh = window.innerHeight || document.documentElement.clientHeight;
+    var visible = [];
     for (var i = 0; i < cards.length; i++) {
-      var old = firsts[cards[i].dataset.id];
-      if (!old) continue;
       var r = cards[i].getBoundingClientRect();
-      // 视口中心差：滚动变化不影响位移准确性
-      var dx = (old.left + old.width / 2) - (r.left + r.width / 2);
-      var dy = (old.top + old.height / 2) - (r.top + r.height / 2);
-      list.push({ el: cards[i], dx: dx, dy: dy, sx: old.width / r.width, sy: old.height / r.height });
+      if (r.bottom < -40 || r.top > vh + 40) continue; // 仅当前窗口可见（含缓冲）
+      visible.push({ el: cards[i], left: r.left, top: r.top });
     }
-    if (!list.length) { viewSwitching = false; return; }
-    for (var k = 0; k < list.length; k++) {
-      var it = list[k];
-      it.el.style.transition = "none";
-      it.el.style.transformOrigin = "50% 50%";
-      it.el.style.opacity = "0.6"; // 轻度半透明弱化大形变观感
-      it.el.style.transform = "translate(" + it.dx + "px," + it.dy + "px) scale(" + it.sx + "," + it.sy + ")";
-    }
-    void $("grid").offsetWidth; // 强制 reflow，确保逆变换先应用
-    for (var m = 0; m < list.length; m++) {
-      var it2 = list[m];
-      it2.el.style.transition = "transform .6s cubic-bezier(.34,.1,.28,1), opacity .5s ease";
-      it2.el.style.transform = "translate(0px,0px) scale(1,1)";
-      it2.el.style.opacity = "1";
-    }
-    setTimeout(function () {
-      for (var n = 0; n < list.length; n++) {
-        list[n].el.style.transition = "";
-        list[n].el.style.transformOrigin = "";
-        list[n].el.style.transform = "";
-        list[n].el.style.opacity = "";
+    if (!visible.length) { viewSwitching = false; return; }
+    // 按 top 聚类成行（同一行的卡片 top 相近）
+    var rows = [];
+    for (var j = 0; j < visible.length; j++) {
+      var v = visible[j];
+      var placed = false;
+      for (var k = 0; k < rows.length; k++) {
+        if (Math.abs(rows[k].top - v.top) < 14) { rows[k].items.push(v); placed = true; break; }
       }
-      viewSwitching = false;
-    }, 650);
+      if (!placed) rows.push({ top: v.top, items: [v] });
+    }
+    rows.sort(function (a, b) { return a.top - b.top; });
+    var anims = [];
+    var z = 100;
+    if (viewMode === "thumb") {
+      // 列表→图片：每行堆叠到行首，向右推平（行内按列错峰，加大偏移让层叠清晰）
+      for (var r1 = 0; r1 < rows.length; r1++) {
+        var it1 = rows[r1].items;
+        it1.sort(function (a, b) { return a.left - b.left; });
+        var anchorX = it1[0].left;
+        var anchorY = it1[0].top;
+        for (var c = 0; c < it1.length; c++) {
+          var itm = it1[c];
+          // 堆叠到行首 + 加大偏移（右/下错开 + 基础偏移让行首也有可见动画），z-index 递增
+          anims.push({ el: itm.el, dx: (anchorX + 6 + c * 9) - itm.left, dy: (anchorY + 3 + c * 4) - itm.top, delay: c * 55, z: z++ });
+        }
+      }
+    } else {
+      // 图片→列表：全部堆叠到第一行（最上面），向下推平（交错错开 + 基础偏移，错峰 delay）
+      var topRow = rows.length ? rows[0].items : null;
+      var ax = topRow && topRow.length ? topRow[0].left : 0;
+      var ay = topRow && topRow.length ? topRow[0].top : 0;
+      var idx = 0;
+      for (var r2 = 0; r2 < rows.length; r2++) {
+        for (var c2 = 0; c2 < rows[r2].items.length; c2++) {
+          var it2 = rows[r2].items[c2];
+          anims.push({ el: it2.el, dx: (ax + 4 + (idx % 2) * 14) - it2.left, dy: (ay + 2 + Math.floor(idx / 2) * 4) - it2.top, delay: idx * 28, z: z++ });
+          idx++;
+        }
+      }
+    }
+    applyDeck(anims);
   }
-  // 主切换流程：更新控件 → 记录视口内卡片旧位置 → 重建网格 → FLIP 过渡（仅可视区卡片有动画）
+  function applyDeck(anims) {
+    if (!anims.length) { viewSwitching = false; return; }
+    // 第一阶段：堆叠位置 + 半透明（避免"先排好再动"且消除实心白叠加）+ z-index 递增
+    for (var i = 0; i < anims.length; i++) {
+      var a = anims[i];
+      a.el.style.transition = "none";
+      a.el.style.zIndex = String(a.z);
+      a.el.style.opacity = "0.4"; // 半透明：掩盖最终位置先渲染、避免堆叠叠加成实心白
+      a.el.style.transform = "translate(" + a.dx + "px," + a.dy + "px)";
+    }
+    void $("grid").offsetWidth; // 确保堆叠位移先应用
+    // 双 rAF：先让浏览器把"堆叠 + grid 隐藏"状态确认下来，再取消 grid 隐藏并启动推平 + 淡入
+    // （grid 在 switchViewMode 中重建前已被 visibility:hidden，避免用户看到"最终位置先渲染再动"）
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        var total = 0;
+        for (var k = 0; k < anims.length; k++) {
+          var b = anims[k];
+          b.el.style.transition = "transform .55s cubic-bezier(.34,.1,.28,1), opacity .35s ease";
+          b.el.style.transitionDelay = b.delay + "ms";
+          b.el.style.transform = "translate(0px,0px)";
+          b.el.style.opacity = "1";
+          if (b.delay + 550 > total) total = b.delay + 550;
+        }
+        // 与推平同时取消 grid 隐藏，用户看到的第一帧就是"堆叠+半透明"，无"最终位置先渲染"
+        $("grid").style.visibility = "";
+        setTimeout(function () {
+          for (var n = 0; n < anims.length; n++) {
+            anims[n].el.style.transition = "";
+            anims[n].el.style.transitionDelay = "";
+            anims[n].el.style.transform = "";
+            anims[n].el.style.opacity = "";
+            anims[n].el.style.zIndex = "";
+          }
+          viewSwitching = false;
+        }, total + 80);
+      });
+    });
+  }
+  // 主切换流程：更新控件 → 隐藏 grid → 重建网格 → 堆叠推平动画（仅当前视口内卡片参与）
   function switchViewMode(next) {
     if (viewSwitching || next === viewMode) return;
     viewSwitching = true;
@@ -2259,23 +2314,25 @@ a{color:var(--accent)}
     tg.classList.add("flip");
     if (lastImages === null) { viewSwitching = false; return; } // 数据未加载：仅切换控件
     if (viewMode === "list") clearThumbLoads();
-    var firsts = {};
+    var gridEl = $("grid");
     if (!REDUCED) {
-      var vh = window.innerHeight || document.documentElement.clientHeight;
-      var cards = $("grid").querySelectorAll(".img-card");
-      for (var j = 0; j < cards.length; j++) {
-        var r = cards[j].getBoundingClientRect();
-        if (r.bottom < -40 || r.top > vh + 40) continue; // 仅记录视口内（含缓冲）卡片
-        firsts[cards[j].dataset.id] = { left: r.left, top: r.top, width: r.width, height: r.height };
-      }
+      // 锁定切换前高度 + 隐藏 grid：
+      // 避免 renderGrid 清空瞬间文档高度骤减导致滚动条"占满又恢复"的抽搐；
+      // visibility:hidden 保留布局占位但不清空高度，min-height 让重建期间高度恒定
+      gridEl.style.minHeight = gridEl.offsetHeight + "px";
+      gridEl.style.visibility = "hidden";
     }
     renderGrid(lastImages, {
       anchor: true, noAnim: true,
-      onDone: REDUCED ? null : function () { flipTransition(firsts); }
+      onDone: REDUCED ? null : function () { playDeckAnimation(); }
     });
     if (REDUCED) viewSwitching = false; // 无动画：重建即完成
-    // 兜底：空态/无卡片等 flipTransition 未执行时确保解锁
-    setTimeout(function () { if (viewSwitching) viewSwitching = false; }, 700);
+    // 兜底：空态/无卡片等动画未执行时确保解锁 + 清理 grid 隐藏与高度锁定
+    setTimeout(function () {
+      gridEl.style.minHeight = "";
+      gridEl.style.visibility = "";
+      if (viewSwitching) viewSwitching = false;
+    }, 1300);
   }
   // 列表模式：对窗口内未缓存大小的行做 HEAD 惰性探测（错峰并发，滚动/重建时命中缓存不再请求）
   var sizeQueue = [];
