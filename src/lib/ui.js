@@ -353,7 +353,7 @@ a{color:var(--accent)}
 .img-card.view-list{grid-column:1/-1;height:48px;justify-content:center;cursor:grab}
 .img-card.view-list .lst-body{display:flex;align-items:center;justify-content:center;padding:0;flex:1;min-width:0}
 .img-card.view-list .lst-row{display:flex;align-items:center;gap:10px;width:100%;height:100%;padding:0 12px;min-width:0}
-.img-card.view-list .lst-name{flex:1 1 240px;max-width:36%;min-width:0;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;line-height:1;cursor:pointer}
+.img-card.view-list .lst-name{flex:1 1 240px;min-width:0;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;line-height:1;cursor:pointer} /* 去掉 max-width:36%，让 name 通过 flex:1 自由吸收窗口剩余空间，避免大窗口右侧大量留白 */
 .img-card.view-list .lst-name .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .img-card.view-list .lst-name .pen{flex:none;font-size:11px;color:var(--muted);opacity:0;transition:opacity .15s}
 .img-card.view-list .lst-name:hover .pen{opacity:1}
@@ -2324,7 +2324,12 @@ a{color:var(--accent)}
     }
     renderGrid(lastImages, {
       anchor: true, noAnim: true,
-      onDone: REDUCED ? null : function () { playDeckAnimation(); }
+      onDone: REDUCED ? null : function () {
+        // 重建完成：立即释放高度锁定，让 grid 高度 = 新模式应有高度
+        // （避免动画期间 grid 被旧高度撑大、卡片四周出现大片空白而显得"高度异常"）
+        gridEl.style.minHeight = "";
+        playDeckAnimation();
+      }
     });
     if (REDUCED) viewSwitching = false; // 无动画：重建即完成
     // 兜底：空态/无卡片等动画未执行时确保解锁 + 清理 grid 隐藏与高度锁定
