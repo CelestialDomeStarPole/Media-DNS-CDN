@@ -353,10 +353,11 @@ a{color:var(--accent)}
 .img-card.view-list{grid-column:1/-1;height:48px;justify-content:center;cursor:grab}
 .img-card.view-list .lst-body{display:flex;align-items:center;justify-content:center;padding:0;flex:1;min-width:0}
 .img-card.view-list .lst-row{display:flex;align-items:center;gap:10px;width:100%;height:100%;padding:0 12px;min-width:0}
-.img-card.view-list .lst-name{flex:1 1 240px;min-width:0;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;line-height:1;cursor:pointer} /* 去掉 max-width:36%，让 name 通过 flex:1 自由吸收窗口剩余空间，避免大窗口右侧大量留白 */
-.img-card.view-list .lst-name .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.img-card.view-list .lst-name .pen{flex:none;font-size:11px;color:var(--muted);opacity:0;transition:opacity .15s}
-.img-card.view-list .lst-name:hover .pen{opacity:1}
+.img-card.view-list .lst-name{flex:1 1 240px;min-width:0;display:flex;align-items:center} /* 列宽自由伸缩（吸收剩余空间，不留白） */
+.img-card.view-list .lst-name-hit{flex:1 1 560px;max-width:560px;min-width:0;display:flex;align-items:center;gap:6px;font-size:13px;font-weight:600;line-height:1;cursor:pointer} /* 点击改名热区：从列最左起最大 560px（列窄则占满整列） */
+.img-card.view-list .lst-name-hit .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.img-card.view-list .lst-name-hit .pen{flex:none;font-size:11px;color:var(--muted);opacity:0;transition:opacity .15s}
+.img-card.view-list .lst-name-hit:hover .pen{opacity:1}
 .img-card.view-list .badge{flex:none;white-space:nowrap;line-height:1}
 .img-card.view-list .lst-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#4b5563;flex:0 1 120px;min-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1}
 .img-card.view-list .fsel{flex:0 1 130px;width:auto;min-width:90px;padding:3px 6px;font-size:12px}
@@ -1998,7 +1999,7 @@ a{color:var(--accent)}
       return '<div class="card-body lst-body">' +
         '<div class="lst-row">' +
         '<label class="switch" title="' + esc(t("card.toggle")) + '"><input type="checkbox" class="tgl" data-id="' + esc(img.id) + '"' + (img.enabled ? " checked" : "") + ' /><span></span></label>' +
-        '<span class="lst-name img-name" data-id="' + esc(img.id) + '" data-name="' + esc(img.name || "") + '" title="' + esc(t("card.renameTitle")) + '"><span class="t">' + esc(displayName(img)) + '</span><span class="pen">✎</span></span>' +
+        '<span class="lst-name"><span class="lst-name-hit img-name" data-id="' + esc(img.id) + '" data-name="' + esc(img.name || "") + '" title="' + esc(t("card.renameTitle")) + '"><span class="t">' + esc(displayName(img)) + '</span><span class="pen">✎</span></span></span>' +
         modeBadge(img.mode) + typeBadge(img.type || guessTypeClient(img.url)) +
         '<span class="lst-id" title="' + esc(img.id) + '">' + esc(img.id) + "</span>" +
         '<select class="fsel" data-id="' + esc(img.id) + '" aria-label="' + esc(t("card.folderAria")) + '">' + folderOptions(img.folder || "") + "</select>" +
@@ -2214,10 +2215,20 @@ a{color:var(--accent)}
     var cards = $("grid").querySelectorAll(".img-card");
     var vh = window.innerHeight || document.documentElement.clientHeight;
     var visible = [];
-    for (var i = 0; i < cards.length; i++) {
-      var r = cards[i].getBoundingClientRect();
-      if (r.bottom < -40 || r.top > vh + 40) continue; // 仅当前窗口可见（含缓冲）
-      visible.push({ el: cards[i], left: r.left, top: r.top });
+    if (viewMode === "list") {
+      // 列表样式：取渲染顺序前 22 个卡片做动画（视口内 + 下方少量，用户下滚仍可见动画）
+      var limit = Math.min(cards.length, 26);
+      for (var i = 0; i < limit; i++) {
+        var r = cards[i].getBoundingClientRect();
+        visible.push({ el: cards[i], left: r.left, top: r.top });
+      }
+    } else {
+      // 图片样式：仅当前视口内（约 3 行）
+      for (var j = 0; j < cards.length; j++) {
+        var r2 = cards[j].getBoundingClientRect();
+        if (r2.bottom < -40 || r2.top > vh + 40) continue;
+        visible.push({ el: cards[j], left: r2.left, top: r2.top });
+      }
     }
     if (!visible.length) { viewSwitching = false; return; }
     // 按 top 聚类成行（同一行的卡片 top 相近）
@@ -4257,6 +4268,7 @@ a{color:var(--accent)}
     var ctx = cv.getContext("2d");
     var W = 0, H = 0, pts = [], streaks = [], raf = null, running = true;
     var last = 0, nextStreak = 1800;
+    var lastFrame = 0, FRAME_MIN_MS = 1000 / 80; // 粒子动画最大 80 帧（高刷新率屏上限制开销）
     var sprites = {};
 
     function makeSprite(hue) {
@@ -4327,6 +4339,9 @@ a{color:var(--accent)}
 
     function tick(now) {
       if (!running) return;
+      // 最大 80 帧：距上一帧不足 12.5ms 时跳过本帧绘制（仍请求下一帧），限制高刷新率屏上的开销
+      if (now - lastFrame < FRAME_MIN_MS) { raf = requestAnimationFrame(tick); return; }
+      lastFrame = now;
       ctx.clearRect(0, 0, W, H);
       var i, j;
 
