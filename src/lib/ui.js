@@ -2216,17 +2216,28 @@ a{color:var(--accent)}
     var vh = window.innerHeight || document.documentElement.clientHeight;
     var visible = [];
     if (viewMode === "list") {
-      // 列表样式：取渲染顺序前 22 个卡片做动画（视口内 + 下方少量，用户下滚仍可见动画）
-      var limit = Math.min(cards.length, 26);
-      for (var i = 0; i < limit; i++) {
-        var r = cards[i].getBoundingClientRect();
-        visible.push({ el: cards[i], left: r.left, top: r.top });
+      // 列表样式：视口内（含缓冲）卡片优先，不足 32 个时再向下补充，保证视口内必有动画且用户下滚仍可见
+      var collected = {};
+      for (var j = 0; j < cards.length; j++) {
+        var rj = cards[j].getBoundingClientRect();
+        if (rj.bottom < -40 || rj.top > vh + 40) continue;
+        visible.push({ el: cards[j], left: rj.left, top: rj.top });
+        collected[j] = true;
+      }
+      if (visible.length < 32) {
+        for (var k = 0; k < cards.length && visible.length < 32; k++) {
+          if (collected[k]) continue;
+          var rk = cards[k].getBoundingClientRect();
+          if (rk.top < vh + 40) continue; // 只补视口下方（上方已滚出的不取）
+          visible.push({ el: cards[k], left: rk.left, top: rk.top });
+        }
       }
     } else {
-      // 图片样式：仅当前视口内（约 3 行）
+      // 图片样式：视口内 + 下方扩展至约 4 行
+      var rowH = gridState.rowH || 380;
       for (var j = 0; j < cards.length; j++) {
         var r2 = cards[j].getBoundingClientRect();
-        if (r2.bottom < -40 || r2.top > vh + 40) continue;
+        if (r2.bottom < -rowH || r2.top > vh + 2 * rowH) continue; // 上方一行缓冲 + 视口 + 下方约 2 行
         visible.push({ el: cards[j], left: r2.left, top: r2.top });
       }
     }
