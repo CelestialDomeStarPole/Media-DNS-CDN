@@ -32,6 +32,9 @@ Thumbs.db
 # opencode 权限配置
 opencode.json
 
+# 本地安全封装脚本
+ops.ps1
+
 # 依赖缓存 / 临时文件
 .pnpm-debug.log*
 npm-debug.log*

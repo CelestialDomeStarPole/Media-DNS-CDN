@@ -313,7 +313,7 @@ a{color:var(--accent)}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;align-items:stretch}
 .img-card{overflow:hidden;display:flex;flex-direction:column;transition:transform .14s ease,box-shadow .14s ease;animation:cardIn .4s ease;cursor:grab}
 .img-card.no-anim{animation:none}
-.img-card:hover{transform:translateY(-3px);box-shadow:0 14px 34px color-mix(in srgb,var(--accent) 28%,rgba(31,41,55,.10))}
+.img-card.hovered{transform:translateY(-3px);box-shadow:0 14px 34px color-mix(in srgb,var(--accent) 28%,rgba(31,41,55,.10))}
 .img-card:active{cursor:grabbing}
 .img-card.drag-pickup{transition:transform .18s ease,opacity .18s ease,box-shadow .18s ease}
 .img-card.dragging{opacity:.65;z-index:40;pointer-events:none;will-change:transform;box-shadow:0 16px 38px color-mix(in srgb,var(--accent) 24%,rgba(15,23,42,.20));border-radius:14px}
@@ -1828,6 +1828,45 @@ a{color:var(--accent)}
         renderGrid(lastImages, { anchor: true });
       });
   }
+  // 卡片 hover 提起：底部扩展判定区（上方不扩展），避免"上移→鼠标离开→落下→再上移"抖动
+  var HOVER_LIFT = 3; // 与 CSS .hovered 的 translateY 一致
+  var HOVER_PAD = 4;  // 卡片底部额外判定缓冲（网格 gap 16px；4px 覆盖 3px 上移量并留 1px 容差，尽量贴近卡片边界手感）
+  var hoverCard = null;
+  function hoverHitZone(card, x, y) {
+    var r = card.getBoundingClientRect();
+    // 卡片提起后 rect 整体上移 LIFT，故原始底部 = r.bottom + LIFT；
+    // 判定区 = [原始顶部（随卡片上移）, 原始底部 + PAD（固定）]
+    return x >= r.left && x <= r.right &&
+           y >= r.top + HOVER_LIFT && y <= r.bottom + HOVER_LIFT + HOVER_PAD;
+  }
+  function setHovered(card, on) {
+    if (!card) return;
+    card.classList.toggle("hovered", on);
+    if (on) hoverCard = card;
+    else if (hoverCard === card) hoverCard = null;
+  }
+  $("grid").addEventListener("pointerover", function (e) {
+    if (e.pointerType === "touch") return;
+    var card = e.target && e.target.closest ? e.target.closest(".img-card") : null;
+    if (card) setHovered(card, true);
+  });
+  $("grid").addEventListener("pointerout", function (e) {
+    if (e.pointerType === "touch") return;
+    var card = e.target && e.target.closest ? e.target.closest(".img-card") : null;
+    if (!card) return;
+    var to = e.relatedTarget;
+    if (to && to.closest && to.closest(".img-card") === card) return; // 仍在卡片内部移动
+    if (hoverHitZone(card, e.clientX, e.clientY)) return; // 底部扩展区内：保持提起
+    setHovered(card, false);
+  });
+  $("grid").addEventListener("pointermove", function (e) {
+    if (!hoverCard) return;
+    if (!hoverCard.isConnected) { hoverCard = null; return; }
+    if (!hoverHitZone(hoverCard, e.clientX, e.clientY)) setHovered(hoverCard, false);
+  });
+  $("grid").addEventListener("pointerleave", function () {
+    if (hoverCard) setHovered(hoverCard, false);
+  });
   $("grid").addEventListener("pointerdown", function (e) {
     if (dnd) return;
     if (e.pointerType === "mouse" && e.button !== 0) return;
@@ -1862,6 +1901,7 @@ a{color:var(--accent)}
       var idx0 = -1;
       for (var i = 0; i < imgs.length; i++) { if (imgs[i] === dnd.card) { idx0 = i; break; } }
       var rect = dnd.card.getBoundingClientRect();
+      setHovered(dnd.card, false);
       dnd.card.classList.add("drag-pickup");
       dnd.card.classList.add("dragging");
       dnd.card.style.animation = "none";
