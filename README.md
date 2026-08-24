@@ -168,14 +168,21 @@ npm run deploy
 
 ### 本地调试
 
-```bash
-# 复制示例并填写与线上一致的密钥
-Copy-Item .dev.vars.example .dev.vars   # Windows
-cp .dev.vars.example .dev.vars          # macOS / Linux
+在项目根目录手动创建 `.dev.vars` 文件，填入两个机密（建议与线上一致）：
 
+```bash
+PASSWORD=你的管理密码
+SIGNING_SECRET=你的签名密钥
+```
+
+然后启动本地开发：
+
+```bash
 npm run dev
 # 访问 http://127.0.0.1:8787
 ```
+
+> `.dev.vars` 是本地机密文件，请勿提交到仓库；`wrangler dev` 会自动读取它（终端中显示为 `(hidden)`）。`PASSWORD` 用于登录管理页，`SIGNING_SECRET` 用于启用签名链接时的 HMAC 签名。
 
 ## 配置说明
 

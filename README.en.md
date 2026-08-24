@@ -170,14 +170,21 @@ After deployment, open `https://<worker-name>.<subdomain>.workers.dev`, log in w
 
 ### Local Development
 
-```bash
-# Copy the example and fill in the same secrets as production
-Copy-Item .dev.vars.example .dev.vars   # Windows
-cp .dev.vars.example .dev.vars          # macOS / Linux
+Create a `.dev.vars` file manually in the project root and fill in the two secrets (recommended to match production):
 
+```bash
+PASSWORD=your_admin_password
+SIGNING_SECRET=your_signing_secret
+```
+
+Then start local development:
+
+```bash
 npm run dev
 # Visit http://127.0.0.1:8787
 ```
+
+> `.dev.vars` is a local secrets file — don't commit it to the repository. `wrangler dev` reads it automatically (shown as `(hidden)` in the terminal). `PASSWORD` is for logging into the admin panel; `SIGNING_SECRET` is used for HMAC signing when signed links are enabled.
 
 ## Configuration
 
