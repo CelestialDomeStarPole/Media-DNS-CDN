@@ -192,6 +192,26 @@ function extFromContentType(contentType) {
   return sub;
 }
 
+// 从探测响应中提取文件大小（字节）：
+//  - Range 206 分片响应：Content-Length 只是分片长度（bytes=0-0 时为 1），总大小必须取 Content-Range 的"总大小"段，优先判断
+//  - HEAD / 200 全量响应：无 Content-Range，退回 Content-Length
+function extractSize(response) {
+  const cr = response?.headers?.get("Content-Range");
+  if (cr) {
+    const m = /\/\s*(\d+)\s*$/.exec(cr);
+    if (m) {
+      const n = Number(m[1]);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+  }
+  const cl = response?.headers?.get("Content-Length");
+  if (cl) {
+    const n = Number(cl);
+    if (Number.isFinite(n) && n > 0) return n;
+  }
+  return null;
+}
+
 // 多级探测媒体类型（图片/音频/视频）与文件扩展名：
 // L1 HEAD 嗅探 Content-Type → L2 GET+Range(0-0)（仅读响应头后即断开，对 HEAD 不友好/重定向源可靠）
 // → L3 按 URL 扩展名兜底 → 仍失败返回 "unknown"。
@@ -217,7 +237,7 @@ async function probeMediaInfo(targetUrl, settings, timeoutMs = 5000, odAuth = nu
       if (response && response.status < 400) {
         const ct = response.headers.get("Content-Type") || "";
         const t = classifyType(ct);
-        if (t) return { type: t, ext: extFromContentType(ct) };
+        if (t) return { type: t, ext: extFromContentType(ct), size: extractSize(response) };
       }
     } catch {
     } finally {
@@ -238,7 +258,7 @@ async function probeMediaInfo(targetUrl, settings, timeoutMs = 5000, odAuth = nu
     const seg = String(targetUrl).split(/[?#]/)[0].split("/").pop() || "";
     ext = extFromName(seg);
   }
-  return { type: gt || "unknown", ext };
+  return { type: gt || "unknown", ext, size: null };
 }
 
 // 兼容旧调用：仅返回类型
@@ -258,7 +278,7 @@ async function handleLogin(request, env) {
 
 // 公共添加逻辑：入库 + order 首位 + 文件夹补录，返回新 id（单文件转换与 OneDrive 导入共用）
 // extra 可携带 OneDrive 新格式所需的认证字段（odAuth=BadgerAuth, odShare=原始共享链接）
-async function addMediaRecord(env, { url, mode, name, folder, type, extra }) {
+async function addMediaRecord(env, { url, mode, name, folder, type, size, extra }) {
   const id = generateId();
   const extras = extra || {};
   await putImage(env, id, {
@@ -268,6 +288,8 @@ async function addMediaRecord(env, { url, mode, name, folder, type, extra }) {
     name,
     folder,
     type,
+    // 添加时嗅探到的文件大小（字节）；无效/未知则不存该字段（前端回退 HEAD 惰性探测）
+    ...(Number.isFinite(size) && size > 0 ? { size: Math.round(size) } : {}),
     createdAt: Date.now(),
     // 链接分类：OneDrive 导入标记 onedrive，普通链接标记 normal
     sourceType: typeof extras.odShare === "string" && extras.odShare ? "onedrive" : "normal",
@@ -311,6 +333,7 @@ async function handleConvert(request, env) {
     name,
     folder,
     type,
+    size: info.size,
     // 具体文件类型（jpg/mp4/ogg 等），供详情页"文件类型"行显示；中转链接从 Content-Type 嗅探
     extra: info.ext ? { fileExt: info.ext } : undefined,
   });
@@ -527,6 +550,7 @@ async function handleOneDriveImport(request, env) {
       name,
       folder,
       type,
+      size: info.size,
       extra: newFormat
         ? {
             odAuth: info.odAuth,
@@ -614,6 +638,7 @@ async function handleOneDriveImport(request, env) {
         name: importName,
         folder,
         type,
+        size: it.size,
         extra: newFormat
           ? {
               odAuth: info.odAuth,
@@ -715,11 +740,13 @@ async function handleImageDetail(request, env) {
   const img = await getImage(env, id);
   if (!img) return json({ error: "图片不存在" }, 404);
   const settings = await getSettings(env);
-  // 懒纠正：type 为 unknown，或缺失具体文件类型（fileExt）时，
-  // 短超时探测真实类型/扩展名并回写 KV，让卡片类型徽章与详情页"文件类型"行即时显示
-  // （仅触发一次，纠正后不再探测）
+  // 懒纠正：type 为 unknown / 缺失 fileExt / 缺失 size 时，
+  // 短超时探测真实类型/扩展名/文件大小并回写 KV，让卡片类型徽章与详情页类型、大小行即时显示
+  // （type/fileExt 纠正后不再探测；size 探测到即补齐，补齐后不再触发）
+  const needTypeFix = img.type === "unknown" || (!img.fileExt && !img.odSrcName);
+  const needSizeFix = !(typeof img.size === "number" && img.size > 0);
   if (
-    (img.type === "unknown" || (!img.fileExt && !img.odSrcName)) &&
+    (needTypeFix || needSizeFix) &&
     (isAllowedUrl(img.url, settings) || isOneDriveTrustedUrl(img.url))
   ) {
     // OneDrive 新格式探测需带 BadgerAuth
@@ -728,12 +755,18 @@ async function handleImageDetail(request, env) {
         ? img.odAuth
         : null;
     const got = await probeMediaInfo(img.url, settings, 2500, odAuth);
-    if (got.type && got.type !== "unknown") {
+    let dirty = false;
+    if (needTypeFix && got.type && got.type !== "unknown") {
       img.type = got.type;
       // 顺带回写具体文件类型（jpg/mp4 等），让详情页"文件类型"行也能显示
       if (got.ext && !img.fileExt) img.fileExt = got.ext;
-      await putImage(env, id, img).catch(() => {});
+      dirty = true;
     }
+    if (needSizeFix && got.size) {
+      img.size = Math.round(got.size);
+      dirty = true;
+    }
+    if (dirty) await putImage(env, id, img).catch(() => {});
   }
   return json({ ...sanitizeImage(img), shortUrl: await makeLink(request, env, settings, id) });
 }
@@ -746,6 +779,14 @@ async function handleUpdateImage(request, env) {
   if (!img) return json({ error: "图片不存在" }, 404);
   if (body.name !== undefined) img.name = sanitizeField(body.name, 60);
   if (body.folder !== undefined) img.folder = sanitizeField(body.folder, 30);
+  // size 回写（前端 HEAD 懒探测补齐）：仅当 KV 中尚无有效 size 时才写入，避免覆盖已存值
+  if (
+    Number.isFinite(body.size) &&
+    body.size > 0 &&
+    !(Number.isFinite(img.size) && img.size > 0)
+  ) {
+    img.size = Math.round(body.size);
+  }
   await putImage(env, id, img);
   // 返回更新后的完整单卡数据（含 shortUrl），前端可直接就地刷新，无需全量重拉
   const settings = await getSettings(env);

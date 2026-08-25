@@ -2044,7 +2044,7 @@ a{color:var(--accent)}
         '<span class="lst-id" title="' + esc(img.id) + '">' + esc(img.id) + "</span>" +
         '<select class="fsel" data-id="' + esc(img.id) + '" aria-label="' + esc(t("card.folderAria")) + '">' + folderOptions(img.folder || "") + "</select>" +
         '<span class="lst-time">' + fmtTime(img.createdAt) + "</span>" +
-        '<span class="lst-size" data-id="' + esc(img.id) + '">' + (sizeCache[img.id] || "-") + "</span>" +
+        '<span class="lst-size" data-id="' + esc(img.id) + '">' + (typeof img.size === "number" && img.size > 0 ? fmtSize(img.size) : (sizeCache[img.id] || "-")) + "</span>" +
         '<button class="zoom zoom-inline" data-url="' + esc(img.url) + '" data-short="' + esc(img.shortUrl || img.url) + '" data-mode="' + esc(img.mode || "") + '" data-type="' + esc(img.type || "") + '" aria-label="' + esc(t("card.preview")) + '">' + esc(t("card.preview.short")) + "</button>" +
         '<button class="mini copy" data-url="' + esc(img.shortUrl || img.url) + '" aria-label="' + esc(t("card.copy.aria")) + '">' + esc(t("card.copy")) + "</button>" +
         "</div></div>";
@@ -2401,7 +2401,7 @@ a{color:var(--accent)}
       if (viewSwitching) viewSwitching = false;
     }, 1300);
   }
-  // 列表模式：对窗口内未缓存大小的行做 HEAD 惰性探测（错峰并发，滚动/重建时命中缓存不再请求）
+  // 列表模式：优先用 KV 读到的内存 size；缺失才 HEAD 惰性探测（错峰并发），成功后顺手回写 KV
   var sizeQueue = [];
   var sizeInFlight = 0;
   var SIZE_CONCURRENCY = 4;
@@ -2413,8 +2413,14 @@ a{color:var(--accent)}
       if (!id || sizeCache[id]) continue;
       var img = findInLast(id);
       if (!img) continue;
+      // 优先使用 KV 读取后缓存在内存的 size，无需再向上游发请求
+      if (typeof img.size === "number" && img.size > 0) {
+        sizeCache[id] = fmtSize(img.size);
+        rows[i].textContent = sizeCache[id];
+        continue;
+      }
       var url = img.shortUrl || img.url;
-      if (url) sizeQueue.push({ id: id, url: url });
+      if (url) sizeQueue.push({ id: id, url: url, img: img });
     }
     pumpSizeQueue();
   }
@@ -2427,6 +2433,14 @@ a{color:var(--accent)}
           sizeCache[item.id] = fmtSize(len);
           var el = document.querySelector('.lst-size[data-id="' + item.id + '"]');
           if (el) el.textContent = sizeCache[item.id];
+          // 顺手回写 KV：更新内存对象 + 调接口落库（仅当 KV 无有效 size 时后端才写入）
+          if (item.img && item.img.size !== len) {
+            item.img.size = len;
+            api("/api/image/update", {
+              method: "POST",
+              body: JSON.stringify({ id: item.id, size: len }),
+            }).catch(function () {});
+          }
         }
       }).then(function () {
         sizeInFlight--;
@@ -2697,6 +2711,9 @@ a{color:var(--accent)}
     setupVideoThumbs();
     observeThumbs();
     updateImgCount();
+    // 卡片详情填充完成：立即触发 size 探测（有内存 size 直接显示，无则入队 HEAD 补齐），
+    // 避免"其他信息已加载、size 却等滚动/重建才出现"的延迟
+    probeListSizes();
   }
 
   /* ===== 就地更新辅助层：写操作乐观更新 + 局部 DOM 刷新 + 失败回滚 =====
@@ -3862,8 +3879,22 @@ a{color:var(--accent)}
     } catch (e) { return Promise.resolve(null); }
   }
   function probeDetailSize(img) {
+    // 优先用 KV 读到的内存 size；缺失才 HEAD 探测，成功后顺手回写 KV
+    if (img && typeof img.size === "number" && img.size > 0) {
+      $("detail-size").textContent = fmtSize(img.size);
+      return;
+    }
     probeHeadLen(img.shortUrl || img.url).then(function (len) {
-      if (len) $("detail-size").textContent = fmtSize(len);
+      if (len) {
+        $("detail-size").textContent = fmtSize(len);
+        if (img && img.size !== len) {
+          img.size = len;
+          api("/api/image/update", {
+            method: "POST",
+            body: JSON.stringify({ id: img.id, size: len }),
+          }).catch(function () {});
+        }
+      }
     });
   }
   function isOneDriveImg(img) {
