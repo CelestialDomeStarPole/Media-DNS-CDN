@@ -316,7 +316,8 @@ a{color:var(--accent)}
 .img-card.hovered{transform:translateY(-3px);box-shadow:0 14px 34px color-mix(in srgb,var(--accent) 28%,rgba(31,41,55,.10))}
 .img-card:active{cursor:grabbing}
 .img-card.drag-pickup{transition:transform .18s ease,opacity .18s ease,box-shadow .18s ease}
-.img-card.dragging{opacity:.65;z-index:40;pointer-events:none;will-change:transform;box-shadow:0 16px 38px color-mix(in srgb,var(--accent) 24%,rgba(15,23,42,.20));border-radius:14px}
+.img-card.dragging{opacity:.65;z-index:40;pointer-events:none;will-change:transform;box-shadow:0 16px 38px color-mix(in srgb,var(--accent) 24%,rgba(15,23,42,.20));border-radius:14px;user-select:none;-webkit-user-select:none}
+body.no-select{user-select:none;-webkit-user-select:none}
 .drop-placeholder{position:relative;display:flex;align-items:center;justify-content:center;border:2px dashed color-mix(in srgb,var(--accent) 62%,transparent);border-radius:14px;background:color-mix(in srgb,var(--accent) 10%,transparent);pointer-events:none;color:color-mix(in srgb,var(--accent) 80%,#fff);font-size:13px;font-weight:600;animation:phPulse 1.3s ease-in-out infinite;transition:transform .28s cubic-bezier(.2,.8,.2,1)}
 @keyframes phPulse{0%,100%{box-shadow:inset 0 0 0 0 color-mix(in srgb,var(--accent) 30%,transparent)}50%{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}}
 @keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
@@ -1902,6 +1903,7 @@ a{color:var(--accent)}
       for (var i = 0; i < imgs.length; i++) { if (imgs[i] === dnd.card) { idx0 = i; break; } }
       var rect = dnd.card.getBoundingClientRect();
       setHovered(dnd.card, false);
+      document.body.classList.add("no-select"); // 拖拽期间禁止文本选中，避免列表模式下鼠标拖动产生蓝选
       dnd.card.classList.add("drag-pickup");
       dnd.card.classList.add("dragging");
       dnd.card.style.animation = "none";
@@ -1918,6 +1920,8 @@ a{color:var(--accent)}
       var ph = document.createElement("div");
       ph.className = "drop-placeholder";
       ph.style.height = rect.height + "px";
+      // 列表模式下卡片占满整行（grid-column:1/-1），占位虚线框同样要跨整行，而不是只占首列宽度
+      if (viewMode === "list") ph.style.gridColumn = "1 / -1";
       dnd.ph = ph;
       var nodes2 = gridImageNodes();
       if (idx0 < nodes2.length) grid.insertBefore(ph, nodes2[idx0]); else grid.appendChild(ph);
@@ -1937,6 +1941,7 @@ a{color:var(--accent)}
     var d = dnd;
     dnd = null;
     if (!d.active) return;
+    document.body.classList.remove("no-select"); // 拖拽结束恢复文本选择
     var x = e && e.clientX != null ? e.clientX : d.lastX;
     var y = e && e.clientY != null ? e.clientY : d.lastY;
     d.card.classList.remove("drag-pickup");
