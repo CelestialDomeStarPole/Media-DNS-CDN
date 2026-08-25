@@ -1768,32 +1768,25 @@ body.no-select{user-select:none;-webkit-user-select:none}
   function dropIndexAt(x, y) {
     var slots = slotLayout;
     if (!slots.length) return null;
-    var i, j, r;
+    var i, r;
+    // 0) 鼠标在占位自身槽位内 → 保持当前槽位不动（当前落点锁定）
     for (i = 0; i < slots.length; i++) {
       if (!slots[i].isPh) continue;
       r = slots[i];
       if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return i;
     }
+    // 1) 鼠标在某张卡片"内部"（收缩矩形：卡片边缘 HYST 迟滞带内不算命中）→ 该卡槽位。
+    //    迟滞带降低卡片交接处的灵敏度：必须越过卡片边缘进入内部才切换占位，
+    //    避免"边缘微移 → ph 让位 → 布局重排 → 判定来回选相邻槽位"的抽搐。
+    var HYST = 6;
     for (i = 0; i < slots.length; i++) {
       if (slots[i].isPh) continue;
       r = slots[i];
-      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return i;
+      if (x >= r.left + HYST && x <= r.right - HYST && y >= r.top + HYST && y <= r.bottom - HYST) return i;
     }
-    var bestEdge = null;
-    for (i = 0; i < slots.length; i++) {
-      if (slots[i].isPh) continue;
-      r = slots[i];
-      var ds = [
-        Math.abs(x - r.left),
-        Math.abs(x - r.right),
-        Math.abs(y - r.top),
-        Math.abs(y - r.bottom),
-      ];
-      for (j = 0; j < 4; j++) {
-        if (!bestEdge || ds[j] < bestEdge.d) bestEdge = { d: ds[j], idx: i };
-      }
-    }
-    return bestEdge ? bestEdge.idx : null;
+    // 2) 鼠标落在卡片边缘迟滞带 / gap / 空白区 → 保持当前占位不动，
+    //    不自动切到相邻槽位，彻底消除交接处的来回切换
+    return typeof dnd.lastIndex === "number" ? dnd.lastIndex : null;
   }
   function runFlip(from) {
     var changed = [];
