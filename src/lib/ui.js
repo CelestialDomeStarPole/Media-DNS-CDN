@@ -1851,6 +1851,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
     d.card.style.width = "";
     d.card.style.height = "";
     d.card.style.margin = "";
+    d.card.style.transform = ""; // 清除跟随鼠标的 transform，读取干净的槽位位置
     var slot = d.card.getBoundingClientRect();
     d.card.style.transition = "none";
     d.card.style.transform = "translate(" + (ghost.left - slot.left) + "px," + (ghost.top - slot.top) + "px) scale(.92)";
@@ -2004,22 +2005,19 @@ body.no-select{user-select:none;-webkit-user-select:none}
     dnd = null;
     if (!d.active) return;
     document.body.classList.remove("no-select"); // 拖拽结束恢复文本选择
-    var x = e && e.clientX != null ? e.clientX : d.lastX;
-    var y = e && e.clientY != null ? e.clientY : d.lastY;
     d.card.classList.remove("drag-pickup");
     d.card.style.touchAction = "";
     try { d.card.releasePointerCapture(d.pointerId); } catch (err) {}
-    // 松开前让 FLIP 动画立即完成（清掉卡片 inline transform）并刷新槽位缓存，
-    // 占位视觉位置 = 最终落位槽位，两者严格一致
+    // 松开落位：直接用占位当前槽位（ph 的 DOM 位置）落位，不再用 pointerup 坐标重新计算占位。
+    // 快速松手/甩动时 pointerup 坐标可能已离开占位，重新计算会导致"占位显示位置与落位不一致"。
+    // 先清掉 FLIP 残留 transform，避免其他卡片动画影响最终布局观感。
     var gridEl = $("grid");
     var gridCards = gridEl.querySelectorAll(".img-card");
     for (var gi = 0; gi < gridCards.length; gi++) {
       gridCards[gi].style.transition = "none";
       gridCards[gi].style.transform = "";
     }
-    refreshSlotLayout();
-    var p = dropIndexAt(x, y);
-    if (p !== null && p !== d.lastIndex) movePlaceholderTo(d, p);
+    var p = d.lastIndex;
     finishDrag(d, p !== null && p !== d.origIndex);
   }
   window.addEventListener("pointerup", endCardDrag);
