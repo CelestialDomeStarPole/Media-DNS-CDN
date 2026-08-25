@@ -447,6 +447,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
 .toast.success{background:linear-gradient(135deg,#10b981,#0ea5e9)}
 .toast.error{background:linear-gradient(135deg,#f43f5e,#ef4444)}
 .toast.info{background:linear-gradient(135deg,#6366f1,#a855f7)}
+.toast.accent{background:var(--grad)}
 
 /* 灯箱预览 */
 .lightbox{position:fixed;inset:0;background:rgba(10,14,22,.86);display:flex;align-items:center;justify-content:center;z-index:2100;padding:24px;animation:viewIn .18s ease both}
@@ -931,6 +932,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
       "list.title": "媒体列表",
       "list.count": "{n} 条",
       "list.sortHint": "按住卡片空白处拖动可排序",
+      "drag.escCancel": "按下 ESC 取消拖拽",
       "search.ph": "搜索名称 / ID / 地址…",
       "search.clear": "清空搜索",
       "view.toggle": "展示样式",
@@ -1142,6 +1144,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
       "list.title": "Media",
       "list.count": "{n} items",
       "list.sortHint": "Drag a card's empty area to reorder",
+      "drag.escCancel": "Press ESC to cancel",
       "search.ph": "Search name / ID / URL…",
       "search.clear": "Clear search",
       "view.toggle": "Display style",
@@ -1344,6 +1347,11 @@ body.no-select{user-select:none;-webkit-user-select:none}
     el.className = "toast show" + (type ? " " + type : " info");
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { el.className = "toast"; }, 2600);
+  }
+  function hideToast() {
+    clearTimeout(toastTimer);
+    var el = $("toast");
+    el.className = "toast";
   }
 
   function setBusy(btn, busy, text) {
@@ -1950,6 +1958,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
     if (!dnd.active) {
       if (Math.abs(e.clientX - dnd.startX) + Math.abs(e.clientY - dnd.startY) < 7) return;
       dnd.active = true;
+      toast(t("drag.escCancel"), "accent"); // 拖拽开始：底部主题渐变提示按 ESC 取消
       try { dnd.card.setPointerCapture(e.pointerId); } catch (err) {}
       var grid = $("grid");
       var imgs = gridImageNodes();
@@ -1998,6 +2007,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
     dnd = null;
     if (!d.active) return;
     document.body.classList.remove("no-select"); // 拖拽结束恢复文本选择
+    hideToast();
     d.card.classList.remove("drag-pickup");
     d.card.style.touchAction = "";
     try { d.card.releasePointerCapture(d.pointerId); } catch (err) {}
@@ -2015,6 +2025,24 @@ body.no-select{user-select:none;-webkit-user-select:none}
   }
   window.addEventListener("pointerup", endCardDrag);
   window.addEventListener("pointercancel", endCardDrag);
+  // Esc 取消拖拽：占位归位、卡片放回原位，不提交顺序
+  function cancelCardDrag(e) {
+    if (!dnd) return;
+    var d = dnd;
+    dnd = null;
+    document.body.classList.remove("no-select");
+    hideToast(); // 取消拖拽，隐藏 ESC 提示
+    d.card.classList.remove("drag-pickup");
+    d.card.style.touchAction = "";
+    try { d.card.releasePointerCapture(d.pointerId); } catch (err) {}
+    if (!d.active) return; // 未激活：卡片仍在 grid，无占位，恢复即可
+    // 激活中：占位先移回原位槽位，再让卡片落回（commit=false，不提交排序）
+    movePlaceholderTo(d, d.origIndex);
+    finishDrag(d, false);
+  }
+  window.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") cancelCardDrag(e);
+  });
 
   // 文件夹多选匹配：空数组 = 全选（显示所有）；否则图片 folder 命中任一选中项即通过
   function folderMatchesSelection(img) {
