@@ -457,7 +457,7 @@ a{color:var(--accent)}
 .lightbox .openlink:hover{background:rgba(255,255,255,.3)}
 
 /* 删除确认弹窗 */
-.modal{position:fixed;inset:0;z-index:2200;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.45);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);padding:20px}
+.modal{position:fixed;inset:0;z-index:2300;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.45);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);padding:20px}
 .modal-box{width:360px;max-width:100%;background:#fff;border-radius:14px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.28);animation:popIn .16s ease-out both}
 @keyframes popIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
 .modal-box h3{font-size:15px;margin-bottom:10px}
