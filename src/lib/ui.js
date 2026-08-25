@@ -317,6 +317,7 @@ a{color:var(--accent)}
 .img-card:active{cursor:grabbing}
 .img-card.drag-pickup{transition:transform .18s ease,opacity .18s ease,box-shadow .18s ease}
 .img-card.dragging{opacity:.65;z-index:40;pointer-events:none;will-change:transform;box-shadow:0 16px 38px color-mix(in srgb,var(--accent) 24%,rgba(15,23,42,.20));border-radius:14px;user-select:none;-webkit-user-select:none}
+.img-card.dragging *{pointer-events:none} /* 强制整个子树不可命中：子元素（select/button/img 等）默认 pointer-events:auto 会重新参与指针命中，必须用 CSS 锁死，否则 elementFromPoint 仍会命中 ghost 内部元素 */
 body.no-select{user-select:none;-webkit-user-select:none}
 .drop-placeholder{position:relative;display:flex;align-items:center;justify-content:center;border:2px dashed color-mix(in srgb,var(--accent) 62%,transparent);border-radius:14px;background:color-mix(in srgb,var(--accent) 10%,transparent);pointer-events:none;color:color-mix(in srgb,var(--accent) 80%,#fff);font-size:13px;font-weight:600;animation:phPulse 1.3s ease-in-out infinite;transition:transform .28s cubic-bezier(.2,.8,.2,1)}
 @keyframes phPulse{0%,100%{box-shadow:inset 0 0 0 0 color-mix(in srgb,var(--accent) 30%,transparent)}50%{box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--accent) 35%,transparent)}}
@@ -1724,27 +1725,75 @@ body.no-select{user-select:none;-webkit-user-select:none}
     return $("grid").querySelectorAll(".img-card");
   }
   function forceReflow() { void $("grid").offsetHeight; }
-  function dropIndexAt(x, y) {
-    var el = document.elementFromPoint(x, y);
-    var target = el && el.closest ? el.closest(".img-card") : null;
-    var nodes = gridImageNodes();
-    if (!target) {
-      var best = null, bestD = Infinity;
-      for (var i = 0; i < nodes.length; i++) {
-        var r0 = nodes[i].getBoundingClientRect();
-        var dd = Math.abs(x - (r0.left + r0.width / 2)) + 1.5 * Math.abs(y - (r0.top + r0.height / 2));
-        if (dd < bestD) { bestD = dd; best = nodes[i]; }
+  // ===== 拖拽占位（槽位序列架构）=====
+  // 核心概念：槽位元素 = grid 中按 DOM 顺序的 .img-card + 占位 ph（ph 视作一张卡占一个槽位）。
+  // slotLayout 缓存所有槽位元素的"布局位置"，只在无 transform 的干净状态读取，
+  // 拖拽期间所有占位判定全部基于该缓存 —— 与 FLIP 动画完全隔离，杜绝"读到动画中间位置"的漂移。
+  var slotLayout = [];
+  function readSlotLayout() {
+    var grid = $("grid");
+    var ph = dnd && dnd.ph ? dnd.ph : null;
+    var out = [];
+    var children = grid.children;
+    for (var i = 0; i < children.length; i++) {
+      var el = children[i];
+      var isPh = el === ph;
+      if (!isPh && !(el.classList && el.classList.contains("img-card"))) continue;
+      var r = el.getBoundingClientRect();
+      // 保险：若有 FLIP 残留 transform，减去平移量得到布局位置
+      var tx = 0, ty = 0;
+      var ts = el.style.transform;
+      if (ts && ts.indexOf("translate") >= 0) {
+        var m = /translate\(\s*(-?[\d.]+)px\s*,\s*(-?[\d.]+)px\s*\)/.exec(ts);
+        if (m) { tx = parseFloat(m[1]) || 0; ty = parseFloat(m[2]) || 0; }
       }
-      if (!best) return null;
-      target = best;
+      out.push({
+        el: el,
+        isPh: isPh,
+        left: r.left - tx,
+        right: r.right - tx,
+        top: r.top - ty,
+        bottom: r.bottom - ty,
+      });
     }
-    var rect = target.getBoundingClientRect();
-    var dx = x - (rect.left + rect.width / 2);
-    var dy = y - (rect.top + rect.height / 2);
-    var before = Math.abs(dx) > Math.abs(dy) ? dx < 0 : dy < 0;
-    var idx = -1;
-    for (var i = 0; i < nodes.length; i++) { if (nodes[i] === target) { idx = i; break; } }
-    return before ? idx : idx + 1;
+    return out;
+  }
+  function refreshSlotLayout() { slotLayout = readSlotLayout(); }
+  // 占位判定：返回 ph 应占据的槽位号（slots 序列中的索引）。
+  //  0) 鼠标落在占位自身槽位内 → 保持当前槽位不动（当前落点锁定）。
+  //     若无此规则：ph 移到目标卡槽位后该卡让位前移，鼠标物理位置不变却悬停在 ph 上，
+  //     判定会跳过 ph 走 gap 又选回该卡新槽位，占位在两个槽位间无限抖动。
+  //  1) 鼠标落在某张卡片矩形内 → 该卡槽位
+  //  2) 鼠标落在卡片外（gap/空白区）→ 最近卡片边界所属的槽位
+  function dropIndexAt(x, y) {
+    var slots = slotLayout;
+    if (!slots.length) return null;
+    var i, j, r;
+    for (i = 0; i < slots.length; i++) {
+      if (!slots[i].isPh) continue;
+      r = slots[i];
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return i;
+    }
+    for (i = 0; i < slots.length; i++) {
+      if (slots[i].isPh) continue;
+      r = slots[i];
+      if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return i;
+    }
+    var bestEdge = null;
+    for (i = 0; i < slots.length; i++) {
+      if (slots[i].isPh) continue;
+      r = slots[i];
+      var ds = [
+        Math.abs(x - r.left),
+        Math.abs(x - r.right),
+        Math.abs(y - r.top),
+        Math.abs(y - r.bottom),
+      ];
+      for (j = 0; j < 4; j++) {
+        if (!bestEdge || ds[j] < bestEdge.d) bestEdge = { d: ds[j], idx: i };
+      }
+    }
+    return bestEdge ? bestEdge.idx : null;
   }
   function runFlip(from) {
     var changed = [];
@@ -1767,23 +1816,34 @@ body.no-select{user-select:none;-webkit-user-select:none}
       for (var i = 0; i < changed.length; i++) changed[i].style.transition = "";
     }, 320);
   }
-  function movePlaceholderTo(d, p) {
+  function movePlaceholderTo(d, s) {
+    var slots = slotLayout;
+    if (s == null || s < 0 || s >= slots.length) return;
+    if (slots[s].isPh) { d.lastIndex = s; return; } // 已在该槽位
     var grid = $("grid");
-    var nodes = gridImageNodes();
+    // FLIP 起点用缓存的干净位置（不受动画 transform 影响）
     var from = new Map();
-    for (var i = 0; i < nodes.length; i++) from.set(nodes[i], nodes[i].getBoundingClientRect());
-    from.set(d.ph, d.ph.getBoundingClientRect());
-    var node = p < nodes.length ? nodes[p] : null;
-    if (node) grid.insertBefore(d.ph, node); else grid.appendChild(d.ph);
+    for (var i = 0; i < slots.length; i++) from.set(slots[i].el, slots[i]);
+    // 移动 ph 到槽位 s：先从 grid 移除，再按槽位号插入（ph 成为第 s 个槽位元素，占据该物理槽位）
+    grid.removeChild(d.ph);
+    var cards = gridImageNodes();
+    var anchor = s < cards.length ? cards[s] : null;
+    if (anchor) grid.insertBefore(d.ph, anchor); else grid.appendChild(d.ph);
+    // 清 FLIP 残留 transform 后读取干净布局缓存，后续判定不再受动画影响
+    var all = grid.querySelectorAll(".img-card");
+    for (var k = 0; k < all.length; k++) {
+      all[k].style.transition = "none";
+      all[k].style.transform = "";
+    }
+    refreshSlotLayout();
     runFlip(from);
-    d.lastIndex = p;
+    d.lastIndex = s;
   }
   function finishDrag(d, commit) {
     var grid = $("grid");
     var ghost = d.card.getBoundingClientRect();
-    var p = d.lastIndex;
-    var nodes = gridImageNodes();
-    grid.insertBefore(d.card, p < nodes.length ? nodes[p] : null);
+    // 落位：卡片直接插到 ph 前面（成为该槽位元素）后移除 ph —— 占位在哪卡片就落哪，严格一致
+    grid.insertBefore(d.card, d.ph);
     grid.removeChild(d.ph);
     d.card.style.position = "";
     d.card.style.left = "";
@@ -1927,6 +1987,8 @@ body.no-select{user-select:none;-webkit-user-select:none}
       if (idx0 < nodes2.length) grid.insertBefore(ph, nodes2[idx0]); else grid.appendChild(ph);
       dnd.lastIndex = idx0;
       dnd.origIndex = idx0;
+      // 初始化槽位布局缓存（ph 已入列，此刻无 FLIP transform，读到的是干净布局位置）
+      refreshSlotLayout();
     } else {
       dnd.card.classList.remove("drag-pickup");
       dnd.card.style.transition = "none";
@@ -1947,6 +2009,15 @@ body.no-select{user-select:none;-webkit-user-select:none}
     d.card.classList.remove("drag-pickup");
     d.card.style.touchAction = "";
     try { d.card.releasePointerCapture(d.pointerId); } catch (err) {}
+    // 松开前让 FLIP 动画立即完成（清掉卡片 inline transform）并刷新槽位缓存，
+    // 占位视觉位置 = 最终落位槽位，两者严格一致
+    var gridEl = $("grid");
+    var gridCards = gridEl.querySelectorAll(".img-card");
+    for (var gi = 0; gi < gridCards.length; gi++) {
+      gridCards[gi].style.transition = "none";
+      gridCards[gi].style.transform = "";
+    }
+    refreshSlotLayout();
     var p = dropIndexAt(x, y);
     if (p !== null && p !== d.lastIndex) movePlaceholderTo(d, p);
     finishDrag(d, p !== null && p !== d.origIndex);
