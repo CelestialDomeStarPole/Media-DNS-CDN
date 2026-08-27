@@ -280,7 +280,7 @@ a{color:var(--accent)}
 .fchip-wrap{position:relative;display:inline-flex;align-items:center;gap:3px;cursor:grab}
 .fchip-wrap.dragging{opacity:.45}
 .fchip-wrap.dragging:active{cursor:grabbing}
-.fchip-ph{display:inline-flex;align-items:center;justify-content:center;min-width:56px;height:30px;margin:0 2px;padding:0 14px;border:2px dashed color-mix(in srgb,var(--accent) 62%,transparent);border-radius:999px;background:color-mix(in srgb,var(--accent) 12%,transparent);vertical-align:middle;pointer-events:none;animation:phPulse 1.3s ease-in-out infinite}
+.fchip-ph{display:inline-flex;align-items:center;justify-content:center;min-width:40px;padding:6px 14px;margin:0 2px;border:2px dashed color-mix(in srgb,var(--accent) 62%,transparent);border-radius:999px;background:color-mix(in srgb,var(--accent) 12%,transparent);font-size:13px;line-height:1.4;color:color-mix(in srgb,var(--accent) 78%,#444);white-space:nowrap;vertical-align:middle;pointer-events:none;animation:phPulse 1.3s ease-in-out infinite}
 .fchip-menu{width:24px;height:30px;border-radius:8px;background:rgba(255,255,255,.6);border:1px solid rgba(0,0,0,.08);color:#6b7280;font-size:12px}
 .fchip-menu:hover{background:#fff;color:var(--text)}
 .chip-pop{
@@ -4206,7 +4206,11 @@ body.no-select{user-select:none;-webkit-user-select:none}
       if (d < bestD) { bestD = d; best = { el: wraps[i], before: x < c }; }
     }
     if (!best) { removeFolderPh(); return; }
-    if (!fDnd.ph) { fDnd.ph = document.createElement("span"); fDnd.ph.className = "fchip-ph"; }
+    if (!fDnd.ph) {
+      fDnd.ph = document.createElement("span");
+      fDnd.ph.className = "fchip-ph";
+      fDnd.ph.textContent = fDnd.name; // 占位显示被拖拽的文件夹名，便于分辨落点
+    }
     if (best.before) bar.insertBefore(fDnd.ph, best.el);
     else {
       var nx = best.el.nextElementSibling;
