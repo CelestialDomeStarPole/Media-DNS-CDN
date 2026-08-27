@@ -277,7 +277,10 @@ a{color:var(--accent)}
 .fchip:hover{transform:translateY(-1px);border-color:var(--accent)}
 .fchip.active{background:var(--grad);color:#fff;border-color:transparent;box-shadow:0 4px 14px rgba(0,0,0,.2)}
 .fchip.add{background:rgba(255,255,255,.5);border-style:dashed;font-weight:700}
-.fchip-wrap{position:relative;display:inline-flex;align-items:center;gap:3px}
+.fchip-wrap{position:relative;display:inline-flex;align-items:center;gap:3px;cursor:grab}
+.fchip-wrap.dragging{opacity:.45}
+.fchip-wrap.dragging:active{cursor:grabbing}
+.fchip-ph{display:inline-flex;align-items:center;justify-content:center;min-width:56px;height:30px;margin:0 2px;padding:0 14px;border:2px dashed color-mix(in srgb,var(--accent) 62%,transparent);border-radius:999px;background:color-mix(in srgb,var(--accent) 12%,transparent);vertical-align:middle;pointer-events:none;animation:phPulse 1.3s ease-in-out infinite}
 .fchip-menu{width:24px;height:30px;border-radius:8px;background:rgba(255,255,255,.6);border:1px solid rgba(0,0,0,.08);color:#6b7280;font-size:12px}
 .fchip-menu:hover{background:#fff;color:var(--text)}
 .chip-pop{
@@ -998,6 +1001,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
       "op.moved": "已移动",
       "op.sorted": "已更新排序",
       "op.sortOk": "排序保存成功，KV同步需要一会",
+      "op.sortCancelled": "已取消排序",
       "op.updated": "已更新",
       "lightbox.open": "在新标签打开原图",
       "lightbox.openSite": "在新标签打开网站外链",
@@ -1210,6 +1214,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
       "op.moved": "Moved",
       "op.sorted": "Order updated",
       "op.sortOk": "Order saved, KV sync may take a moment",
+      "op.sortCancelled": "Sorting cancelled",
       "op.updated": "Updated",
       "lightbox.open": "Open original in new tab",
       "lightbox.openSite": "Open site link in new tab",
@@ -2041,7 +2046,21 @@ body.no-select{user-select:none;-webkit-user-select:none}
     finishDrag(d, false);
   }
   window.addEventListener("keydown", function (e) {
-    if (e.key === "Escape") cancelCardDrag(e);
+    if (e.key !== "Escape") return;
+    if (fDnd) {
+      // 取消文件夹拖拽：源 chip 放回原位
+      var d = fDnd;
+      fDnd = null;
+      document.body.classList.remove("no-select");
+      if (d.wrap) d.wrap.classList.remove("dragging");
+      if (d.ph && d.ph.parentNode) d.ph.parentNode.removeChild(d.ph);
+      if (d.active) {
+        restoreSourceWrap(d);
+        toast(t("op.sortCancelled"));
+      }
+      return;
+    }
+    cancelCardDrag(e);
   });
 
   // 文件夹多选匹配：空数组 = 全选（显示所有）；否则图片 folder 命中任一选中项即通过
@@ -2682,7 +2701,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
     var h = '<button class="fchip' + (isAllSelected() ? " active" : "") + '" data-f="">' + esc(t("all")) + "</button>";
     h += '<button class="fchip' + (selectedFolders.indexOf("__uncat__") !== -1 ? " active" : "") + '" data-f="__uncat__">' + esc(t("folder.uncat")) + "</button>";
     lastFolders.forEach(function (f) {
-      h += '<span class="fchip-wrap"><button class="fchip' + (selectedFolders.indexOf(f) !== -1 ? " active" : "") + '" data-f="' + esc(f) + '">' + esc(f) + "</button>" +
+      h += '<span class="fchip-wrap" data-folder="' + esc(f) + '"><button class="fchip' + (selectedFolders.indexOf(f) !== -1 ? " active" : "") + '" data-f="' + esc(f) + '">' + esc(f) + "</button>" +
         '<button class="fchip-menu" data-folder="' + esc(f) + '" aria-label="' + esc(t("folder.rename")) + '">▾</button></span>';
     });
     h += '<button id="folder-add" class="fchip add" aria-label="' + esc(t("folder.new")) + '">+</button>';
@@ -4133,9 +4152,122 @@ body.no-select{user-select:none;-webkit-user-select:none}
     }
   });
 
+  // ===== 文件夹拖拽排序（pointer 事件，与媒体卡片同模式）=====
+  var fDnd = null; // 文件夹拖拽状态
+  var folderDragActive = false; // 抑制拖拽结束后误触筛选 click
+  $("folder-bar").addEventListener("pointerdown", function (e) {
+    if (fDnd) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    var wrap = e.target.closest ? e.target.closest(".fchip-wrap") : null;
+    if (!wrap || (e.target.closest && e.target.closest(".fchip-menu"))) return; // 下拉菜单不发起拖拽
+    var btn = wrap.querySelector(".fchip");
+    if (!btn || !btn.dataset.f) return;
+    folderDragActive = false;
+    fDnd = {
+      name: btn.dataset.f,
+      wrap: wrap,
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      active: false,
+      ph: null,
+    };
+  });
+  window.addEventListener("pointermove", function (e) {
+    if (!fDnd || e.pointerId !== fDnd.pointerId) return;
+    if (!fDnd.active) {
+      if (Math.abs(e.clientX - fDnd.startX) + Math.abs(e.clientY - fDnd.startY) < 7) return;
+      fDnd.active = true;
+      folderDragActive = true;
+      toast(t("drag.escCancel"), "accent"); // 拖拽开始：提示按 ESC 取消
+      // 从栏中移除被拖拽的源 chip，让其它文件夹立即补位（不留半透明占位）
+      var fbar = $("folder-bar");
+      var srcIdx = -1, pos2 = 0;
+      for (var i = 0; i < fbar.children.length; i++) {
+        if (fbar.children[i] === fDnd.wrap) { srcIdx = pos2; break; }
+        if (fbar.children[i].classList && fbar.children[i].classList.contains("fchip-wrap")) pos2++;
+      }
+      fDnd.origIdx = srcIdx === -1 ? 0 : srcIdx;
+      fbar.removeChild(fDnd.wrap);
+      document.body.classList.add("no-select");
+    }
+    e.preventDefault();
+    updateFolderPh(e.clientX, e.clientY);
+  }, { passive: false });
+  // 计算鼠标应插入的 chip 位置，实时移动占位虚线块（源 chip 已从栏中移除，其余文件夹补位）
+  function updateFolderPh(x, y) {
+    var bar = $("folder-bar");
+    var wraps = bar.querySelectorAll(".fchip-wrap");
+    var best = null, bestD = Infinity;
+    for (var i = 0; i < wraps.length; i++) {
+      var r = wraps[i].getBoundingClientRect();
+      var c = (r.left + r.right) / 2;
+      var d = Math.abs(x - c) + 0.6 * Math.abs(y - (r.top + r.bottom) / 2);
+      if (d < bestD) { bestD = d; best = { el: wraps[i], before: x < c }; }
+    }
+    if (!best) { removeFolderPh(); return; }
+    if (!fDnd.ph) { fDnd.ph = document.createElement("span"); fDnd.ph.className = "fchip-ph"; }
+    if (best.before) bar.insertBefore(fDnd.ph, best.el);
+    else {
+      var nx = best.el.nextElementSibling;
+      if (nx) bar.insertBefore(fDnd.ph, nx); else bar.appendChild(fDnd.ph);
+    }
+  }
+  function removeFolderPh(ph) {
+    var p = ph || (fDnd && fDnd.ph);
+    if (p && p.parentNode) p.parentNode.removeChild(p);
+  }
+  // 源 chip 已从栏中移除；落位/取消时需放回（原位或按占位确定的新位）
+  function restoreSourceWrap(d) {
+    var bar = $("folder-bar");
+    var wraps = bar.querySelectorAll(".fchip-wrap");
+    var anchor = d.origIdx < wraps.length ? wraps[d.origIdx] : null;
+    if (anchor) bar.insertBefore(d.wrap, anchor); else bar.appendChild(d.wrap);
+  }
+  function endFolderDrag() {
+    if (!fDnd) return;
+    var d = fDnd;
+    fDnd = null;
+    document.body.classList.remove("no-select");
+    if (d.wrap) d.wrap.classList.remove("dragging");
+    if (!d.active) return; // 未激活（未超过阈值）：源 chip 从未移除，无需处理
+    // 落位：占位在 bar 中的位置 → 剩余文件夹序列中的插入点（源已不在 bar）
+    var bar = $("folder-bar");
+    var phIdx = -1, pos = 0;
+    if (d.ph && d.ph.parentNode === bar) {
+      var children = bar.children;
+      for (var i = 0; i < children.length; i++) {
+        if (children[i] === d.ph) { phIdx = pos; break; }
+        if (children[i].classList && children[i].classList.contains("fchip-wrap")) pos++;
+      }
+    }
+    removeFolderPh(d.ph);
+    if (phIdx === -1) { restoreSourceWrap(d); return; } // 占位未显示（拖到空白处）：源放回原位，顺序无变化
+    var arr = lastFolders.slice();
+    var fi = arr.indexOf(d.name);
+    if (fi === -1) { restoreSourceWrap(d); return; }
+    arr.splice(fi, 1);
+    var insertAt = Math.min(phIdx, arr.length);
+    arr.splice(insertAt, 0, d.name);
+    if (arr.join("\u0000") === lastFolders.join("\u0000")) { restoreSourceWrap(d); return; } // 顺序未变：源插回原位
+    var oldOrder = lastFolders;
+    lastFolders = arr;
+    renderFolders(); // 重建栏，源 chip 回到新位置
+    api("/api/folder/reorder", { method: "POST", body: JSON.stringify({ names: arr }) })
+      .then(function () { toast(t("op.sortOk"), "success"); })
+      .catch(function (err) {
+        lastFolders = oldOrder;
+        renderFolders();
+        toast(err.message || t("op.fail"), "error");
+      });
+  }
+  window.addEventListener("pointerup", endFolderDrag);
+  window.addEventListener("pointercancel", endFolderDrag);
+
   var chipMenuFolder = null;
   $("folder-bar").addEventListener("click", function (e) {
     var el = e.target;
+    if (folderDragActive) { folderDragActive = false; return; } // 拖拽结束，抑制误触筛选
     if (el.classList.contains("fchip-menu")) {
       e.stopPropagation();
       var wrap = el.closest(".fchip-wrap");

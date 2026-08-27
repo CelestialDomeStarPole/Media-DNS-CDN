@@ -844,6 +844,22 @@ async function handleDeleteFolder(request, env) {
   return json({ ok: true });
 }
 
+// 保存文件夹顺序（拖拽排序）：新顺序必须与当前集合一致，防止拖拽丢文件夹
+async function handleReorderFolder(request, env) {
+  const body = await request.json().catch(() => null);
+  const names = Array.isArray(body && body.names)
+    ? body.names.filter((x) => typeof x === "string" && x.trim())
+    : [];
+  const current = await getFolders(env);
+  if (names.length !== current.length) return json({ error: "文件夹列表不完整" }, 400);
+  const curSet = new Set(current);
+  for (const n of names) {
+    if (!curSet.has(n)) return json({ error: "文件夹列表不完整" }, 400);
+  }
+  await saveFolders(env, names);
+  return json({ ok: true });
+}
+
 async function handleDelete(request, env, ctx) {
   const body = await request.json().catch(() => null);
   const id = body && typeof body.id === "string" ? body.id : "";
@@ -1213,6 +1229,7 @@ export default {
     if (pathname === "/api/folder/create") return requireAuth(request, env, () => handleCreateFolder(request, env));
     if (pathname === "/api/folder/rename") return requireAuth(request, env, () => handleRenameFolder(request, env));
     if (pathname === "/api/folder/delete") return requireAuth(request, env, () => handleDeleteFolder(request, env));
+    if (pathname === "/api/folder/reorder") return requireAuth(request, env, () => handleReorderFolder(request, env));
     if (pathname === "/api/settings") {
       if (request.method === "GET") return requireAuth(request, env, () => handleGetSettings(request, env));
       if (request.method === "PUT") return requireAuth(request, env, () => handlePutSettings(request, env, ctx));
