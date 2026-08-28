@@ -2139,7 +2139,14 @@ body.no-select{user-select:none;-webkit-user-select:none}
     // 列表展示：一卡一行，虚拟滚动按行计数
     gridState.cols = viewMode === "list" ? 1 : cols;
     gridState.rowH = viewMode === "list" ? 48 : cardW * 0.96 + 152;
-    var rows = Math.max(2, Math.round(window.innerHeight / gridState.rowH));
+    // 实际行距 = 卡高 + 行间距（.grid 的 gap:16px）。分组跳转/高亮的理论位置必须用行距，
+    // 否则偏差随行数累积（thumb 第 9 行、列表第 3 行就差出一整行），导致视口停错行
+    var rowGap = 16;
+    try { rowGap = parseFloat(getComputedStyle(grid).rowGap) || 16; } catch (e) {}
+    gridState.rowPitch = gridState.rowH + rowGap;
+    // 一屏容纳行数必须按行距（含 gap）算：每行实际占位 pitch。
+    // 用不含 gap 的 rowH 会高估行数——列表行小 gap 占比 26%，一屏 21 行会算成 27 行
+    var rows = Math.max(2, Math.round(window.innerHeight / gridState.rowPitch));
     gridState.groupSize = gridState.cols * rows;
     return cols;
   }
@@ -2246,6 +2253,13 @@ body.no-select{user-select:none;-webkit-user-select:none}
     finishCardQueue();
   }
   function finishCardQueue() {
+    // 渲染就位后校准列表行高：列表卡实际高度随字号/主题/缩放变化，硬编码 48px 会偏差
+    // （实际约 60px+），直接导致 groupSize 偏大（一屏 20.9 行却算出 27 一组）。
+    // 校准必须先于 renderDoneCb（分组跳转回调），保证跳转使用新 groupSize
+    if (calibrateListRowH()) {
+      updateSentinelHeight();
+      renderGroupNav(gridState.vis); // 组大小变化：重建导航按钮并恢复高亮
+    }
     if (gridState.vis && gridState.rendered >= gridState.vis.length) resetSentinel();
     else { ensureSentinel(); updateSentinelHeight(); }
     setupVideoThumbs();
@@ -2254,6 +2268,28 @@ body.no-select{user-select:none;-webkit-user-select:none}
     var cb = renderDoneCb;
     renderDoneCb = null;
     if (cb) cb();
+  }
+  // 列表行高校准：实测首张可见列表卡的真实高度（thumb 模式公式估算已被验证，不参与校准），
+  // 行距 = 卡高 + gap，据此重算一屏容纳行数作为 groupSize（列表 cols=1，一组 = 一屏最多行数）。
+  // 返回 true 表示 groupSize 变化，调用方需重建分组导航与哨兵高度
+  function calibrateListRowH() {
+    if (viewMode !== "list" || !gridState.vis || !gridState.vis.length) return false;
+    var cards = $("grid").querySelectorAll(".img-card.view-list");
+    var h = 0;
+    for (var i = 0; i < cards.length && i < 5; i++) {
+      var r = cards[i].getBoundingClientRect();
+      if (r.height > 20) { h = r.height; break; } // 跳过 display:none 的筛选隐藏卡（rect 为 0）
+    }
+    if (!h) return false;
+    if (Math.abs(h - gridState.rowH) < 0.5) return false; // 已校准到位，零开销
+    var rowGap = 16;
+    try { rowGap = parseFloat(getComputedStyle($("grid")).rowGap) || 16; } catch (e) {}
+    gridState.rowH = h;
+    gridState.rowPitch = h + rowGap;
+    var newSize = Math.max(2, Math.round(window.innerHeight / gridState.rowPitch));
+    if (newSize === gridState.groupSize) return false;
+    gridState.groupSize = newSize;
+    return true;
   }
   // 哨兵占位撑高：把剩余未渲染卡片的高度折算为 sentinel 高度，使虚拟滚动总高度恒定，
   // 保证任意虚拟位置（分组跳转、锚点定位）都能平滑滚动到真实坐标
@@ -2317,6 +2353,11 @@ body.no-select{user-select:none;-webkit-user-select:none}
     var j = pendingJump;
     pendingJump = null;
     smoothScrollTo(groupScrollTargetY(j.start), undefined, function () {
+      // 动画结束后二次校正：平滑期间图片加载/哨兵变化可能造成停止位置偏移，
+      // 确保视口顶精确对齐组首行（与高亮"完全覆盖才切换"的语义严格一致）
+      var target = groupScrollTargetY(j.start);
+      var cur = window.pageYOffset || document.documentElement.scrollTop;
+      if (Math.abs(cur - target) > 1) window.scrollTo(0, target);
       updateCurrentGroup();
     });
   }
@@ -2606,34 +2647,21 @@ body.no-select{user-select:none;-webkit-user-select:none}
     var btns = box.querySelectorAll(".g-btn");
     for (var i = 0; i < btns.length; i++) btns[i].classList.toggle("active", i === g);
   }
-  // 基于真实 DOM 卡片位置计算当前所在分组：取视口内第一张可见卡，
-  // 用其数据源实时索引（indexOf）算出分组，避免理论 rowH 估算与实际高度的偏差
+  // 当前分组判定：视口顶线压住的组——组首顶 <= 视口顶线 < 下一组首顶。
+  // 与分组跳转（滚动目标 = groupStartTop(g)，见 groupScrollTargetY）共用同一几何定义，
+  // 两者使用同一坐标系、同一位置来源（真实 rect 优先 / 理论行距兜底），
+  // 从数学上保证：点击跳转落点必然判定为所点的组；滚动时组首顶到达视口顶才切换高亮。
+  // 不再依赖"视口顶行的卡已渲染"等前提（旧逐卡扫描在哨兵占位区/未渲染区间会失准掉进估算分支）
   function updateCurrentGroup() {
     if (!gridState.vis || !gridState.groupSize) return;
-    var cards = $("grid").querySelectorAll(".img-card");
-    var foundIdx = -1;
-    var viewH = window.innerHeight;
-    for (var i = 0; i < cards.length; i++) {
-      var c = cards[i];
-      var r = c.getBoundingClientRect();
-      if (r.bottom > 0 && r.top < viewH) { // 视口内第一张可见卡（display:none 的 rect 为 0 自动跳过）
-        var im = findInLast(c.dataset.id);
-        var idx = im ? gridState.vis.indexOf(im) : -1;
-        if (idx < 0) idx = parseInt(c.dataset.idx, 10) || 0;
-        if (idx >= 0) { foundIdx = idx; break; }
-      }
-    }
-    var g;
-    if (foundIdx >= 0) {
-      g = Math.floor(foundIdx / gridState.groupSize);
-    } else {
-      var top = window.pageYOffset || document.documentElement.scrollTop;
-      var delta = top - gridDocTop();
-      g = Math.floor(delta / (gridState.rowH * (gridState.groupSize / gridState.cols)));
-    }
-    if (g < 0) g = 0;
-    var last = Math.ceil(gridState.vis.length / gridState.groupSize) - 1;
-    if (g > last) g = last;
+    var last = Math.max(0, Math.ceil(gridState.vis.length / gridState.groupSize) - 1);
+    var top = window.pageYOffset || document.documentElement.scrollTop;
+    // 理论行距估算初值，再用真实组首位置双向微调（正常滚动步进 1~2 次，性能可控）
+    var pitch = gridState.rowPitch || gridState.rowH;
+    var est = Math.floor((top - gridDocTop()) / (pitch * (gridState.groupSize / gridState.cols)));
+    var g = Math.min(last, Math.max(0, est));
+    while (g > 0 && groupStartTop(g) > top + 1) g--;
+    while (g < last && groupStartTop(g + 1) <= top + 1) g++;
     updateGroupHighlight(g);
   }
   function renderGroupNav(vis) {
@@ -2648,14 +2676,19 @@ body.no-select{user-select:none;-webkit-user-select:none}
     box.innerHTML = h;
     updateCurrentGroup(); // 重建导航按钮后恢复当前分组高亮
   }
-  // 计算分组起点卡的真实文档坐标；目标卡未渲染或被隐藏时回退理论位置
+  // 计算分组起点卡的真实文档坐标；目标卡未渲染或被隐藏时回退理论位置（行距含 gap）
   function groupScrollTargetY(idx) {
     var card = $("grid").querySelector('.img-card[data-idx="' + idx + '"]');
     if (card && card.style.display !== "none") {
       var r = card.getBoundingClientRect();
       return r.top + (window.pageYOffset || document.documentElement.scrollTop);
     }
-    return gridDocTop() + (idx / gridState.cols) * gridState.rowH;
+    var pitch = gridState.rowPitch || gridState.rowH;
+    return gridDocTop() + Math.floor(idx / gridState.cols) * pitch;
+  }
+  // 组 g 首卡的文档顶部坐标：跳转定位与高亮判定共用的唯一几何基准
+  function groupStartTop(g) {
+    return groupScrollTargetY(g * gridState.groupSize);
   }
   $("group-nav").addEventListener("click", function (e) {
     var b = e.target.closest(".g-btn");
@@ -2686,7 +2719,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
       if (top > maxY) { top = maxY; window.scrollTo(0, maxY); }
       // groupSize 变化后当前视口覆盖的数据区间可能超出已渲染卡片，
       // 沿用分组跳转的增量补渲染方式（不清空网格，已渲染卡保留、总高度由哨兵维持）
-      var start = Math.floor(top / gridState.rowH) * gridState.cols;
+      var start = Math.floor(top / gridState.rowPitch) * gridState.cols;
       var end = Math.min(gridState.vis.length, start + gridState.groupSize + 2 * gridState.cols);
       if (gridState.rendered + cardQueue.length < end) {
         enqueueCardRange(gridState.rendered + cardQueue.length, end, true);
