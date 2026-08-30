@@ -470,6 +470,26 @@ body.no-select{user-select:none;-webkit-user-select:none}
 .modal-box p{font-size:13px;color:#374151;line-height:1.6;word-break:break-all}
 .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
 
+/* SSRF 白名单快捷添加弹窗：层级高于删除确认（2300）、低于 toast（2400） */
+.origin-modal{position:fixed;inset:0;z-index:2350;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.45);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);padding:20px}
+.origin-box{width:420px;max-width:100%;background:#fff;border-radius:14px;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.28);animation:popIn .16s ease-out both}
+.origin-title{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;margin-bottom:10px}
+.origin-dot{width:9px;height:9px;border-radius:50%;background:var(--grad);background-size:200% 200%;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent);flex-shrink:0}
+.origin-desc{font-size:13px;color:#374151;line-height:1.6;margin-bottom:14px;word-break:break-all}
+.origin-host{display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;padding:2px 8px;border-radius:7px;background:color-mix(in srgb,var(--accent) 12%,transparent);border:1px solid color-mix(in srgb,var(--accent) 32%,transparent);color:var(--accent);word-break:break-all}
+.origin-field label{display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px}
+.origin-field input{width:100%;padding:11px 14px;border:1px solid rgba(0,0,0,.12);border-radius:9px;outline:none;background:rgba(255,255,255,.85);font-size:13.5px;transition:border-color .15s,box-shadow .15s}
+.origin-field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent)}
+.origin-hints{margin-top:12px;display:flex;flex-direction:column;gap:6px}
+.origin-hint{font-size:12px;color:var(--muted);line-height:1.55}
+.origin-hint.warn{color:#b45309}
+.origin-err{display:none;font-size:12px;color:#ef4444;margin-top:10px;line-height:1.5}
+.origin-err.show{display:block}
+/* 主按钮沿用 .mini 尺寸（与删除确认弹窗按钮组一致）+ accent 渐变强调 */
+.origin-ok{background:var(--grad);background-size:220% 220%;color:#fff;border:none;box-shadow:0 6px 16px color-mix(in srgb,var(--accent) 32%,transparent)}
+.origin-ok:hover{background:#fff;filter:brightness(1.06)}
+.origin-ok:disabled{opacity:.6;filter:none}
+
 /* 媒体详情弹窗 */
 .detail-modal{position:fixed;inset:0;z-index:2250;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.45);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);padding:18px}
 .detail-box{width:1026px;max-width:100%;max-height:92vh;overflow:auto;background:#fff;border-radius:22px;box-shadow:0 27px 81px rgba(0,0,0,.28);animation:popIn .16s ease-out both}
@@ -755,6 +775,25 @@ body.no-select{user-select:none;-webkit-user-select:none}
     <div class="modal-actions">
       <button id="confirm-cancel" class="mini" data-i18n="confirm.cancel"></button>
       <button id="confirm-ok" class="mini danger" data-i18n="confirm.ok"></button>
+    </div>
+  </div>
+</div>
+<div id="origin-modal" class="origin-modal hidden">
+  <div class="origin-box" role="dialog" aria-modal="true" aria-labelledby="origin-title">
+    <h3 id="origin-title" class="origin-title"><span class="origin-dot"></span><span data-i18n="origin.title"></span></h3>
+    <p class="origin-desc" id="origin-desc"></p>
+    <div class="origin-field">
+      <label for="origin-domain" data-i18n="origin.domain"></label>
+      <input id="origin-domain" type="text" spellcheck="false" autocomplete="off" data-i18n-ph="origin.domain.ph" />
+    </div>
+    <div class="origin-hints">
+      <div class="origin-hint" data-i18n="origin.hint.sub"></div>
+      <div class="origin-hint warn" data-i18n="origin.hint.warn"></div>
+    </div>
+    <div class="origin-err" id="origin-err"></div>
+    <div class="modal-actions">
+      <button id="origin-cancel" class="mini" data-i18n="origin.cancel"></button>
+      <button id="origin-ok" class="mini origin-ok" data-i18n="origin.ok"></button>
     </div>
   </div>
 </div>
@@ -1063,6 +1102,20 @@ body.no-select{user-select:none;-webkit-user-select:none}
       "set.originReferer.ph": "如 https://img.example.com/",
       "set.originUserAgent": "上游 User-Agent（转发给图床，留空用默认）",
       "set.originUserAgent.ph": "留空即可",
+      "origin.title": "域名未加入 SSRF 白名单",
+      "origin.desc": "该链接的域名 {host} 不在允许代理的白名单中，加入后才能添加此媒体。",
+      "origin.domain": "要加入白名单的域名",
+      "origin.domain.ph": "如 img.example.com",
+      "origin.hint.sub": "规则：加入 example.com 会自动放行 img.example.com 等所有子域。",
+      "origin.hint.warn": "注意：加入后该域名下的任意路径都会被 Worker 代理，请仅添加你信任的域名。",
+      "origin.cancel": "取消",
+      "origin.ok": "加入白名单并重试",
+      "origin.saving": "保存中…",
+      "origin.err.empty": "请填写要加入的域名",
+      "origin.err.invalid": "域名格式无效，请只填写域名部分",
+      "origin.exists": "该域名已在白名单中，无需重复添加",
+      "origin.saveOk": "已加入白名单，正在重新添加…",
+      "origin.retryLater": "白名单已保存，请稍候片刻再试",
       "set.group.rate": "限流（只读）",
       "set.rateIp": "每 IP 限流",
       "set.rateImg": "每图限流",
@@ -1276,6 +1329,20 @@ body.no-select{user-select:none;-webkit-user-select:none}
       "set.originReferer.ph": "e.g. https://img.example.com/",
       "set.originUserAgent": "Upstream User-Agent (default if empty)",
       "set.originUserAgent.ph": "leave empty",
+      "origin.title": "Domain not in the SSRF whitelist",
+      "origin.desc": "The domain {host} of this link is not allowed yet. Add it before adding the media.",
+      "origin.domain": "Domain to whitelist",
+      "origin.domain.ph": "e.g. img.example.com",
+      "origin.hint.sub": "Rule: adding example.com also allows all its subdomains, e.g. img.example.com.",
+      "origin.hint.warn": "Note: once added, any path under this domain can be proxied by the Worker. Only add domains you trust.",
+      "origin.cancel": "Cancel",
+      "origin.ok": "Whitelist & retry",
+      "origin.saving": "Saving…",
+      "origin.err.empty": "Please enter a domain",
+      "origin.err.invalid": "Invalid domain, enter the domain part only",
+      "origin.exists": "This domain is already whitelisted",
+      "origin.saveOk": "Whitelisted, retrying…",
+      "origin.retryLater": "Whitelist saved, please retry shortly",
       "set.group.rate": "Rate limit (read-only)",
       "set.rateIp": "Per-IP limit",
       "set.rateImg": "Per-image limit",
@@ -1328,7 +1395,14 @@ body.no-select{user-select:none;-webkit-user-select:none}
     }).then(function (res) {
       if (res.status === 401) { showLogin(); throw new Error(t("auth.invalid")); }
       return res.json().then(function (data) {
-        if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+        if (!res.ok) {
+          // 非 2xx：保留原有 message 兜底，同时透传后端结构化字段（code/host），
+          // 供调用方按错误码程序化识别（如 origin_not_allowed → 引导快捷添加白名单）
+          var e = new Error(data && data.error ? data.error : "HTTP " + res.status);
+          if (data) { e.code = data.code || ""; e.host = data.host || ""; }
+          e.status = res.status;
+          throw e;
+        }
         return data;
       });
     }).catch(function (err) {
@@ -3641,11 +3715,20 @@ body.no-select{user-select:none;-webkit-user-select:none}
       .catch(function (err) {
         // 失败：移除临时占位卡并回滚
         removeCardLocal(tempId);
-        toast(err.message || t("add.err"), "error");
+        // 域名未加入白名单 → 引导快捷添加（自动重试期间再次失败只提示，避免弹窗死循环）
+        if (err && err.code === "origin_not_allowed" && err.host && !originRetrying) {
+          openOriginModal(err.host);
+        } else if (originRetrying) {
+          // 白名单已保存，但后端设置缓存（约 15s）尚未生效
+          toast(t("origin.retryLater"), "error");
+        } else {
+          toast(err.message || t("add.err"), "error");
+        }
       })
       .finally(function () {
         setBusy(btn, false);
         updateAddBtnLabel(); // 请求期间可能切换了批量开关，恢复后按当前模式刷新按钮文字
+        originRetrying = false; // 复位自动重试标记（已在 catch 分支消费，晚于其执行）
       });
   }
   function onAddClick() {
@@ -3890,6 +3973,81 @@ body.no-select{user-select:none;-webkit-user-select:none}
   });
   $("confirm-modal").addEventListener("click", function (e) { if (e.target === this) closeConfirm(); });
   function closeConfirm() { pendingDelete = null; $("confirm-modal").classList.add("hidden"); }
+
+  // ===== SSRF 白名单快捷添加（域名未加白名单时的引导弹窗，z-index 2350）=====
+  var originRetrying = false; // 保存白名单后的自动重试中：再次失败只提示，避免弹窗死循环
+  var originHost = ""; // 当前弹窗展示的被拒域名（切换语言时据此重建说明文案）
+  // 域名归一化：剥除协议/路径/查询串/端口并小写化，与后端 isAllowedUrl 的 hostname 语义对齐。
+  // 非法输入（空、无法解析、不含点、含非法字符）返回 ""
+  function normalizeDomainInput(raw) {
+    var s = String(raw == null ? "" : raw).trim().toLowerCase();
+    if (!s) return "";
+    if (s.indexOf("://") === -1) s = "https://" + s; // 补全协议，便于用 URL 解析剥除路径与端口
+    var host;
+    try { host = new URL(s).hostname.toLowerCase(); } catch (e) { return ""; }
+    if (!/^[a-z0-9.-]+$/.test(host) || host.indexOf(".") === -1) return "";
+    return host;
+  }
+  function showOriginErr(msg) {
+    var el = $("origin-err");
+    el.textContent = msg || "";
+    el.classList.toggle("show", !!msg);
+  }
+  // 说明段落含域名高亮 chip（HTML 由此处拼装，i18n 文案只留 {host} 占位，
+  // 避免在模板字符串里嵌套转义引号）；host 来自后端响应，esc 转义后再插入
+  function renderOriginDesc() {
+    var chip = '<span class="origin-host">' + esc(originHost) + "</span>";
+    $("origin-desc").innerHTML = t("origin.desc", { host: chip });
+  }
+  function openOriginModal(host) {
+    originHost = host || "";
+    renderOriginDesc();
+    $("origin-domain").value = host || "";
+    showOriginErr("");
+    $("origin-modal").classList.remove("hidden");
+    var input = $("origin-domain");
+    input.focus();
+    input.select();
+  }
+  function closeOriginModal() { $("origin-modal").classList.add("hidden"); }
+  // 提交：以服务端完整快照为底追加域名后全量 PUT（PUT 缺字段会回落默认值），成功后自动重试添加
+  function submitOriginDomain() {
+    var raw = $("origin-domain").value;
+    var domain = normalizeDomainInput(raw);
+    if (!String(raw == null ? "" : raw).trim()) { showOriginErr(t("origin.err.empty")); $("origin-domain").focus(); return; }
+    if (!domain) { showOriginErr(t("origin.err.invalid")); $("origin-domain").focus(); return; }
+    var btn = $("origin-ok");
+    setBusy(btn, true, t("origin.saving"));
+    // PUT /api/settings 是全量替换（缺字段回落默认值）：先取服务端最新完整快照，
+    // 只改 allowedOrigins 后整体回写，绝不只提交白名单字段
+    api("/api/settings")
+      .then(function (data) {
+        var cur = (data && data.settings) || {};
+        var list = (cur.allowedOrigins || []).map(function (d) { return String(d).trim().toLowerCase(); }).filter(Boolean);
+        if (list.indexOf(domain) !== -1) { showOriginErr(t("origin.exists")); return null; }
+        list.push(domain);
+        cur.allowedOrigins = list;
+        return api("/api/settings", { method: "PUT", body: JSON.stringify(cur) }).then(function () { return list; });
+      })
+      .then(function (list) {
+        if (!list) return; // 已存在（行内提示），弹窗保持打开
+        appSettings.allowedOrigins = list; // 同步本地快照，避免后续请求仍携带旧白名单
+        var el = $("allowedOrigins");
+        if (el) el.value = list.join(", "); // 设置页输入框若已渲染则同步，避免显示过期值
+        closeOriginModal();
+        toast(t("origin.saveOk"), "success");
+        originRetrying = true; // 标记自动重试，重试再失败只提示不弹窗
+        addImage();
+      })
+      .catch(function (err) { toast(err.message || t("op.saveFail"), "error"); })
+      .finally(function () { setBusy(btn, false); });
+  }
+  $("origin-cancel").addEventListener("click", closeOriginModal);
+  $("origin-ok").addEventListener("click", submitOriginDomain);
+  $("origin-modal").addEventListener("click", function (e) { if (e.target === this) closeOriginModal(); });
+  $("origin-domain").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") { e.preventDefault(); submitOriginDomain(); }
+  });
 
   function openLightbox(info) {
     var url = info.url;
@@ -4178,7 +4336,8 @@ body.no-select{user-select:none;-webkit-user-select:none}
   });
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") {
-      if (!$("confirm-modal").classList.contains("hidden")) closeConfirm();
+      if (!$("origin-modal").classList.contains("hidden")) closeOriginModal();
+      else if (!$("confirm-modal").classList.contains("hidden")) closeConfirm();
       else if (!$("detail-modal").classList.contains("hidden")) closeDetailModal();
       else if (!$("lightbox").classList.contains("hidden")) closeLightbox();
       else if (!$("chip-pop").classList.contains("hidden")) $("chip-pop").classList.add("hidden");
@@ -4522,6 +4681,8 @@ body.no-select{user-select:none;-webkit-user-select:none}
     for (i = 0; i < q.length; i++) q[i].title = t(q[i].getAttribute("data-i18n-title"));
     q = document.querySelectorAll("[data-i18n-aria]");
     for (i = 0; i < q.length; i++) q[i].setAttribute("aria-label", t(q[i].getAttribute("data-i18n-aria")));
+    // 白名单弹窗的说明段落是运行时生成的（含域名 chip），切语言时需按当前域名重建
+    if (!$("origin-modal").classList.contains("hidden")) renderOriginDesc();
     var seg = document.querySelectorAll(".lt-seg-opt");
     for (var s = 0; s < seg.length; s++) {
       seg[s].classList.toggle("active", seg[s].classList.contains(LANG === "zh" ? "is-zh" : "is-en"));

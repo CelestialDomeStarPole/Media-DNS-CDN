@@ -315,7 +315,15 @@ async function handleConvert(request, env) {
   if (!raw) return json({ error: "请填写媒体链接" }, 400);
   const settings = await getSettings(env);
   if (!isAllowedUrl(raw, settings)) {
-    return json({ error: "该域名不在允许列表（SSRF 白名单）中，请先在设置中添加" }, 400);
+    // 仅当能解析出 hostname 时才标记为"域名未加白名单"：URL 非法或协议不符时 host 为空，
+    // 前端据此不弹快捷添加白名单弹窗（走原有错误提示），避免对非法链接误引导
+    let host = "";
+    try { host = new URL(raw).hostname.toLowerCase(); } catch { host = ""; }
+    return json({
+      error: "该域名不在允许列表（SSRF 白名单）中，请先在设置中添加",
+      code: host ? "origin_not_allowed" : "",
+      host: host
+    }, 400);
   }
   const mode =
     body.mode === "proxy"
