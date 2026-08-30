@@ -485,10 +485,12 @@ body.no-select{user-select:none;-webkit-user-select:none}
 .origin-hint.warn{color:#b45309}
 .origin-err{display:none;font-size:12px;color:#ef4444;margin-top:10px;line-height:1.5}
 .origin-err.show{display:block}
-/* 主按钮沿用 .mini 尺寸（与删除确认弹窗按钮组一致）+ accent 渐变强调 */
-.origin-ok{background:var(--grad);background-size:220% 220%;color:#fff;border:none;box-shadow:0 6px 16px color-mix(in srgb,var(--accent) 32%,transparent)}
-.origin-ok:hover{background:#fff;filter:brightness(1.06)}
-.origin-ok:disabled{opacity:.6;filter:none}
+/* 主按钮沿用 .mini 尺寸（与删除确认弹窗按钮组一致）+ accent 渐变强调。
+   hover 必须重申渐变背景：.mini:hover 有 background:#fff，同特异性下会覆盖渐变导致白底白字 */
+.origin-ok{background:var(--grad);background-size:220% 220%;color:#fff;border:none;box-shadow:0 6px 16px color-mix(in srgb,var(--accent) 32%,transparent);transition:filter .15s,box-shadow .15s,transform .1s,opacity .15s}
+.origin-ok:hover{background:var(--grad);background-size:220% 220%;filter:brightness(1.1);box-shadow:0 9px 22px color-mix(in srgb,var(--accent) 44%,transparent);transform:translateY(-1px)}
+.origin-ok:active{transform:translateY(0);filter:brightness(.95);box-shadow:0 4px 12px color-mix(in srgb,var(--accent) 30%,transparent)}
+.origin-ok:disabled{opacity:.6;filter:none;transform:none;box-shadow:none;cursor:default}
 
 /* 媒体详情弹窗 */
 .detail-modal{position:fixed;inset:0;z-index:2250;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.45);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);padding:18px}
