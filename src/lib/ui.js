@@ -422,6 +422,9 @@ body.no-select{user-select:none;-webkit-user-select:none}
 .group h3{font-size:15px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid rgba(0,0,0,.08)}
 .group label{display:block;font-size:13px;color:#374151;margin-bottom:14px}
 .group label small{color:var(--muted);display:block;margin-top:2px;font-size:12px}
+/* 多值设置项（如白名单）用 textarea：随内容自动增高，满一行即伸展，长列表不再挤成一行 */
+textarea.auto-grow{display:block;width:100%;min-height:38px;max-height:220px;resize:none;overflow-y:auto;padding:11px 14px;border:1px solid rgba(0,0,0,.12);border-radius:9px;outline:none;background:rgba(255,255,255,.85);font-family:inherit;font-size:14px;line-height:1.6;color:inherit;transition:border-color .15s,box-shadow .15s}
+textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent)}
 .group input[type=text],.group input[type=number],.group input[type=url]{display:block;width:100%;margin-top:6px;padding:9px 12px;border:1px solid rgba(0,0,0,.12);border-radius:8px;outline:none;background:rgba(255,255,255,.85)}
 .group input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent)}
 .checkline{display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:14px;cursor:pointer}
@@ -733,7 +736,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
 
         <div class="card group">
           <h3 data-i18n="set.group.origin"></h3>
-          <label><span data-i18n="set.allowedOrigins"></span><input id="allowedOrigins" type="text" data-i18n-ph="set.allowedOrigins.ph" /><small data-i18n="set.allowedOrigins.hint"></small></label>
+          <label><span data-i18n="set.allowedOrigins"></span><textarea id="allowedOrigins" class="auto-grow" rows="1" spellcheck="false" data-i18n-ph="set.allowedOrigins.ph"></textarea><small data-i18n="set.allowedOrigins.hint"></small></label>
           <label><span data-i18n="set.originReferer"></span><input id="originReferer" type="url" data-i18n-ph="set.originReferer.ph" /></label>
           <label><span data-i18n="set.originUserAgent"></span><input id="originUserAgent" type="text" data-i18n-ph="set.originUserAgent.ph" /></label>
         </div>
@@ -1487,6 +1490,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
       btn.classList.add("active");
       document.querySelectorAll(".view").forEach(function (v) { v.classList.remove("active"); });
       $("view-" + btn.getAttribute("data-view")).classList.add("active");
+      autoGrowAll(); // 视图由隐藏变可见后重算（隐藏态 scrollHeight 为 0，需重新量高）
     });
   });
 
@@ -4035,7 +4039,9 @@ body.no-select{user-select:none;-webkit-user-select:none}
         if (!list) return; // 已存在（行内提示），弹窗保持打开
         appSettings.allowedOrigins = list; // 同步本地快照，避免后续请求仍携带旧白名单
         var el = $("allowedOrigins");
-        if (el) el.value = list.join(", "); // 设置页输入框若已渲染则同步，避免显示过期值
+        // 设置页输入框若已渲染则同步，避免显示过期值；textarea 按行展示（与"一行一个"的输入习惯一致）
+        // 注意：本文件整体是模板字符串，"\\n" 才会输出 JS 里的换行转义
+        if (el) { el.value = el.tagName === "TEXTAREA" ? list.join("\\n") : list.join(", "); autoGrow(el); }
         closeOriginModal();
         toast(t("origin.saveOk"), "success");
         originRetrying = true; // 标记自动重试，重试再失败只提示不弹窗
@@ -4576,6 +4582,23 @@ body.no-select{user-select:none;-webkit-user-select:none}
   var LIST_KEYS = ["allowedOrigins", "allowedCountries", "blockedCountries", "allowedIps", "blockedIps", "allowedAsn", "blockedAsn", "allowedReferers"];
   var NUM_KEYS = ["signatureTtl", "cacheTtl", "maxImageSize", "maxAudioSize", "maxVideoSize", "onedriveRefreshHours"];
 
+  // 多值设置项 textarea 随内容自动增高：满一行即伸展，长列表不再挤成一行。
+  // 隐藏视图下 scrollHeight 为 0，此时清空内联高度回落到 CSS min-height，切回可见时重算
+  function autoGrow(el) {
+    if (!el) return;
+    el.style.height = "auto";
+    var h = el.scrollHeight || 0;
+    el.style.height = h ? h + "px" : "";
+  }
+  function autoGrowAll() {
+    var tas = document.querySelectorAll("textarea.auto-grow");
+    for (var i = 0; i < tas.length; i++) autoGrow(tas[i]);
+  }
+  var growTas = document.querySelectorAll("textarea.auto-grow");
+  for (var gi = 0; gi < growTas.length; gi++) {
+    growTas[gi].addEventListener("input", function () { autoGrow(this); });
+  }
+
   function loadSettings() {
     api("/api/settings").then(function (data) {
       var s = data.settings || {};
@@ -4584,6 +4607,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
         var el = $(k);
         if (el) el.value = (s[k] || []).join(", ");
       });
+      autoGrowAll(); // 载入已配置域名后按内容调整高度（视图隐藏时会在切回设置页重算）
       NUM_KEYS.forEach(function (k) {
         var el = $(k);
         // 旧 KV 可能缺少新增字段（如 onedriveRefreshHours），显示为空而非 "undefined"
@@ -4641,7 +4665,9 @@ body.no-select{user-select:none;-webkit-user-select:none}
     var body = {};
     LIST_KEYS.forEach(function (k) {
       var el = $(k);
-      body[k] = el ? el.value.split(",").map(function (s) { return s.trim(); }).filter(Boolean) : [];
+      // 按逗号/空格/换行切分（与后端 splitList 一致）：白名单是 textarea，允许一行一个域名。
+      // 正则里的 \s 需双写，否则会被外层模板字符串吞掉反斜杠
+      body[k] = el ? el.value.split(/[,，\\s]+/).map(function (s) { return s.trim(); }).filter(Boolean) : [];
     });
     NUM_KEYS.forEach(function (k) {
       var el = $(k);
