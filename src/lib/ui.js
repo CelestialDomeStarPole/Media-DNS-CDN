@@ -68,7 +68,42 @@ export function renderUI() {
   --grad:linear-gradient(135deg,var(--c1),var(--c2),var(--c3));
 }
 html,body{height:100%}
-html{background-color:#f4f2fb;scrollbar-gutter:stable} /* 始终为滚动条预留槽位（避免切换瞬间滚动条消失/回归导致网页左右拉伸），且不强制显示滚动条，避免双重滚动条 */
+/* 槽位露出的是根背景（fixed 背景不覆盖槽位），故根背景用渐变，否则槽位是一条纯色白条 */
+html{background-color:#f4f2fb;background-image:linear-gradient(160deg,color-mix(in srgb,var(--c1) 20%,#fff),color-mix(in srgb,var(--c2) 20%,#fff),color-mix(in srgb,var(--c3) 20%,#fff));background-size:260% 260%;background-attachment:fixed;scrollbar-gutter:stable}
+
+/* ===== 滚动条美化（纯 CSS，滚动行为完全保留原生）=====
+   ⚠ 1) 全局别写 scrollbar-width/color，Chrome 会丢弃下面的 webkit 渐变样式
+      2) 条宽恒定 12px（hover 改宽会让容器内容抖动）；8→12px 靠 thumb 内缩边框实现
+      3) 主页面槽位色来自根背景，不是 track；侧边栏槽位见下 */
+/* 层级：scrollbar(槽位) > track(轨道) > thumb(滑块)，前两层都透明才算隐形 */
+::-webkit-scrollbar{width:12px;height:12px;background:transparent}
+::-webkit-scrollbar-track{background:rgba(255,255,255,0)} /* 0=隐形，想要槽位感调到 .3~.5 */
+::-webkit-scrollbar-thumb{
+  background:var(--grad);         /* 随随机主题自动变化 */
+  background-size:100% 260%;
+  border-radius:999px;
+  border:2px solid transparent;   /* 可见宽度 8px，hover 时去掉边框展开到 12px */
+  background-clip:padding-box;
+  transition:border-width .15s ease;
+}
+::-webkit-scrollbar-corner{background:transparent} /* 交汇处不留白块 */
+/* 鼠标移到滚动条或任一可滚动容器上 → 展开到 12px */
+::-webkit-scrollbar-thumb:hover,
+.sidebar:hover::-webkit-scrollbar-thumb,
+.group-nav:hover::-webkit-scrollbar-thumb,
+.detail-box:hover::-webkit-scrollbar-thumb,
+.od-items:hover::-webkit-scrollbar-thumb,
+.br-fail:hover::-webkit-scrollbar-thumb,
+textarea.auto-grow:hover::-webkit-scrollbar-thumb{border-width:0}
+/* 侧边栏深色底上单独给个浅槽（数值可调） */
+.group-nav::-webkit-scrollbar-track{background:rgba(255,255,255,.25)}
+/* Firefox 只支持纯色，用 var(--accent) 同样跟随主题 */
+@supports not selector(::-webkit-scrollbar){
+  html{scrollbar-width:thin;scrollbar-color:var(--accent) transparent}
+}
+@media (prefers-reduced-motion:reduce){
+  ::-webkit-scrollbar-thumb{transition:none}
+}
 body{
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
   color:var(--text);font-size:14px;line-height:1.5;overflow-x:hidden;
