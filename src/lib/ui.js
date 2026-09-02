@@ -10,7 +10,7 @@ export function renderUI() {
 (function () {
   var P = [
     ["#6366f1", "#a855f7", "#ec4899"],
-    ["#4f46e5", "#8b5cf6", "#d946ef"],
+    ["#87ceeb", "#98d8e8", "#f7dc6f"],
     ["#0ea5e9", "#6366f1", "#a855f7"],
     ["#06b6d4", "#3b82f6", "#8b5cf6"],
     ["#f59e0b", "#f97316", "#ec4899"],
