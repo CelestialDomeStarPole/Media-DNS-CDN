@@ -204,7 +204,8 @@ a{color:var(--accent)}
 .sidebar{
   width:220px;padding:18px 12px;display:flex;flex-direction:column;
   background:linear-gradient(165deg,var(--c1),var(--c2),var(--c3));
-  background-size:300% 300%;animation:shift 20s ease-in-out infinite;
+  /* 纵向轻放大给 shift 动画留流动空间； */
+  background-size:100% 150%;animation:shift 20s ease-in-out infinite;
   color:rgba(255,255,255,.9);position:sticky;top:0;height:100vh;
   box-shadow:4px 0 30px color-mix(in srgb,var(--c2) 35%,transparent)
 }
@@ -255,7 +256,9 @@ a{color:var(--accent)}
 .add-mode-toggle{display:flex;gap:8px;margin-bottom:16px}
 .at-seg{flex:1;padding:10px 14px;border-radius:10px;font-size:14px;font-weight:600;color:var(--muted);background:rgba(255,255,255,.55);border:1px solid rgba(0,0,0,.1);cursor:pointer;transition:all .18s ease}
 .at-seg:hover{border-color:var(--accent);color:var(--text)}
-.at-seg.active{background:var(--grad);background-size:220% 220%;color:#fff;border-color:transparent;box-shadow:0 6px 16px color-mix(in srgb,var(--accent) 38%,transparent)}
+/* 激活态用水平三色渐变：宽扁长条上 135deg 对角渐变会让第三色挤在角落，
+   且 background-size 放大超过 100% 会把色标推出元素外 */
+.at-seg.active{background:linear-gradient(90deg,var(--c1),var(--c2),var(--c3));color:#fff;border-color:transparent;box-shadow:0 6px 16px color-mix(in srgb,var(--accent) 38%,transparent)}
 /* OneDrive 解析结果信息条 */
 .od-info{display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px 14px;border:1px dashed rgba(0,0,0,.16);border-radius:9px;background:rgba(255,255,255,.5)}
 .od-icon{width:10px;height:10px;border-radius:3px;background:var(--grad);flex-shrink:0}
@@ -523,10 +526,10 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 .origin-hint.warn{color:#b45309}
 .origin-err{display:none;font-size:12px;color:#ef4444;margin-top:10px;line-height:1.5}
 .origin-err.show{display:block}
-/* 主按钮沿用 .mini 尺寸（与删除确认弹窗按钮组一致）+ accent 渐变强调。
+/* 主按钮沿用 .mini 尺寸（与删除确认弹窗按钮组一致）+ 水平三色渐变。
    hover 必须重申渐变背景：.mini:hover 有 background:#fff，同特异性下会覆盖渐变导致白底白字 */
-.origin-ok{background:var(--grad);background-size:220% 220%;color:#fff;border:none;box-shadow:0 6px 16px color-mix(in srgb,var(--accent) 32%,transparent);transition:filter .15s,box-shadow .15s,transform .1s,opacity .15s}
-.origin-ok:hover{background:var(--grad);background-size:220% 220%;filter:brightness(1.1);box-shadow:0 9px 22px color-mix(in srgb,var(--accent) 44%,transparent);transform:translateY(-1px)}
+.origin-ok{background:linear-gradient(90deg,var(--c1),var(--c2),var(--c3));color:#fff;border:none;box-shadow:0 6px 16px color-mix(in srgb,var(--accent) 32%,transparent);transition:filter .15s,box-shadow .15s,transform .1s,opacity .15s}
+.origin-ok:hover{background:linear-gradient(90deg,var(--c1),var(--c2),var(--c3));filter:brightness(1.1);box-shadow:0 9px 22px color-mix(in srgb,var(--accent) 44%,transparent);transform:translateY(-1px)}
 .origin-ok:active{transform:translateY(0);filter:brightness(.95);box-shadow:0 4px 12px color-mix(in srgb,var(--accent) 30%,transparent)}
 .origin-ok:disabled{opacity:.6;filter:none;transform:none;box-shadow:none;cursor:default}
 
