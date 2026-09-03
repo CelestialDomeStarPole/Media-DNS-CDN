@@ -8,39 +8,53 @@ export function renderUI() {
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236366f1'/%3E%3Cstop offset='.5' stop-color='%23a855f7'/%3E%3Cstop offset='1' stop-color='%23ec4899'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='8' fill='url(%23g)'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='7' y='8' width='18' height='16' rx='2.5'/%3E%3Cpath d='M9.5 20.5l4.2-5 3.3 3.8 2.7-3 2.8 4.2'/%3E%3C/g%3E%3Ccircle cx='20.5' cy='12' r='1.6' fill='%23fff'/%3E%3C/svg%3E" />
 <script>
 (function () {
-  var P = [
-    ["#34b5ec", "#8cc5ee", "#f16b84"],
-    ["#87ceeb", "#98d8e8", "#f7dc6f"],
-    ["#0ea5e9", "#6366f1", "#a855f7"],
-    ["#06b6d4", "#4187f8", "#8e63f3"],
-    ["#f59e0b", "#f97316", "#f155a3"],
-    ["#10b981", "#0ea5e9", "#6f71f3"],
-    ["#f43f5e", "#f97316", "#f59e0b"],
-    ["#14b8a6", "#22d3ee", "#8994f7"],
-    ["#af61f8", "#ec4899", "#fb7185"],
-    ["#3b82f6", "#06b6d4", "#22d3ee"]
+  // 预置壁纸：三色逐张手动填写（占位色可自行调整）；详情页「设为壁纸」会追加到本地壁纸池
+  var WP_PRESET = [
+    { url: "https://media.starpole.cc.cd/i/4988b4b501cf762d", name: "4988b4b501cf762d.jpg", colors: ["#34b5ec", "#8cc5ee", "#f16b84"] },
+    { url: "https://media.starpole.cc.cd/i/b9934b9eb480c38b", name: "b9934b9eb480c38b.jpg", colors: ["#87ceeb", "#98d8e8", "#f7dc6f"] },
+    { url: "https://media.starpole.cc.cd/i/c52da7c8e34e85fd", name: "c52da7c8e34e85fd.jpg", colors: ["#0ea5e9", "#6366f1", "#a855f7"] },
+    { url: "https://media.starpole.cc.cd/i/f08f02803ac3b6c8", name: "f08f02803ac3b6c8.jpg", colors: ["#06b6d4", "#4187f8", "#8e63f3"] },
+    { url: "https://media.starpole.cc.cd/i/a1698bb8abab7647", name: "a1698bb8abab7647.jpg", colors: ["#f59e0b", "#f97316", "#f155a3"] },
+    { url: "https://media.starpole.cc.cd/i/ea695337b23042a3", name: "ea695337b23042a3.jpg", colors: ["#10b981", "#0ea5e9", "#6f71f3"] },
+    { url: "https://media.starpole.cc.cd/i/0dc3c7fb2276af47", name: "0dc3c7fb2276af47.jpg", colors: ["#f43f5e", "#f97316", "#f59e0b"] }
   ];
-  var p = P[Math.floor(Math.random() * P.length)];
-  (function () {
-    var KEY = "mdn_theme";
-    var idx = Array.apply(null, new Array(P.length)).map(function (_, i) { return i; });
-    function shuffle(a) {
-      for (var i = a.length - 1; i > 0; i--) {
-        var j = Math.floor(Math.random() * (i + 1));
-        var t = a[i]; a[i] = a[j]; a[j] = t;
-      }
-      return a;
+  var K_MODE = "mdn_wp_mode", K_FIXED = "mdn_wp_fixed", K_DECK = "mdn_wp_deck", K_CUSTOM = "mdn_wp_custom";
+  function wls(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+  function wlsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function shuffle(a) {
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
     }
-    try {
-      var st = JSON.parse(localStorage.getItem(KEY) || "null");
-      var deck = st && Array.isArray(st.deck) && st.deck.length === P.length ? st.deck : shuffle(idx.slice());
-      var pos = (st && typeof st.i === "number") ? st.i : 0;
+    return a;
+  }
+  var p = WP_PRESET[0].colors;
+  (function () {
+    // 壁纸池 = 预置 + 本地自定义；随机模式沿用「洗牌 + 游标」，固定模式按 URL 匹配
+    var custom = [];
+    try { custom = JSON.parse(wls(K_CUSTOM) || "[]") || []; } catch (e) { custom = []; }
+    if (!Array.isArray(custom)) custom = [];
+    var pool = WP_PRESET.concat(custom);
+    var idx = pool.map(function (_, i) { return i; });
+    var mode = wls(K_MODE) || "random";
+    var wp = pool[0];
+    if (mode === "fixed") {
+      var fu = wls(K_FIXED) || "";
+      for (var i = 0; i < pool.length; i++) { if (pool[i].url === fu) { wp = pool[i]; break; } }
+    } else {
+      var st = null;
+      try { st = JSON.parse(wls(K_DECK) || "null"); } catch (e) { st = null; }
+      var deck = st && Array.isArray(st.deck) && st.deck.length === pool.length ? st.deck : shuffle(idx.slice());
+      var pos = st && typeof st.i === "number" ? st.i : 0;
       if (pos >= deck.length) { deck = shuffle(idx.slice()); pos = 0; }
-      p = P[deck[pos]];
+      wp = pool[deck[pos]] || pool[0];
       pos++;
       if (pos >= deck.length) { deck = shuffle(idx.slice()); pos = 0; }
-      localStorage.setItem(KEY, JSON.stringify({ deck: deck, i: pos }));
-    } catch (e) { /* 隐私模式等：保持初始真随机 */ }
+      wlsSet(K_DECK, JSON.stringify({ deck: deck, i: pos }));
+    }
+    p = wp.colors;
+    // 交给主脚本：壁纸 img 淡入、设置页壁纸列表、点击特效换色都读这里
+    window.__WP__ = { url: wp.url, name: wp.name, colors: wp.colors, mode: mode, pool: pool };
   })();
   var s = document.documentElement.style;
   s.setProperty("--c1", p[0]);
@@ -80,6 +94,9 @@ export function renderUI() {
   :root{--glass:rgba(255,255,255,.88);--glass-panel:rgba(255,255,255,.96);--glass-chip:rgba(255,255,255,.92)}
 }
 html,body{height:100%}
+/* 壁纸层：解码完成后即刻淡入；未加载时透出根背景三色渐变兜底（见 html 规则） */
+#wallpaper{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:-3;opacity:0;pointer-events:none;transition:opacity .35s ease}
+#wallpaper.show{opacity:1}
 /* 槽位露出的是根背景（fixed 背景不覆盖槽位），故根背景用渐变，否则槽位是一条纯色白条 */
 html{background-color:#f4f2fb;background-image:linear-gradient(160deg,color-mix(in srgb,var(--c1) 20%,#fff),color-mix(in srgb,var(--c2) 20%,#fff),color-mix(in srgb,var(--c3) 20%,#fff));background-size:260% 260%;background-attachment:fixed;scrollbar-gutter:stable}
 
@@ -116,38 +133,25 @@ textarea.auto-grow:hover::-webkit-scrollbar-thumb{border-width:0}
 @media (prefers-reduced-motion:reduce){
   ::-webkit-scrollbar-thumb{transition:none}
 }
+/* 移动端：保留壁纸但削弱毛玻璃强度，平衡观感与流畅 */
+@media (max-width:768px){
+  .card,.login-card,.modal-box,.origin-box,.detail-box{-webkit-backdrop-filter:blur(10px) saturate(1.5);backdrop-filter:blur(10px) saturate(1.5)}
+  .img-card:not(.view-list) .card-body{background:rgba(0,0,0,.42)}
+}
 body{
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
   color:var(--text);font-size:14px;line-height:1.5;overflow-x:hidden;
   background:transparent
 }
-/* 页面渐变背景改为固定层：位置:fixed 且尺寸恰好等于视口，
-   260% 的渐变图在任何滚动位置、任何浏览器（含 Safari 等按视口
-   解析 canvas 背景尺寸的实现）下都必然完整盖住视口，
-   从根上消除"渐变带边缘 + 底色交界"的移动分割线 */
-body::before{
-  content:"";position:fixed;top:0;left:0;width:100%;height:100%;
-  z-index:-3;pointer-events:none;
-  background-image:linear-gradient(160deg,color-mix(in srgb,var(--c1) 20%,#fff),color-mix(in srgb,var(--c2) 20%,#fff),color-mix(in srgb,var(--c3) 20%,#fff));
-  background-size:260% 260%;animation:bgFlow 40s ease-in-out infinite
-}
+
 button{font-family:inherit;cursor:pointer;border:none;background:none}
 input,select{font-family:inherit;font-size:14px}
 a{color:var(--accent)}
 .hidden{display:none!important}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
-/* 动态背景光斑 */
-.bg-blob{position:fixed;border-radius:50%;filter:blur(80px);opacity:.55;z-index:-2;pointer-events:none}
-.b1{width:44vmax;height:44vmax;top:-14vmax;left:-10vmax;background:radial-gradient(circle,var(--c1),transparent 66%);animation:float1 22s ease-in-out infinite}
-.b2{width:40vmax;height:40vmax;top:16%;right:-12vmax;background:radial-gradient(circle,var(--c2),transparent 66%);animation:float2 28s ease-in-out infinite}
-.b3{width:46vmax;height:46vmax;bottom:-16vmax;left:28%;background:radial-gradient(circle,var(--c3),transparent 66%);animation:float3 24s ease-in-out infinite}
-@keyframes float1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(9vmax,6vmax) scale(1.18)}}
-@keyframes float2{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(-8vmax,5vmax) scale(1.12)}}
-@keyframes float3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(6vmax,-7vmax) scale(1.15)}}
+/* 侧边栏渐变流动动画（壁纸化后仅侧边栏仍在用） */
 @keyframes shift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
-@keyframes bgFlow{0%,100%{background-position:0% 50%}25%{background-position:100% 50%}50%{background-position:100% 100%}75%{background-position:0% 100%}}
-#particles{position:fixed;inset:0;z-index:-1;pointer-events:none}
 
 /* 点击星火 */
 #clickfx{position:fixed;inset:0;z-index:2300;pointer-events:none}
@@ -392,6 +396,20 @@ body.no-select{user-select:none;-webkit-user-select:none}
 .thumb-fallback .tf-icon{font-size:22px}
 .thumb-fallback .tf-id{font-size:11px;word-break:break-all;max-width:92%}
 .card-body{padding:12px;display:flex;flex-direction:column;gap:7px;flex:1}
+/* ===== 壁纸模式：信息区暗色衬底 + 白字（保证照片背景上的可读性，纯色底零滤镜开销）===== */
+.img-card:not(.view-list) .card-body{background:rgba(0,0,0,.34)}
+.img-card .img-name,.img-card .img-name .t{color:#fff}
+.img-card .img-name .pen{color:rgba(255,255,255,.85)}
+.img-card .img-id,.img-card .img-id .t{color:rgba(255,255,255,.78)}
+.img-card .img-url{color:rgba(255,255,255,.62)}
+.img-card .muted{color:rgba(255,255,255,.66)}
+.img-card .lst-time,.img-card .lst-size{color:rgba(255,255,255,.66)}
+.img-card .img-id .zoom-inline{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.28);color:#fff}
+/* 列表行整行暗底（48px 细行上块状衬底比逐行更干净） */
+.img-card.view-list{background-color:rgba(0,0,0,.38)}
+.img-card.view-list .lst-name-hit .t{color:#fff}
+/* 名称编辑框在暗底上保持可读 */
+.img-card .name-edit{background:rgba(0,0,0,.45);color:#fff}
 .card-top{display:flex;align-items:center;justify-content:space-between;min-height:22px;line-height:22px}
 .badge{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:600}
 .badge-proxy{background:color-mix(in srgb,var(--c1) 16%,#fff);color:var(--c1)}
@@ -552,6 +570,25 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 .origin-ok:active{transform:translateY(0);filter:brightness(.95);box-shadow:0 4px 12px color-mix(in srgb,var(--accent) 30%,transparent)}
 .origin-ok:disabled{opacity:.6;filter:none;transform:none;box-shadow:none;cursor:default}
 
+/* 壁纸取色弹窗：层级高于 origin-modal（2350）、低于 toast（2400） */
+.wp-modal{z-index:2360}
+.wp-desc{font-size:13px;color:#374151;line-height:1.6;margin-bottom:12px}
+.wp-colors{display:flex;gap:12px;margin-bottom:12px}
+.wp-colors label{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;color:#374151}
+.wp-colors input[type="color"]{width:52px;height:36px;border:1px solid rgba(0,0,0,.12);border-radius:8px;padding:2px;background:#fff;cursor:pointer}
+.wp-preview{height:14px;border-radius:999px;margin:4px 0 2px;background:linear-gradient(90deg,#6366f1,#a855f7,#ec4899);transition:background .15s}
+/* 设置页壁纸分组 */
+.wp-mode-row{display:flex;gap:8px;flex-wrap:wrap}
+.wp-mode-btn{padding:7px 16px;border-radius:999px;font-size:13px;font-weight:600;background:var(--glass-chip);border:1px solid rgba(0,0,0,.12);color:var(--text);cursor:pointer;transition:all .15s}
+.wp-mode-btn.active{background:linear-gradient(90deg,var(--c1),var(--c2),var(--c3));color:#fff;border-color:transparent}
+.wp-pool{display:flex;flex-direction:column;gap:4px;max-height:220px;overflow-y:auto;padding:4px;border:1px solid rgba(0,0,0,.1);border-radius:9px}
+.wp-item{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer;padding:5px 8px;border-radius:8px;transition:background .15s}
+.wp-item:hover{background:rgba(0,0,0,.05)}
+.wp-item .radio{width:14px;height:14px;border-radius:50%;border:2px solid rgba(0,0,0,.25);flex:none;box-sizing:border-box;transition:border-color .15s,background .15s}
+.wp-item.picked .radio{border-color:var(--accent);background:radial-gradient(circle,var(--accent) 42%,transparent 48%)}
+.wp-item .t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.detail-wp-btn{flex:none}
+
 /* 媒体详情弹窗 */
 .detail-modal{position:fixed;inset:0;z-index:2250;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.45);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);padding:18px}
 .detail-box{width:1026px;max-width:100%;max-height:92vh;overflow:auto;background-color:var(--glass-panel);background-image:linear-gradient(180deg,var(--glass-hi),rgba(255,255,255,.04) 22%,transparent 42%);-webkit-backdrop-filter:blur(28px) saturate(1.9) brightness(1.05);backdrop-filter:blur(28px) saturate(1.9) brightness(1.05);border:1px solid var(--glass-line);border-radius:22px;box-shadow:var(--glass-rim),0 27px 81px rgba(0,0,0,.28);animation:popIn .16s ease-out both}
@@ -615,7 +652,6 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 }
 @media (prefers-reduced-motion: reduce){
   *,*:before,*:after{animation:none!important;transition:none!important}
-  .bg-blob{animation:none}
   .sidebar,.logo,.primary,.lang-toggle,.lang-toggle svg,.lt-seg-opt,.lt-seg-opt::after{animation:none}
 }
 </style>
@@ -638,10 +674,7 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
   </span>
 </button>
 
-<div class="bg-blob b1"></div>
-<div class="bg-blob b2"></div>
-<div class="bg-blob b3"></div>
-<canvas id="particles" aria-hidden="true"></canvas>
+<img id="wallpaper" alt="" decoding="async" />
 <div id="clickfx" aria-hidden="true"></div>
 
 <div id="login" class="login-screen hidden">
@@ -811,6 +844,20 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
           <label><span data-i18n="set.thumbCache"></span><input id="thumbCache" type="number" min="8" max="1000" step="4" data-i18n-ph="set.thumbCache.ph" /><small data-i18n="set.thumbCache.hint"></small></label>
         </div>
 
+        <div class="card group">
+          <h3 data-i18n="set.group.wallpaper"></h3>
+          <label><span data-i18n="set.wp.mode"></span>
+            <span class="wp-mode-row" id="wp-mode">
+              <button type="button" class="wp-mode-btn" data-mode="random" data-i18n="set.wp.random"></button>
+              <button type="button" class="wp-mode-btn" data-mode="fixed" data-i18n="set.wp.fixed"></button>
+            </span>
+          </label>
+          <label><span data-i18n="set.wp.pool"></span>
+            <div id="wp-pool" class="wp-pool"></div>
+            <small data-i18n="set.wp.pool.hint"></small>
+          </label>
+        </div>
+
         <div class="save-row">
           <button id="logout-in-settings" class="logout-in-settings" data-i18n="nav.logout"></button>
         </div>
@@ -856,6 +903,22 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
     <div class="modal-actions">
       <button id="origin-cancel" class="mini" data-i18n="origin.cancel"></button>
       <button id="origin-ok" class="mini origin-ok" data-i18n="origin.ok"></button>
+    </div>
+  </div>
+</div>
+<div id="wp-modal" class="modal wp-modal hidden">
+  <div class="modal-box" role="dialog" aria-modal="true">
+    <h3 data-i18n="wp.title"></h3>
+    <p class="wp-desc" data-i18n="wp.desc"></p>
+    <div class="wp-colors">
+      <label><input type="color" id="wp-c1" /><span data-i18n="wp.color1"></span></label>
+      <label><input type="color" id="wp-c2" /><span data-i18n="wp.color2"></span></label>
+      <label><input type="color" id="wp-c3" /><span data-i18n="wp.color3"></span></label>
+    </div>
+    <div class="wp-preview" id="wp-preview"></div>
+    <div class="modal-actions">
+      <button id="wp-cancel" class="mini" data-i18n="confirm.cancel"></button>
+      <button id="wp-ok" class="mini origin-ok" data-i18n="wp.ok"></button>
     </div>
   </div>
 </div>
@@ -907,6 +970,7 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
         </div>
         <div class="detail-actions">
           <button id="detail-copy-btn" class="primary detail-copy-btn" data-i18n="detail.copy"></button>
+          <button id="detail-wp-btn" class="secondary detail-wp-btn" data-i18n="detail.wp"></button>
           <button id="detail-del-btn" class="detail-del-btn" data-i18n="card.del"></button>
         </div>
         </div>
@@ -1188,6 +1252,21 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
       "set.rateAvVal": "每媒体 {limit} 次 / {period} 秒",
       "set.rateNoteText": "限流由 Cloudflare Rate Limit Binding 在边缘执行，数值需在 wrangler.jsonc 中修改后重新部署，此处仅展示当前配置。",
       "set.group.ui": "界面",
+      "set.group.wallpaper": "壁纸",
+      "set.wp.mode": "壁纸模式",
+      "set.wp.random": "随机",
+      "set.wp.fixed": "固定",
+      "set.wp.pool": "图片池",
+      "set.wp.pool.hint": "点击任一张设为固定；选「随机」则每次刷新按假随机轮换。",
+      "detail.wp": "设为壁纸",
+      "wp.title": "将此图片设为壁纸",
+      "wp.desc": "调整主题三色（已按图片自动取色，可手动微调），确定后加入图片池并立即生效。",
+      "wp.color1": "深色",
+      "wp.color2": "主色",
+      "wp.color3": "亮色",
+      "wp.ok": "确定",
+      "wp.applied": "已设为壁纸",
+      "wp.err": "该媒体缺少可用链接",
       "set.thumbCache": "缩略图缓存上限（个）",
       "set.thumbCache.ph": "如 50",
       "set.thumbCache.hint": "超过上限时自动释放距离当前位置最远、且超过最小释放距离的缩略图，滑到附近时重新加载。仅存在本浏览器。",
@@ -1415,6 +1494,21 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
       "set.rateAvVal": "{limit} requests per media / {period}s",
       "set.rateNoteText": "Rate limiting runs at the edge via Cloudflare Rate Limit Binding; change values in wrangler.jsonc and re-deploy. This is read-only.",
       "set.group.ui": "Interface",
+      "set.group.wallpaper": "Wallpaper",
+      "set.wp.mode": "Wallpaper mode",
+      "set.wp.random": "Random",
+      "set.wp.fixed": "Fixed",
+      "set.wp.pool": "Image pool",
+      "set.wp.pool.hint": "Click any image to pin it; choose Random to rotate via the fake-random deck.",
+      "detail.wp": "Set as wallpaper",
+      "wp.title": "Set this image as wallpaper",
+      "wp.desc": "Tune the theme trio (auto-picked from the image, editable), then add it to the pool and apply immediately.",
+      "wp.color1": "Dark",
+      "wp.color2": "Main",
+      "wp.color3": "Light",
+      "wp.ok": "Confirm",
+      "wp.applied": "Wallpaper set",
+      "wp.err": "No usable link on this media",
       "set.thumbCache": "Thumbnail cache cap",
       "set.thumbCache.ph": "e.g. 50",
       "set.thumbCache.hint": "When the cap is exceeded, thumbnails farthest from the viewport (beyond a minimum eviction distance) are released and reload when scrolled back. Stored in this browser only.",
@@ -4363,6 +4457,9 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
     }
     var fmts = $("detail-format").querySelectorAll(".dchip");
     for (var j = 0; j < fmts.length; j++) fmts[j].classList.toggle("active", fmts[j].getAttribute("data-fmt") === detailFmt);
+    // 设壁纸按钮：仅普通链接的图片媒体可用（OneDrive 直链会过期、视频不适合做静态壁纸）
+    var wpBtn = $("detail-wp-btn");
+    if (wpBtn) wpBtn.classList.toggle("hidden", isOneDriveImg(img) || img.type === "video");
     $("detail-preview").value = buildCopyText(img, detailSrc, detailFmt);
   }
   $("detail-source").addEventListener("click", function (e) {
@@ -4401,7 +4498,8 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
   });
   document.addEventListener("keydown", function (e) {
     if (e.key === "Escape") {
-      if (!$("origin-modal").classList.contains("hidden")) closeOriginModal();
+      if (!$("wp-modal").classList.contains("hidden")) $("wp-modal").classList.add("hidden");
+      else if (!$("origin-modal").classList.contains("hidden")) closeOriginModal();
       else if (!$("confirm-modal").classList.contains("hidden")) closeConfirm();
       else if (!$("detail-modal").classList.contains("hidden")) closeDetailModal();
       else if (!$("lightbox").classList.contains("hidden")) closeLightbox();
@@ -4811,9 +4909,189 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
     setTimeout(function () { target.classList.remove("langPop"); }, 450);
   });
 
-  if (!REDUCED) startParticles();
 
   var CFX_COLORS = null;
+  function applyWpColors(url, colors) {
+    var s = document.documentElement.style;
+    s.setProperty("--c1", colors[0]);
+    s.setProperty("--c2", colors[1]);
+    s.setProperty("--c3", colors[2]);
+    s.setProperty("--accent", colors[1]);
+    s.setProperty("--accent2", colors[2]);
+    CFX_COLORS = null; // 主题色已变，点击特效缓存必须重置
+    var img = $("wallpaper");
+    if (img) {
+      img.classList.remove("show");
+      img.src = url;
+      var done = function () { img.classList.add("show"); };
+      if (img.decode) img.decode().then(done, done); else img.onload = done;
+    }
+  }
+  // 壁纸应用：读取 head 脚本选好的壁纸，解码完成后即刻淡入
+  function applyWallpaper() {
+    var wp = window.__WP__;
+    if (!wp || !wp.url) return;
+    applyWpColors(wp.url, wp.colors);
+  }
+  function wpPoolData() { return (window.__WP__ && window.__WP__.pool) || []; }
+  // 设置页壁纸面板：模式胶囊 + 图片池列表（圆圈 + 文件名.后缀）
+  function renderWpPanel() {
+    var wp = window.__WP__ || {};
+    var pool = wp.pool || [];
+    var mode = wp.mode || "random";
+    var fixed = "";
+    try { fixed = localStorage.getItem("mdn_wp_fixed") || ""; } catch (e) {}
+    var box = $("wp-pool");
+    if (!box) return;
+    var h = "";
+    for (var i = 0; i < pool.length; i++) {
+      var it = pool[i];
+      var picked = mode === "fixed" && it.url === fixed;
+      h += '<div class="wp-item' + (picked ? " picked" : "") + '" data-url="' + esc(it.url) + '"><span class="radio"></span><span class="t">' + esc(it.name) + "</span></div>";
+    }
+    box.innerHTML = h;
+    var btns = $("wp-mode").querySelectorAll(".wp-mode-btn");
+    for (var j = 0; j < btns.length; j++) btns[j].classList.toggle("active", btns[j].getAttribute("data-mode") === mode);
+  }
+  $("wp-mode").addEventListener("click", function (e) {
+    var b = e.target.closest(".wp-mode-btn");
+    if (!b) return;
+    var mode = b.getAttribute("data-mode");
+    try { localStorage.setItem("mdn_wp_mode", mode); } catch (err) {}
+    if (window.__WP__) window.__WP__.mode = mode;
+    renderWpPanel();
+  });
+  $("wp-pool").addEventListener("click", function (e) {
+    var it = e.target.closest(".wp-item");
+    if (!it) return;
+    var url = it.getAttribute("data-url");
+    var pool = wpPoolData();
+    var item = null;
+    for (var i = 0; i < pool.length; i++) if (pool[i].url === url) { item = pool[i]; break; }
+    if (!item) return;
+    try { localStorage.setItem("mdn_wp_mode", "fixed"); localStorage.setItem("mdn_wp_fixed", url); } catch (err) {}
+    if (window.__WP__) { window.__WP__.mode = "fixed"; window.__WP__.url = url; }
+    applyWpColors(url, item.colors);
+    renderWpPanel();
+  });
+  // ===== 详情页「设为壁纸」：canvas 自动取色建议 + 手动三色确认 =====
+  var wpTarget = null;
+  function wpFileName(img) {
+    var base = (img.name || "").trim() || ((img.url || "").split("/").pop().split("?")[0]) || "wallpaper";
+    var ext = "";
+    var m = base.match(/\\.(\\w{2,5})$/);
+    if (m) { base = base.slice(0, base.length - m[0].length); ext = m[1]; }
+    else if (img.fileExt) ext = img.fileExt;
+    else ext = img.type === "video" ? "mp4" : img.type === "audio" ? "mp3" : "jpg";
+    return base + "." + ext;
+  }
+  function suggestColors(url) {
+    return new Promise(function (resolve) {
+      var img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = function () {
+        try {
+          var cv = document.createElement("canvas");
+          var w = 140, h = Math.max(1, Math.round(140 * img.naturalHeight / img.naturalWidth));
+          cv.width = w; cv.height = h;
+          var ctx = cv.getContext("2d");
+          ctx.drawImage(img, 0, 0, w, h);
+          var data = ctx.getImageData(0, 0, w, h).data;
+          var bins = Array.apply(null, new Array(24)).map(function () { return { n: 0, r: 0, g: 0, b: 0 }; });
+          for (var i = 0; i < data.length; i += 4) {
+            var r = data[i], g = data[i + 1], b = data[i + 2];
+            var mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+            var l = (mx + mn) / 510, d = mx - mn, sat = d > 0 ? (l > 0.5 ? d / (510 - mx - mn) : d / (mx + mn)) : 0;
+            if (l < 0.12 || l > 0.95 || sat < 0.10) continue;
+            var hue = 0;
+            if (d > 0) {
+              if (mx === r) hue = ((g - b) / d + (g < b ? 6 : 0));
+              else if (mx === g) hue = (b - r) / d + 2;
+              else hue = (r - g) / d + 4;
+              hue = hue / 6 * 360;
+            }
+            var wgt = 0.3 + sat;
+            var bi = Math.min(23, Math.floor(hue / 15));
+            bins[bi].n += wgt; bins[bi].r += r * wgt; bins[bi].g += g * wgt; bins[bi].b += b * wgt;
+          }
+          var sorted = bins.map(function (v, i) { return { i: i, v: v }; }).filter(function (o) { return o.v.n > 0; })
+            .sort(function (a, b) { return b.v.n - a.v.n; });
+          var far = function (p, o, min) { var d = Math.abs(p.i - o.i); return Math.min(d, 24 - d) >= min; };
+          var picked = [];
+          [3, 2, 1].forEach(function (minGap) {
+            sorted.forEach(function (o) {
+              if (picked.length >= 3) return;
+              if (picked.indexOf(o) >= 0) return;
+              if (picked.every(function (p) { return far(p, o, minGap); })) picked.push(o);
+            });
+          });
+          if (!picked.length) { resolve(null); return; }
+          var cols = picked.map(function (o) {
+            var r = o.v.r / o.v.n, g = o.v.g / o.v.n, b = o.v.b / o.v.n;
+            var mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+            var l = (mx + mn) / 510, d = mx - mn, s2 = d > 0 ? (l > 0.5 ? d / (510 - mx - mn) : d / (mx + mn)) : 0, h = 0;
+            if (d > 0) {
+              if (mx === r) h = ((g - b) / d + (g < b ? 6 : 0));
+              else if (mx === g) h = (b - r) / d + 2;
+              else h = (r - g) / d + 4;
+              h = h / 6 * 360;
+            }
+            var sat2 = Math.min(0.72, Math.max(0.42, s2 * 1.4));
+            var l2 = Math.min(0.66, Math.max(0.42, l));
+            h = ((h % 360) + 360) % 360 / 360;
+            var rr, gg, bb;
+            if (sat2 === 0) { rr = gg = bb = Math.round(l2 * 255); }
+            else {
+              var q = l2 < 0.5 ? l2 * (1 + sat2) : l2 + sat2 - l2 * sat2, p2 = 2 * l2 - q;
+              var f = function (t) { if (t < 0) t += 1; if (t > 1) t -= 1; if (t < 1 / 6) return p2 + (q - p2) * 6 * t; if (t < 1 / 2) return q; if (t < 2 / 3) return p2 + (q - p2) * (2 / 3 - t) * 6; return p2; };
+              rr = Math.round(f(h + 1 / 3) * 255); gg = Math.round(f(h) * 255); bb = Math.round(f(h - 1 / 3) * 255);
+            }
+            return "#" + [rr, gg, bb].map(function (v) { return Math.max(0, Math.min(255, v)).toString(16).padStart(2, "0"); }).join("");
+          });
+          while (cols.length < 3) cols.push(cols[cols.length - 1] || "#8b5cf6");
+          resolve(cols);
+        } catch (e) { resolve(null); }
+      };
+      img.onerror = function () { resolve(null); };
+      img.src = url;
+    });
+  }
+  function updateWpPreview() {
+    $("wp-preview").style.background = "linear-gradient(90deg," + $("wp-c1").value + "," + $("wp-c2").value + "," + $("wp-c3").value + ")";
+  }
+  $("detail-wp-btn").addEventListener("click", function () {
+    if (!detailModalImg) return;
+    wpTarget = { url: detailModalImg.url || "", name: wpFileName(detailModalImg) };
+    if (!wpTarget.url) { toast(t("wp.err"), "error"); return; }
+    var c1 = $("wp-c1"), c2 = $("wp-c2"), c3 = $("wp-c3");
+    c1.value = "#34b5ec"; c2.value = "#8cc5ee"; c3.value = "#f16b84";
+    updateWpPreview();
+    $("wp-modal").classList.remove("hidden");
+    suggestColors(wpTarget.url).then(function (cols) {
+      if (!cols || $("wp-modal").classList.contains("hidden")) return; // 弹窗已关则不覆盖
+      c1.value = cols[0]; c2.value = cols[1]; c3.value = cols[2];
+      updateWpPreview();
+    });
+  });
+  ["wp-c1", "wp-c2", "wp-c3"].forEach(function (id) { $(id).addEventListener("input", updateWpPreview); });
+  $("wp-cancel").addEventListener("click", function () { $("wp-modal").classList.add("hidden"); });
+  $("wp-ok").addEventListener("click", function () {
+    $("wp-modal").classList.add("hidden");
+    if (!wpTarget) return;
+    var colors = [$("wp-c1").value, $("wp-c2").value, $("wp-c3").value];
+    var custom = [];
+    try { custom = JSON.parse(localStorage.getItem("mdn_wp_custom") || "[]") || []; } catch (e) { custom = []; }
+    if (!Array.isArray(custom)) custom = [];
+    var entry = { url: wpTarget.url, name: wpTarget.name, colors: colors };
+    custom.push(entry);
+    try { localStorage.setItem("mdn_wp_custom", JSON.stringify(custom)); } catch (e) {}
+    if (window.__WP__) window.__WP__.pool.push(entry);
+    var mode = (window.__WP__ && window.__WP__.mode) || "random";
+    if (mode === "fixed") { try { localStorage.setItem("mdn_wp_fixed", wpTarget.url); } catch (e) {} }
+    applyWpColors(wpTarget.url, colors);
+    toast(t("wp.applied"), "success");
+    renderWpPanel();
+  });
   function cfxColors() {
     if (CFX_COLORS) return CFX_COLORS;
     var s = getComputedStyle(document.documentElement);
@@ -4855,186 +5133,8 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
     spawnClickFx(e.clientX, e.clientY);
   });
 
-  function startParticles() {
-    var cv = $("particles");
-    var ctx = cv.getContext("2d");
-    var W = 0, H = 0, pts = [], streaks = [], raf = null, running = true;
-    var last = 0, nextStreak = 1800;
-    var lastFrame = 0, FRAME_MIN_MS = 1000 / 80; // 粒子动画最大 80 帧（高刷新率屏上限制开销）
-    var sprites = {};
-
-    function makeSprite(hue) {
-      var s = document.createElement("canvas");
-      s.width = 64; s.height = 64;
-      var c = s.getContext("2d");
-      var g = c.createRadialGradient(32, 32, 0, 32, 32, 32);
-      g.addColorStop(0, "hsla(" + hue + ",92%,72%,0.95)");
-      g.addColorStop(0.3, "hsla(" + hue + ",88%,66%,0.45)");
-      g.addColorStop(1, "hsla(" + hue + ",85%,60%,0)");
-      c.fillStyle = g;
-      c.fillRect(0, 0, 64, 64);
-      return s;
-    }
-    function spriteFor(h) {
-      var b = Math.floor(h / 30) * 30;
-      if (!sprites[b]) sprites[b] = makeSprite(b);
-      return sprites[b];
-    }
-
-    function newParticle() {
-      var t = Math.random();
-      return {
-        x: Math.random() * W,
-        y: Math.random() * H,
-        vx: (Math.random() - 0.5) * 0.6,
-        vy: (Math.random() - 0.5) * 0.6,
-        r: Math.random() * 3 + 1.5,
-        h: Math.floor(Math.random() * 360),
-        phase: Math.random() * 6.2832,
-        speed: Math.random() * 0.02 + 0.008,
-        type: t < 0.55 ? "orb" : t < 0.82 ? "spark" : "ring",
-        o: Math.random() * 0.5 + 0.35
-      };
-    }
-
-    function resize() {
-      var dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-      W = window.innerWidth;
-      H = window.innerHeight;
-      cv.width = Math.round(W * dpr);
-      cv.height = Math.round(H * dpr);
-      cv.style.width = W + "px";
-      cv.style.height = H + "px";
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      var n = Math.max(24, Math.min(72, Math.round((W * H) / 32098)));
-      pts = [];
-      for (var i = 0; i < n; i++) pts.push(newParticle());
-      streaks = [];
-    }
-
-    function sparkPath(x, y, r, rot) {
-      ctx.save();
-      ctx.translate(x, y);
-      ctx.rotate(rot);
-      ctx.beginPath();
-      for (var i = 0; i < 8; i++) {
-        var rad = i % 2 === 0 ? r : r * 0.32;
-        var a = (i / 8) * 6.2832;
-        var px = Math.cos(a) * rad;
-        var py = Math.sin(a) * rad;
-        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-      ctx.fill();
-      ctx.restore();
-    }
-
-    function tick(now) {
-      if (!running) return;
-      // 最大 80 帧：距上一帧不足 12.5ms 时跳过本帧绘制（仍请求下一帧），限制高刷新率屏上的开销
-      if (now - lastFrame < FRAME_MIN_MS) { raf = requestAnimationFrame(tick); return; }
-      lastFrame = now;
-      ctx.clearRect(0, 0, W, H);
-      var i, j;
-
-      if (now - last > nextStreak) {
-        last = now;
-        nextStreak = 2600 + Math.random() * 3800;
-        if (streaks.length < 2) {
-          streaks.push({
-            x: Math.random() * W,
-            y: Math.random() * H * 0.55,
-            a: Math.PI * (Math.random() * 0.5 + 0.25),
-            v: Math.random() * 4 + 3,
-            life: 1
-          });
-        }
-      }
-      for (i = streaks.length - 1; i >= 0; i--) {
-        var st = streaks[i];
-        st.x += Math.cos(st.a) * st.v;
-        st.y += Math.sin(st.a) * st.v;
-        st.life -= 0.012;
-        if (st.life <= 0 || st.y > H + 60 || st.x < -60 || st.x > W + 60) {
-          streaks.splice(i, 1);
-          continue;
-        }
-        var tail = 10 + st.v * 2;
-        var lg = ctx.createLinearGradient(st.x, st.y, st.x - Math.cos(st.a) * tail, st.y - Math.sin(st.a) * tail);
-        lg.addColorStop(0, "hsla(200,92%,80%,0.85)");
-        lg.addColorStop(1, "hsla(200,92%,80%,0)");
-        ctx.strokeStyle = lg;
-        ctx.lineWidth = 1.6;
-        ctx.lineCap = "round";
-        ctx.beginPath();
-        ctx.moveTo(st.x, st.y);
-        ctx.lineTo(st.x - Math.cos(st.a) * tail, st.y - Math.sin(st.a) * tail);
-        ctx.stroke();
-      }
-
-      for (i = 0; i < pts.length; i++) {
-        var p = pts[i];
-        p.x += p.vx; p.y += p.vy;
-        if (p.x < -24) p.x = W + 24; else if (p.x > W + 24) p.x = -24;
-        if (p.y < -24) p.y = H + 24; else if (p.y > H + 24) p.y = -24;
-      }
-
-      var LINK = 110, LINK2 = LINK * LINK;
-      ctx.lineWidth = 1;
-      for (i = 0; i < pts.length; i++) {
-        var a = pts[i];
-        for (j = i + 1; j < pts.length; j++) {
-          var b = pts[j], dx = a.x - b.x, dy = a.y - b.y, d = dx * dx + dy * dy;
-          if (d < LINK2) {
-            ctx.strokeStyle = "hsla(" + Math.floor((a.h + b.h) / 2) + ",80%,62%," + ((1 - d / LINK2) * 0.13) + ")";
-            ctx.beginPath();
-            ctx.moveTo(a.x, a.y);
-            ctx.lineTo(b.x, b.y);
-            ctx.stroke();
-          }
-        }
-      }
-
-      for (i = 0; i < pts.length; i++) {
-        var q = pts[i];
-        var tw = 0.7 + 0.3 * Math.sin(now * q.speed + q.phase);
-        ctx.globalAlpha = q.o * tw;
-        if (q.type === "orb") {
-          var spr = spriteFor(q.h);
-          var size = q.r * 6;
-          ctx.drawImage(spr, q.x - size / 2, q.y - size / 2, size, size);
-        } else if (q.type === "spark") {
-          ctx.fillStyle = "hsla(" + q.h + ",92%,74%,1)";
-          sparkPath(q.x, q.y, q.r * 2.2, now * 0.0009 + q.phase);
-        } else {
-          ctx.strokeStyle = "hsla(" + q.h + ",86%,72%," + tw + ")";
-          ctx.lineWidth = 1.2;
-          ctx.beginPath();
-          ctx.arc(q.x, q.y, q.r * 1.7, 0, 6.2832);
-          ctx.stroke();
-        }
-      }
-      ctx.globalAlpha = 1;
-      raf = requestAnimationFrame(tick);
-    }
-
-    window.addEventListener("resize", debounce(resize, 200));
-    document.addEventListener("visibilitychange", function () {
-      if (document.hidden) {
-        running = false;
-        if (raf) cancelAnimationFrame(raf);
-      } else {
-        running = true;
-        last = performance.now();
-        tick(last);
-      }
-    });
-    resize();
-    last = performance.now();
-    tick(last);
-  }
-
   applyLang();
+  applyWallpaper();
   if (token) {
     hideLogin();
     loadImages();
