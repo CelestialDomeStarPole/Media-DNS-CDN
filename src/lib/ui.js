@@ -136,7 +136,7 @@ textarea.auto-grow:hover::-webkit-scrollbar-thumb{border-width:0}
 /* 移动端：保留壁纸但削弱毛玻璃强度，平衡观感与流畅 */
 @media (max-width:768px){
   .card,.login-card,.modal-box,.origin-box,.detail-box{-webkit-backdrop-filter:blur(10px) saturate(1.5);backdrop-filter:blur(10px) saturate(1.5)}
-  .img-card:not(.view-list) .card-body{background:rgba(0,0,0,.42)}
+  .img-card:not(.view-list) .card-body{background:rgba(255,255,255,.55)}
 }
 body{
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
@@ -396,20 +396,20 @@ body.no-select{user-select:none;-webkit-user-select:none}
 .thumb-fallback .tf-icon{font-size:22px}
 .thumb-fallback .tf-id{font-size:11px;word-break:break-all;max-width:92%}
 .card-body{padding:12px;display:flex;flex-direction:column;gap:7px;flex:1}
-/* ===== 壁纸模式：信息区暗色衬底 + 白字（保证照片背景上的可读性，纯色底零滤镜开销）===== */
-.img-card:not(.view-list) .card-body{background:rgba(0,0,0,.34)}
-.img-card .img-name,.img-card .img-name .t{color:#fff}
-.img-card .img-name .pen{color:rgba(255,255,255,.85)}
-.img-card .img-id,.img-card .img-id .t{color:rgba(255,255,255,.78)}
-.img-card .img-url{color:rgba(255,255,255,.62)}
-.img-card .muted{color:rgba(255,255,255,.66)}
-.img-card .lst-time,.img-card .lst-size{color:rgba(255,255,255,.66)}
-.img-card .img-id .zoom-inline{background:rgba(255,255,255,.16);border-color:rgba(255,255,255,.28);color:#fff}
-/* 列表行整行暗底（48px 细行上块状衬底比逐行更干净） */
-.img-card.view-list{background-color:rgba(0,0,0,.38)}
-.img-card.view-list .lst-name-hit .t{color:#fff}
-/* 名称编辑框在暗底上保持可读 */
-.img-card .name-edit{background:rgba(0,0,0,.45);color:#fff}
+/* ===== 壁纸模式：信息区白色玻璃衬底 + 深色文字（通透但可读，纯色底零滤镜开销）===== */
+.img-card:not(.view-list) .card-body{background:rgba(255,255,255,.42)}
+.img-card .img-name,.img-card .img-name .t{color:var(--text)}
+.img-card .img-name .pen{color:var(--muted)}
+.img-card .img-id,.img-card .img-id .t{color:#4b5563}
+.img-card .img-url{color:var(--muted)}
+.img-card .muted{color:var(--muted)}
+.img-card .lst-time,.img-card .lst-size{color:var(--muted)}
+.img-card .img-id .zoom-inline{background:rgba(255,255,255,.85);border-color:rgba(0,0,0,.12);color:var(--accent)}
+/* 列表行整行白衬底 */
+.img-card.view-list{background-color:rgba(255,255,255,.42)}
+.img-card.view-list .lst-name-hit .t{color:var(--text)}
+/* 名称编辑框 */
+.img-card .name-edit{background:#fff;color:var(--text)}
 .card-top{display:flex;align-items:center;justify-content:space-between;min-height:22px;line-height:22px}
 .badge{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:600}
 .badge-proxy{background:color-mix(in srgb,var(--c1) 16%,#fff);color:var(--c1)}
