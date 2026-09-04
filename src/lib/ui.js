@@ -10,18 +10,16 @@ export function renderUI() {
 (function () {
   // 预置壁纸：三色逐张手动填写（占位色可自行调整）；详情页「设为壁纸」会追加到本地壁纸池
   var WP_PRESET = [
-    { url: "https://media.starpole.cc.cd/i/4988b4b501cf762d", name: "4988b4b501cf762d.jpg", colors: ["#34b5ec", "#8cc5ee", "#f16b84"] },
-    { url: "https://media.starpole.cc.cd/i/b9934b9eb480c38b", name: "b9934b9eb480c38b.jpg", colors: ["#87ceeb", "#98d8e8", "#f7dc6f"] },
-    { url: "https://media.starpole.cc.cd/i/c52da7c8e34e85fd", name: "c52da7c8e34e85fd.jpg", colors: ["#0ea5e9", "#6366f1", "#a855f7"] },
-    { url: "https://media.starpole.cc.cd/i/f08f02803ac3b6c8", name: "f08f02803ac3b6c8.jpg", colors: ["#06b6d4", "#4187f8", "#8e63f3"] },
-    { url: "https://media.starpole.cc.cd/i/a1698bb8abab7647", name: "a1698bb8abab7647.jpg", colors: ["#f59e0b", "#f97316", "#f155a3"] },
-    { url: "https://media.starpole.cc.cd/i/ea695337b23042a3", name: "ea695337b23042a3.jpg", colors: ["#10b981", "#0ea5e9", "#6f71f3"] },
-    { url: "https://media.starpole.cc.cd/i/0dc3c7fb2276af47", name: "0dc3c7fb2276af47.jpg", colors: ["#f43f5e", "#f97316", "#f59e0b"] }
+    { url: "https://media.starpole.cc.cd/i/4988b4b501cf762d", name: "未花高马尾自拍.jpg", colors: ["#c3a9d6", "#f6d5e0", "#d9f1f8"] },
+    { url: "https://media.starpole.cc.cd/i/b9934b9eb480c38b", name: "星野中秋秋星曜野 桂月垂光.jpg", colors: ["#0d47a1", "#f48fb1", "#ffca28"] },
+    { url: "https://media.starpole.cc.cd/i/c52da7c8e34e85fd", name: "アズールレーン三周年記念.jpg", colors: ["#a2d2ff", "#c79cc7", "#fff6e0"] },
+    { url: "https://media.starpole.cc.cd/i/f08f02803ac3b6c8", name: "一緒に日焼け止めを塗りましょう！.jpg", colors: ["#73b2e2", "#b48bd3", "#f8dabe"] },
+    { url: "https://media.starpole.cc.cd/i/a1698bb8abab7647", name: "满穗海洋馆.jpg", colors: ["#4db1ff", "#a89cc8", "#2b364d"] },
+    { url: "https://media.starpole.cc.cd/i/ea695337b23042a3", name: "橘望橘光蔚蓝档案三周年其一.jpg", colors: ["#49b9fa", "#58dabb", "#293b74"] },
+    { url: "https://media.starpole.cc.cd/i/0dc3c7fb2276af47", name: "橘望橘光蔚蓝档案三周年其二.jpg", colors: ["#1d2f5c", "#7de2b8", "#d3f53f"] }
   ];
   // 纯 CSS 背景预置（url 用 "css:" 伪地址区分；css 为 .bg 的 background 值；scrim 为预定义亮度遮罩，跳过测光）
   var CSS_PRESET = [
-    { url: "css:white", i18n: "wp.bg.white", name: "White", colors: ["#c9cede", "#9aa6c0", "#7e8bb0"], scrim: 0,
-      css: "linear-gradient(180deg,#ffffff,#f4f4f8)" },
     { url: "css:sky", i18n: "wp.bg.sky", name: "Sky", colors: ["#5eb2ef", "#8fd0f5", "#6fa8e8"], scrim: 0,
       css: "linear-gradient(180deg,#d8eeff,#b9dff9)" },
     { url: "css:pink", i18n: "wp.bg.pink", name: "Sakura", colors: ["#f08cb8", "#f5b0cd", "#e87aad"], scrim: 0,
