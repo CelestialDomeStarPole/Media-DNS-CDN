@@ -18,6 +18,21 @@ export function renderUI() {
     { url: "https://media.starpole.cc.cd/i/ea695337b23042a3", name: "ea695337b23042a3.jpg", colors: ["#10b981", "#0ea5e9", "#6f71f3"] },
     { url: "https://media.starpole.cc.cd/i/0dc3c7fb2276af47", name: "0dc3c7fb2276af47.jpg", colors: ["#f43f5e", "#f97316", "#f59e0b"] }
   ];
+  // 纯 CSS 背景预置（url 用 "css:" 伪地址区分；css 为 .bg 的 background 值；scrim 为预定义亮度遮罩，跳过测光）
+  var CSS_PRESET = [
+    { url: "css:white", i18n: "wp.bg.white", name: "White", colors: ["#c9cede", "#9aa6c0", "#7e8bb0"], scrim: 0,
+      css: "linear-gradient(180deg,#ffffff,#f4f4f8)" },
+    { url: "css:sky", i18n: "wp.bg.sky", name: "Sky", colors: ["#5eb2ef", "#8fd0f5", "#6fa8e8"], scrim: 0,
+      css: "linear-gradient(180deg,#d8eeff,#b9dff9)" },
+    { url: "css:pink", i18n: "wp.bg.pink", name: "Sakura", colors: ["#f08cb8", "#f5b0cd", "#e87aad"], scrim: 0,
+      css: "linear-gradient(180deg,#ffe4ee,#ffcfe0)" },
+    { url: "css:dawn", i18n: "wp.bg.dawn", name: "Daybreak", colors: ["#f5b878", "#f08ca8", "#6fa8e8"], scrim: 0,
+      css: "radial-gradient(60% 50% at 18% 12%,#ffe9c9,transparent 70%),radial-gradient(50% 45% at 85% 18%,#ffd9e8,transparent 70%),radial-gradient(70% 60% at 50% 96%,#cfe8ff,transparent 75%),linear-gradient(180deg,#fff7ef,#fdf0f4)" },
+    { url: "css:aurora", i18n: "wp.bg.aurora", name: "Aurora", colors: ["#48b8e8", "#9a86e8", "#4ed0a4"], scrim: 0,
+      css: "radial-gradient(55% 45% at 15% 25%,#c9f0ff,transparent 70%),radial-gradient(50% 50% at 85% 28%,#d9ccff,transparent 70%),radial-gradient(65% 55% at 50% 92%,#c2f0db,transparent 75%),linear-gradient(180deg,#f3fbff,#f5f2ff)" },
+    { url: "css:dusk", i18n: "wp.bg.dusk", name: "Dusk", colors: ["#e885ae", "#f0b485", "#85aee0"], scrim: 0,
+      css: "radial-gradient(80% 60% at 82% 0%,rgba(255,255,255,.92),transparent 60%),linear-gradient(135deg,#ffe0ec 0%,#fff3e0 45%,#dfeaff 100%)" }
+  ];
   var K_MODE = "mdn_wp_mode", K_FIXED = "mdn_wp_fixed", K_DECK = "mdn_wp_deck", K_CUSTOM = "mdn_wp_custom";
   function wls(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function wlsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
@@ -34,7 +49,7 @@ export function renderUI() {
     var custom = [];
     try { custom = JSON.parse(wls(K_CUSTOM) || "[]") || []; } catch (e) { custom = []; }
     if (!Array.isArray(custom)) custom = [];
-    var pool = WP_PRESET.concat(custom);
+    var pool = WP_PRESET.concat(CSS_PRESET).concat(custom);
     var idx = pool.map(function (_, i) { return i; });
     var mode = wls(K_MODE) || "random";
     var wp = pool[0];
@@ -140,8 +155,8 @@ html,body{height:100%}
 .bg img.show{opacity:1}
 /* 亮度遮罩：白色系（本站浅色主题 + 深色正文），强度由「外观」面板的亮度滑条/自动测光写入 */
 .bg-scrim{z-index:-1;background:linear-gradient(180deg,rgba(255,255,255,calc(var(--lg-scrim)*.9)) 0%,rgba(255,255,255,var(--lg-scrim)) 40%,rgba(255,255,255,calc(var(--lg-scrim)*1.18)) 100%)}
-/* 槽位露出的是根背景（fixed 背景不覆盖槽位），故根背景用渐变，否则槽位是一条纯色白条 */
-html{background-color:#f4f2fb;background-image:linear-gradient(160deg,color-mix(in srgb,var(--c1) 20%,#fff),color-mix(in srgb,var(--c2) 20%,#fff),color-mix(in srgb,var(--c3) 20%,#fff));background-size:260% 260%;background-attachment:fixed;scrollbar-gutter:stable}
+/* 兜底：壁纸/CSS 背景加载前的纯色底（渐变兜底已移除，由图片池的 CSS 背景预置承担） */
+html{background-color:#f4f2fb;scrollbar-gutter:stable}
 
 /* ===== 滚动条美化（纯 CSS，滚动行为完全保留原生）=====
    ⚠ 1) 全局别写 scrollbar-width/color，Chrome 会丢弃下面的 webkit 渐变样式
@@ -616,6 +631,9 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 .wp-colors label{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;color:#374151}
 .wp-colors input[type="color"]{width:52px;height:36px;border:1px solid rgba(0,0,0,.12);border-radius:8px;padding:2px;background:#fff;cursor:pointer}
 .wp-preview{height:14px;border-radius:999px;margin:4px 0 2px;background:linear-gradient(90deg,#6366f1,#a855f7,#ec4899);transition:background .15s}
+.wp-preset-label{margin:12px 0 4px;font-size:12px;font-weight:600;color:var(--muted)}
+.wp-presets{display:flex;flex-direction:column;gap:8px}
+.wp-presets .ap-slider input[type=range]{width:100%;accent-color:var(--accent)}
 /* 设置页壁纸分组 */
 .wp-mode-row{display:flex;gap:8px;flex-wrap:wrap}
 .wp-mode-btn{padding:7px 16px;border-radius:999px;font-size:13px;font-weight:600;background:var(--glass-chip);border:1px solid rgba(0,0,0,.12);color:var(--text);cursor:pointer;transition:all .15s}
@@ -634,6 +652,7 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 .ap-bg-list{flex:1;display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:7px;max-height:136px;overflow-y:auto;padding:2px}
 .ap-bg-list button{position:relative;aspect-ratio:1;padding:0;cursor:pointer;overflow:hidden;border-radius:11px;border:1px solid rgba(0,0,0,.12);background:rgba(255,255,255,.35)}
 .ap-bg-list img{width:100%;height:100%;object-fit:cover;display:block}
+.ap-bg-css{width:100%;height:100%} /* 纯 CSS 背景预览色块（background 由 JS 写入） */
 .ap-bg-list button[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent),0 6px 16px -6px rgba(31,41,55,.45)}
 .ap-bg-arrows{display:flex;flex-direction:column;gap:6px;flex:none}
 .ap-bg-arrow{flex:1;width:26px;font:inherit;font-size:15px;line-height:1;cursor:pointer;color:var(--text);background:rgba(255,255,255,.35);border:1px solid rgba(0,0,0,.12);border-radius:9px;box-shadow:inset 0 1px 0 var(--lg-inner-top)}
@@ -651,8 +670,10 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 .ap-switch .switch{margin-right:0}
 .ap-note{margin:0;font-size:12px;color:var(--muted);line-height:1.5}
 .ap-note:empty{display:none}
-/* 动效开关：外观面板关闭动效后全站过渡归零 */
-body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:none!important;animation-duration:.001s!important}
+/* 动效开关：外观面板关闭动效后全站过渡与动画归零。
+   ⚠ 必须用 animation:none（而非缩短 duration）：duration .001s 会把全站 11 处 infinite
+     循环动画（地球自转/星闪/渐变位移/骨架屏闪耀/转圈等）压成每秒千帧循环 = 抽搐 */
+body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:none!important;animation:none!important}
 .detail-wp-btn{flex:none}
 
 /* 媒体详情弹窗 */
@@ -1019,14 +1040,26 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
 </div>
 <div id="wp-modal" class="modal wp-modal hidden">
   <div class="modal-box" role="dialog" aria-modal="true">
-    <h3 data-i18n="wp.title"></h3>
-    <p class="wp-desc" data-i18n="wp.desc"></p>
+    <h3 id="wp-modal-title" data-i18n="wp.title"></h3>
+    <p class="wp-desc" id="wp-modal-desc" data-i18n="wp.desc"></p>
     <div class="wp-colors">
       <label><input type="color" id="wp-c1" /><span data-i18n="wp.color1"></span></label>
       <label><input type="color" id="wp-c2" /><span data-i18n="wp.color2"></span></label>
       <label><input type="color" id="wp-c3" /><span data-i18n="wp.color3"></span></label>
     </div>
     <div class="wp-preview" id="wp-preview"></div>
+    <p class="wp-preset-label" data-i18n="wp.preset.label"></p>
+    <div class="wp-presets">
+      <label class="ap-slider"><span class="ap-slider-top"><span data-i18n="set.ap.bright"></span><small id="wp-scrim-val"></small></span>
+        <input type="range" id="wp-scrim" min="0" max="88" step="1" /></label>
+      <label class="ap-slider"><span class="ap-slider-top"><span data-i18n="set.ap.blur"></span><small id="wp-blur-val"></small></span>
+        <input type="range" id="wp-blur" min="0" max="40" step="1" /></label>
+      <label class="ap-slider"><span class="ap-slider-top"><span data-i18n="set.ap.sat"></span><small id="wp-sat-val"></small></span>
+        <input type="range" id="wp-sat" min="100" max="260" step="5" /></label>
+      <label class="ap-slider"><span class="ap-slider-top"><span data-i18n="set.ap.lum"></span><small id="wp-lum-val"></small></span>
+        <input type="range" id="wp-lum" min="80" max="140" step="1" /></label>
+    </div>
+    <p class="ap-note" data-i18n="wp.preset.hint"></p>
     <div class="modal-actions">
       <button id="wp-cancel" class="mini" data-i18n="confirm.cancel"></button>
       <button id="wp-ok" class="mini origin-ok" data-i18n="wp.ok"></button>
@@ -1377,6 +1410,8 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "set.ap.noRefract": "当前浏览器不支持边缘折射，已使用纯 CSS 玻璃。",
       "set.ap.badUrl": "自定义地址需要是完整的 http(s) 图片链接。",
       "set.ap.noSample": "壁纸未能加载或不允许取样，已保留当前亮度。",
+      "wp.bg.white": "纯白", "wp.bg.sky": "天蓝", "wp.bg.pink": "樱粉",
+      "wp.bg.dawn": "晨光", "wp.bg.aurora": "极光", "wp.bg.dusk": "暮色",
       "detail.wp": "设为壁纸",
       "wp.title": "将此图片设为壁纸",
       "wp.desc": "调整主题三色（已按图片自动取色，可手动微调），确定后加入图片池并立即生效。",
@@ -1384,6 +1419,11 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "wp.color2": "主色",
       "wp.color3": "亮色",
       "wp.ok": "确定",
+      "wp.save": "保存预设",
+      "wp.editTitle": "编辑壁纸预设",
+      "wp.editDesc": "调整主题三色与绑定参数，保存后切到此壁纸自动应用。",
+      "wp.preset.label": "绑定预设",
+      "wp.preset.hint": "预设随壁纸保存；之后在外观面板调滑条为临时调整，切换壁纸时仍会按预设生效。",
       "wp.applied": "已设为壁纸",
       "wp.err": "该媒体缺少可用链接",
       "set.thumbCache": "缩略图缓存上限（个）",
@@ -1629,6 +1669,8 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "set.ap.noRefract": "This browser does not support edge refraction; using pure CSS glass.",
       "set.ap.badUrl": "A custom wallpaper needs a full http(s) image URL.",
       "set.ap.noSample": "Wallpaper failed to load or cannot be sampled; keeping the current brightness.",
+      "wp.bg.white": "White", "wp.bg.sky": "Sky", "wp.bg.pink": "Sakura",
+      "wp.bg.dawn": "Daybreak", "wp.bg.aurora": "Aurora", "wp.bg.dusk": "Dusk",
       "detail.wp": "Set as wallpaper",
       "wp.title": "Set this image as wallpaper",
       "wp.desc": "Tune the theme trio (auto-picked from the image, editable), then add it to the pool and apply immediately.",
@@ -1636,6 +1678,11 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "wp.color2": "Main",
       "wp.color3": "Light",
       "wp.ok": "Confirm",
+      "wp.save": "Save preset",
+      "wp.editTitle": "Edit wallpaper preset",
+      "wp.editDesc": "Tune the theme colors and bound values; they apply automatically whenever this wallpaper is picked.",
+      "wp.preset.label": "Bound preset",
+      "wp.preset.hint": "The preset is saved with this wallpaper. Slider tweaks afterwards are temporary; switching wallpapers re-applies the preset.",
       "wp.applied": "Wallpaper set",
       "wp.err": "No usable link on this media",
       "set.thumbCache": "Thumbnail cache cap",
@@ -2584,6 +2631,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       done++;
     }
     if (cardQueue.length) {
+      if (glassCtl) glassCtl.observe($("grid")); // 每批渲染完立即纳入折射管理，不等全队列结束
       cardQueueTimer = setTimeout(pumpCardQueue, 16);
       return;
     }
@@ -4819,7 +4867,26 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     filter.setAttribute("height", String(bh + band * 2));
     filter.setAttribute("color-interpolation-filters", "sRGB");
     var feImage = document.createElementNS("http://www.w3.org/2000/svg", "feImage");
-    feImage.setAttribute("href", lgBakeMap(bw, bh, radius));
+    // 位移图烘焙结果按参数指纹缓存（sessionStorage）：刷新/切视图后同尺寸组合直接复用，
+    // 跳过 256² 像素循环 + toDataURL（这是玻璃"加载几秒"的主要耗时之一）
+    var bakeKey = "mdn_lgbake:v1:" + bw + "x" + bh + "x" + Math.round(radius);
+    var href = null;
+    try { href = sessionStorage.getItem(bakeKey); } catch (e) {}
+    if (!href) {
+      href = lgBakeMap(bw, bh, radius);
+      if (href) {
+        try {
+          sessionStorage.setItem(bakeKey, href);
+          var nBake = 0, firstKey = null;
+          for (var si = 0; si < sessionStorage.length; si++) {
+            var sk = sessionStorage.key(si);
+            if (sk && sk.indexOf("mdn_lgbake:v1:") === 0) { nBake++; if (firstKey === null) firstKey = sk; }
+          }
+          if (nBake > 36 && firstKey) sessionStorage.removeItem(firstKey); // 体积护栏
+        } catch (e2) {}
+      }
+    }
+    feImage.setAttribute("href", href);
     feImage.setAttribute("x", "0"); feImage.setAttribute("y", "0");
     feImage.setAttribute("width", String(bw)); feImage.setAttribute("height", String(bh));
     feImage.setAttribute("preserveAspectRatio", "none");
@@ -4874,7 +4941,14 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       return (iw * ih) / (r.width * r.height);
     }
     function apply(el, on) {
-      if (!on) { el.style.removeProperty("--lg-refract"); refreshGlassPaintOne(el); return; }
+      if (!on) {
+        // 短路：本就无折射的元素（视口外大多数）零开销，滚动时可静默跳过
+        if (el.style.getPropertyValue("--lg-refract")) {
+          el.style.removeProperty("--lg-refract");
+          refreshGlassPaintOne(el);
+        }
+        return;
+      }
       if (el.style.getPropertyValue("--lg-refract")) return;
       var id = filterFor(el);
       if (id) {
@@ -4882,6 +4956,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
         refreshGlassPaintOne(el); // 折射变化必须同步重建 inline 声明，否则不重绘
       }
     }
+    var lastAllowedSig = "";
     function reconcile() {
       // 关闭时不清除任何状态：重新开启无需等一次滚动才恢复
       if (!enabled) {
@@ -4898,7 +4973,12 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       ranked.sort(function (a, b) { return b[1] - a[1]; });
       var allowed = [];
       for (var j = 0; j < ranked.length && j < LG_MAX_LAYERS; j++) allowed.push(ranked[j][0]);
-      for (var k = 0; k < wanted.length; k++) apply(wanted[k], allowed.indexOf(wanted[k]) !== -1);
+      // 静止/微滚时允许集合通常不变：签名相同直接跳过，零计算零重绘
+      var sig = "";
+      for (var k = 0; k < wanted.length; k++) sig += allowed.indexOf(wanted[k]) !== -1 ? "1" : "0";
+      if (sig === lastAllowedSig) return;
+      lastAllowedSig = sig;
+      for (var m = 0; m < wanted.length; m++) apply(wanted[m], allowed.indexOf(wanted[m]) !== -1);
     }
     var io = ("IntersectionObserver" in window) ? new IntersectionObserver(function () { reconcile(); }, { threshold: [0, 0.03, 0.25, 0.6] }) : null;
     window.addEventListener("scroll", function () { requestAnimationFrame(reconcile); }, { passive: true });
@@ -4942,7 +5022,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     return controller;
   }
   var CFX_COLORS = null;
-  function applyWpColors(url, colors) {
+  function applyWpColors(url, colors, item) {
     var s = document.documentElement.style;
     s.setProperty("--c1", colors[0]);
     s.setProperty("--c2", colors[1]);
@@ -4951,18 +5031,29 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     s.setProperty("--accent2", colors[2]);
     CFX_COLORS = null; // 主题色已变，点击特效缓存必须重置
     var img = $("wallpaper");
-    if (img) {
+    if (!img) return;
+    if (item && item.css) {
+      // 纯 CSS 背景：写入 .bg 层，隐藏壁纸 img
+      var bg = img.parentNode;
+      if (bg) bg.style.background = item.css;
       img.classList.remove("show");
-      img.src = url;
-      var done = function () { img.classList.add("show"); };
-      if (img.decode) img.decode().then(done, done); else img.onload = done;
+      img.removeAttribute("src");
+      return;
     }
+    var bg2 = img.parentNode;
+    if (bg2) bg2.style.removeProperty("background");
+    img.classList.remove("show");
+    img.src = url;
+    var done = function () { img.classList.add("show"); };
+    if (img.decode) img.decode().then(done, done); else img.onload = done;
   }
   // 壁纸应用：读取 head 脚本选好的壁纸，解码完成后即刻淡入
   function applyWallpaper() {
     var wp = window.__WP__;
     if (!wp || !wp.url) return;
-    applyWpColors(wp.url, wp.colors);
+    var item = null, pool = wp.pool || [];
+    for (var i = 0; i < pool.length; i++) if (pool[i].url === wp.url) { item = pool[i]; break; }
+    applyWpColors(wp.url, wp.colors, item);
   }
   function wpPoolData() { return (window.__WP__ && window.__WP__.pool) || []; }
 
@@ -5061,20 +5152,36 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
         var b = document.createElement("button");
         b.type = "button";
         b.setAttribute("data-url", it.url);
-        b.title = it.name || it.url;
-        var im = document.createElement("img");
-        im.src = it.url; im.alt = ""; im.loading = "lazy";
-        im.addEventListener("error", function () { b.style.opacity = ".3"; });
-        b.appendChild(im);
+        b.title = it.i18n ? t(it.i18n) : (it.name || it.url);
+        if (it.css) {
+          // 纯 CSS 背景：渲染色块预览
+          var d = document.createElement("div");
+          d.className = "ap-bg-css";
+          d.style.background = it.css;
+          b.appendChild(d);
+        } else {
+          var im = document.createElement("img");
+          im.src = it.url; im.alt = ""; im.loading = "lazy";
+          im.addEventListener("error", function () { b.style.opacity = ".3"; });
+          b.appendChild(im);
+        }
         b.addEventListener("click", function () { pickWpItem(it, true); });
         box.appendChild(b);
       })(all[i]);
     }
     markActiveWp();
   }
-  // 换壁纸后取样亮度（自动模式下反解遮罩）；token 防止快速连点时的竞态
+  // 换壁纸后取样亮度（自动模式下反解遮罩）；CSS 背景跳过测光用预定义 scrim；token 防连点竞态
   var wpToken = 0;
-  function sampleAndApply(url) {
+  function sampleAndApply(item) {
+    if (item && item.css) {
+      ui.scrim = typeof item.scrim === "number" ? item.scrim : 0;
+      var sl0 = $("ap-bright");
+      if (sl0) sl0.value = String(ui.scrim);
+      applyUi(); saveUi();
+      return;
+    }
+    var url = item && item.url ? item.url : item;
     var mine = ++wpToken;
     var probe = new Image();
     probe.crossOrigin = "anonymous";
@@ -5094,11 +5201,24 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     probe.src = url;
   }
   function pickWpItem(it, fromUser) {
+    // 再次点击当前选中的壁纸 → 编辑其绑定预设
+    var cur = window.__WP__ && window.__WP__.url;
+    if (fromUser && it.url === cur) {
+      openWpModal({ url: it.url, name: it.name, colors: it.colors, editing: true, itemRef: it });
+      return;
+    }
     var go = function (cols) {
       try { localStorage.setItem("mdn_wp_mode", "fixed"); localStorage.setItem("mdn_wp_fixed", it.url); } catch (e) {}
       if (window.__WP__) { window.__WP__.mode = "fixed"; window.__WP__.url = it.url; }
-      applyWpColors(it.url, cols);
-      sampleAndApply(it.url);
+      applyWpColors(it.url, cols, it);
+      var p = getPresetFor(it);
+      if (p) {
+        // 壁纸绑定预设：同步覆盖全局四项并立即生效
+        Object.assign(ui, p);
+        syncSlidersFromUi(); applyUi(); saveUi();
+      } else {
+        sampleAndApply(it);
+      }
       if (fromUser) { try { sessionStorage.setItem(WP_SS_KEY, it.url); } catch (e) {} }
       renderWpMode(); markActiveWp();
     };
@@ -5219,8 +5339,12 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       refract.checked = false;
       apNote(t("set.ap.noRefract"));
     }
-    var cur0 = window.__WP__ && window.__WP__.url;
-    if (cur0) sampleAndApply(cur0); // 首屏壁纸的自动亮度
+    var wp0 = window.__WP__;
+    if (wp0 && wp0.url) {
+      var it0 = null, pool0 = wp0.pool || [];
+      for (var pi = 0; pi < pool0.length; pi++) if (pool0[pi].url === wp0.url) { it0 = pool0[pi]; break; }
+      sampleAndApply(it0); // 首屏壁纸的自动亮度（CSS 背景直接用预定义 scrim）
+    }
   }
   // ===== 详情页「设为壁纸」：canvas 自动取色建议 + 手动三色确认 =====
   var wpTarget = null;
@@ -5307,39 +5431,119 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
   function updateWpPreview() {
     $("wp-preview").style.background = "linear-gradient(90deg," + $("wp-c1").value + "," + $("wp-c2").value + "," + $("wp-c3").value + ")";
   }
-  $("detail-wp-btn").addEventListener("click", function () {
-    if (!detailModalImg) return;
-    wpTarget = { url: detailModalImg.url || "", name: wpFileName(detailModalImg) };
-    if (!wpTarget.url) { toast(t("wp.err"), "error"); return; }
+  // 壁纸绑定预设：自定义条目带 preset 字段持久化在 mdn_wp_custom；预置条目只读，preset 存映射表
+  var K_WP_PRESET = "mdn_wp_preset";
+  function loadPresetMap() {
+    var m = null;
+    try { m = JSON.parse(localStorage.getItem(K_WP_PRESET) || "{}"); } catch (e) { m = null; }
+    return m && typeof m === "object" ? m : {};
+  }
+  function getPresetFor(it) {
+    if (!it) return null;
+    if (it.preset && typeof it.preset === "object") return it.preset;
+    return loadPresetMap()[it.url] || null;
+  }
+  function savePresetFor(it, preset) {
+    if (!it || !it.url) return;
+    if ((it.url || "").indexOf("css:") === 0) return; // CSS 预置背景预设固定，不持久化
+    var isCustom = false;
+    var custom = [];
+    try { custom = JSON.parse(localStorage.getItem("mdn_wp_custom") || "[]") || []; } catch (e) { custom = []; }
+    if (!Array.isArray(custom)) custom = [];
+    for (var i = 0; i < custom.length; i++) {
+      if (custom[i].url === it.url) { custom[i].preset = preset; isCustom = true; break; }
+    }
+    if (isCustom) { try { localStorage.setItem("mdn_wp_custom", JSON.stringify(custom)); } catch (e) {} }
+    else { var m = loadPresetMap(); m[it.url] = preset; try { localStorage.setItem(K_WP_PRESET, JSON.stringify(m)); } catch (e2) {} }
+    if (window.__WP__) {
+      for (var j = 0; j < window.__WP__.pool.length; j++) if (window.__WP__.pool[j].url === it.url) window.__WP__.pool[j].preset = preset;
+    }
+  }
+  // 把外观面板滑条 UI 同步到当前 ui 值（预设应用后调用）
+  function syncSlidersFromUi() {
+    var b = $("ap-bright"); if (b) b.value = String(ui.scrim);
+    var bl = $("ap-blur"); if (bl) { bl.value = String(ui.blur); var bv = $("ap-blur-val"); if (bv) bv.textContent = String(ui.blur); }
+    var sa = $("ap-sat"); if (sa) { sa.value = String(ui.sat); var sv = $("ap-sat-val"); if (sv) sv.textContent = ui.sat + "%"; }
+    var lu = $("ap-lum"); if (lu) { lu.value = String(ui.bright); var lv = $("ap-lum-val"); if (lv) lv.textContent = ui.bright + "%"; }
+  }
+  function syncWpSliderLabels() {
+    $("wp-scrim-val").textContent = $("wp-scrim").value;
+    $("wp-blur-val").textContent = $("wp-blur").value;
+    $("wp-sat-val").textContent = $("wp-sat").value + "%";
+    $("wp-lum-val").textContent = $("wp-lum").value + "%";
+  }
+  // 打开弹窗：editing=false 详情页「设为壁纸」（新增条目）；editing=true 再次点击已选壁纸（编辑预设）
+  function openWpModal(info) {
+    wpTarget = info;
     var c1 = $("wp-c1"), c2 = $("wp-c2"), c3 = $("wp-c3");
-    c1.value = "#34b5ec"; c2.value = "#8cc5ee"; c3.value = "#f16b84";
+    c1.value = info.colors ? info.colors[0] : "#34b5ec";
+    c2.value = info.colors ? info.colors[1] : "#8cc5ee";
+    c3.value = info.colors ? info.colors[2] : "#f16b84";
+    var p = getPresetFor(info.itemRef) || {};
+    $("wp-scrim").value = String(p.scrim != null ? p.scrim : ui.scrim);
+    $("wp-blur").value = String(p.blur != null ? p.blur : ui.blur);
+    $("wp-sat").value = String(p.sat != null ? p.sat : ui.sat);
+    $("wp-lum").value = String(p.bright != null ? p.bright : ui.bright);
+    syncWpSliderLabels();
+    var title = $("wp-modal-title"), desc = $("wp-modal-desc"), ok = $("wp-ok");
+    var tKey = info.editing ? ["wp.editTitle", "wp.editDesc", "wp.save"] : ["wp.title", "wp.desc", "wp.ok"];
+    title.setAttribute("data-i18n", tKey[0]); title.textContent = t(tKey[0]);
+    desc.setAttribute("data-i18n", tKey[1]); desc.textContent = t(tKey[1]);
+    ok.setAttribute("data-i18n", tKey[2]); ok.textContent = t(tKey[2]);
     updateWpPreview();
     $("wp-modal").classList.remove("hidden");
-    suggestColors(wpTarget.url).then(function (cols) {
-      if (!cols || $("wp-modal").classList.contains("hidden")) return; // 弹窗已关则不覆盖
-      c1.value = cols[0]; c2.value = cols[1]; c3.value = cols[2];
-      updateWpPreview();
-    });
+    if (!info.editing && !info.colors) {
+      suggestColors(info.url).then(function (cols) {
+        if (!cols || $("wp-modal").classList.contains("hidden")) return; // 弹窗已关则不覆盖
+        c1.value = cols[0]; c2.value = cols[1]; c3.value = cols[2];
+        updateWpPreview();
+      });
+    }
+  }
+  $("detail-wp-btn").addEventListener("click", function () {
+    if (!detailModalImg) return;
+    var info = { url: detailModalImg.url || "", name: wpFileName(detailModalImg), editing: false };
+    if (!info.url) { toast(t("wp.err"), "error"); return; }
+    openWpModal(info);
   });
   ["wp-c1", "wp-c2", "wp-c3"].forEach(function (id) { $(id).addEventListener("input", updateWpPreview); });
+  ["wp-scrim", "wp-blur", "wp-sat", "wp-lum"].forEach(function (id) {
+    $(id).addEventListener("input", syncWpSliderLabels);
+  });
   $("wp-cancel").addEventListener("click", function () { $("wp-modal").classList.add("hidden"); });
   $("wp-ok").addEventListener("click", function () {
     $("wp-modal").classList.add("hidden");
     if (!wpTarget) return;
     var colors = [$("wp-c1").value, $("wp-c2").value, $("wp-c3").value];
+    var preset = { scrim: Math.max(0, Math.min(88, +$("wp-scrim").value || 0)), blur: Math.max(0, Math.min(40, +$("wp-blur").value || 0)), sat: Math.max(100, Math.min(260, +$("wp-sat").value || 175)), bright: Math.max(80, Math.min(140, +$("wp-lum").value || 105)) };
+    if (wpTarget.editing) {
+      // 编辑既有条目：写回颜色 + 预设，并立即应用到全站
+      var it = wpTarget.itemRef;
+      it.colors = colors;
+      savePresetFor(it, preset);
+      applyWpColors(it.url, colors, it);
+      Object.assign(ui, preset); // preset 键名与 ui 一致（scrim/blur/sat/bright）
+      syncSlidersFromUi(); applyUi(); saveUi();
+      markActiveWp();
+      toast(t("wp.applied"), "success");
+      wpTarget = null;
+      return;
+    }
     var custom = [];
     try { custom = JSON.parse(localStorage.getItem("mdn_wp_custom") || "[]") || []; } catch (e) { custom = []; }
     if (!Array.isArray(custom)) custom = [];
-    var entry = { url: wpTarget.url, name: wpTarget.name, colors: colors };
+    var entry = { url: wpTarget.url, name: wpTarget.name, colors: colors, preset: preset };
     custom.push(entry);
     try { localStorage.setItem("mdn_wp_custom", JSON.stringify(custom)); } catch (e) {}
     if (window.__WP__) window.__WP__.pool.push(entry);
     var mode = (window.__WP__ && window.__WP__.mode) || "random";
     if (mode === "fixed") { try { localStorage.setItem("mdn_wp_fixed", wpTarget.url); } catch (e) {} }
-    applyWpColors(wpTarget.url, colors);
+    applyWpColors(wpTarget.url, colors, entry);
+    Object.assign(ui, preset);
+    syncSlidersFromUi(); applyUi(); saveUi();
     toast(t("wp.applied"), "success");
-    sampleAndApply(wpTarget.url);
     syncWpPanel();
+    wpTarget = null;
   });
   function cfxColors() {
     if (CFX_COLORS) return CFX_COLORS;
