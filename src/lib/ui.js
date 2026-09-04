@@ -76,27 +76,70 @@ export function renderUI() {
   --accent:#8b5cf6;--accent2:#ec4899;
   --text:#1f2937;--muted:#6b7280;
   /* 玻璃材质：白覆盖越低越通透，靠 saturate 提色而非白膜提亮（数值均可调） */
-  --glass:rgba(255,255,255,.18);        /* 卡片/容器：最透 */
-  --glass-panel:rgba(255,255,255,.58);  /* 弹窗：中等，保证文字可读 */
   --glass-chip:rgba(255,255,255,.55);   /* 小控件：轻微通透 */
   --glass-line:rgba(255,255,255,.65);
-  --glass-hi:rgba(255,255,255,.5);      /* 顶部镜面高光起始白 */
-  --glass-rim:inset 0 1px 0 rgba(255,255,255,.72),inset 0 -1px 0 rgba(255,255,255,.16); /* 上亮下暗边缘光 */
+  /* 液态玻璃 token（浅色适配，借鉴 we-pkg-web）：--lg-refract 由 GlassController 按元素注入 */
+  --lg-blur:24px;
+  --lg-sat:175%;
+  --lg-bright:1.05;
+  --lg-scrim:.18;                          /* 背景亮度遮罩（白系），由外观面板的亮度滑条/自动测光覆写 */
+  --lg-tint-top:rgba(255,255,255,.28);
+  --lg-tint-bottom:rgba(31,41,55,.05);
+  --lg-spec:rgba(255,255,255,.22);
+  --lg-hairline:rgba(255,255,255,.55);
+  --lg-inner-top:rgba(255,255,255,.75);
+  --lg-inner-bottom:rgba(255,255,255,.25);
+  --lg-shadow:0 18px 44px -16px rgba(31,41,55,.28),0 2px 10px rgba(31,41,55,.12);
+  --lg-glow:rgba(124,196,255,.55);
+  --lg-refract:;
   --radius:12px;
   --shadow:0 1px 2px rgba(31,41,55,.05),0 10px 30px rgba(31,41,55,.10);
   --grad:linear-gradient(135deg,var(--c1),var(--c2),var(--c3));
 }
-/* 降级：系统「减弱透明度」或浏览器不支持背景滤镜时回退到较实底色，避免半透明且无模糊导致糊字 */
+/* 降级：系统「减弱透明度」或浏览器不支持背景滤镜时回退到实底玻璃（blur 0 + 高白 tint），避免糊字 */
 @media (prefers-reduced-transparency:reduce){
-  :root{--glass:rgba(255,255,255,.9);--glass-panel:rgba(255,255,255,.96);--glass-chip:rgba(255,255,255,.92)}
+  :root{--lg-blur:0px;--lg-tint-top:rgba(255,255,255,.94);--lg-tint-bottom:rgba(255,255,255,.94);--glass-chip:rgba(255,255,255,.92)}
 }
 @supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
-  :root{--glass:rgba(255,255,255,.88);--glass-panel:rgba(255,255,255,.96);--glass-chip:rgba(255,255,255,.92)}
+  :root{--lg-blur:0px;--lg-tint-top:rgba(255,255,255,.94);--lg-tint-bottom:rgba(255,255,255,.94);--glass-chip:rgba(255,255,255,.92)}
 }
+
+/* ===== 液态玻璃四层结构（tint 渐变 + 噪点 + 高光 + 边缘光），作用于全站玻璃元素 ===== */
+.glass,.card,.login-card,.modal-box,.origin-box,.detail-box{
+  position:relative;
+  border:1px solid var(--lg-hairline);
+  background:
+    linear-gradient(180deg,var(--lg-tint-top),var(--lg-tint-bottom)),
+    radial-gradient(130% 90% at 50% -30%,rgba(255,255,255,.16),transparent 62%);
+  box-shadow:
+    inset 0 1px 0 var(--lg-inner-top),
+    inset 0 -1px 0 var(--lg-inner-bottom),
+    inset 0 0 0 1px rgba(255,255,255,.04),
+    var(--lg-shadow);
+  /* 声明顺序照抄参考站：标准属性（带 url 折射）在前，-webkit-（不带 url）在后。
+     反过来写会让 Chromium 最终采用带 url() 的整条声明并丢弃它，磨砂与折射一起失效 */
+  backdrop-filter:blur(var(--lg-blur)) saturate(var(--lg-sat)) brightness(var(--lg-bright)) var(--lg-refract,);
+  -webkit-backdrop-filter:blur(var(--lg-blur)) saturate(var(--lg-sat)) brightness(var(--lg-bright));
+  isolation:isolate;
+}
+/* 噪点：feTurbulence data-URI 平铺，消除大面积渐变色带，给玻璃实体感 */
+.glass::before,.card::before,.login-card::before,.modal-box::before,.origin-box::before,.detail-box::before{
+  content:"";position:absolute;inset:0;z-index:0;border-radius:inherit;pointer-events:none;
+  opacity:.05;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.glass>*,.card>*,.login-card>*,.modal-box>*,.origin-box>*,.detail-box>*{position:relative;z-index:1}
+/* 顶部高光扫过：只给按钮/悬浮面板等小面积元素用 */
+.lg-sheen::after{content:"";position:absolute;inset:0;z-index:0;border-radius:inherit;pointer-events:none;background:linear-gradient(168deg,var(--lg-spec),transparent 46%);opacity:.75}
 html,body{height:100%}
-/* 壁纸层：解码完成后即刻淡入；未加载时透出根背景三色渐变兜底（见 html 规则） */
-#wallpaper{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;z-index:-3;opacity:0;pointer-events:none;transition:opacity .35s ease}
-#wallpaper.show{opacity:1}
+/* 背景层：.bg(壁纸) + .bg-scrim(白系遮罩)，对齐参考站的两层负 z 结构。
+   ⚠ 内容层（.app / .login-screen）不要加 z-index：会创建 stacking context 把 backdrop 采样范围
+     限制在容器内部，磨砂与折射会全部失效 */
+.bg,.bg-scrim{position:fixed;inset:0;z-index:-2;pointer-events:none}
+.bg img{width:100%;height:100%;object-fit:cover;object-position:center;opacity:0;transform:scale(1.02);transition:opacity .35s ease}
+.bg img.show{opacity:1}
+/* 亮度遮罩：白色系（本站浅色主题 + 深色正文），强度由「外观」面板的亮度滑条/自动测光写入 */
+.bg-scrim{z-index:-1;background:linear-gradient(180deg,rgba(255,255,255,calc(var(--lg-scrim)*.9)) 0%,rgba(255,255,255,var(--lg-scrim)) 40%,rgba(255,255,255,calc(var(--lg-scrim)*1.18)) 100%)}
 /* 槽位露出的是根背景（fixed 背景不覆盖槽位），故根背景用渐变，否则槽位是一条纯色白条 */
 html{background-color:#f4f2fb;background-image:linear-gradient(160deg,color-mix(in srgb,var(--c1) 20%,#fff),color-mix(in srgb,var(--c2) 20%,#fff),color-mix(in srgb,var(--c3) 20%,#fff));background-size:260% 260%;background-attachment:fixed;scrollbar-gutter:stable}
 
@@ -119,13 +162,11 @@ html{background-color:#f4f2fb;background-image:linear-gradient(160deg,color-mix(
 /* 鼠标移到滚动条或任一可滚动容器上 → 展开到 12px */
 ::-webkit-scrollbar-thumb:hover,
 .sidebar:hover::-webkit-scrollbar-thumb,
-.group-nav:hover::-webkit-scrollbar-thumb,
 .detail-box:hover::-webkit-scrollbar-thumb,
 .od-items:hover::-webkit-scrollbar-thumb,
 .br-fail:hover::-webkit-scrollbar-thumb,
 textarea.auto-grow:hover::-webkit-scrollbar-thumb{border-width:0}
 /* 侧边栏深色底上单独给个浅槽（数值可调） */
-.group-nav::-webkit-scrollbar-track{background:rgba(255,255,255,.25)}
 /* Firefox 只支持纯色，用 var(--accent) 同样跟随主题 */
 @supports not selector(::-webkit-scrollbar){
   html{scrollbar-width:thin;scrollbar-color:var(--accent) transparent}
@@ -135,8 +176,8 @@ textarea.auto-grow:hover::-webkit-scrollbar-thumb{border-width:0}
 }
 /* 移动端：保留壁纸但削弱毛玻璃强度，平衡观感与流畅 */
 @media (max-width:768px){
-  .card,.login-card,.modal-box,.origin-box,.detail-box{-webkit-backdrop-filter:blur(10px) saturate(1.5);backdrop-filter:blur(10px) saturate(1.5)}
-  .img-card:not(.view-list) .card-body{background:rgba(255,255,255,.55)}
+  :root{--lg-blur:10px;--lg-sat:150%}
+  .img-card:not(.view-list) .card-body{background:rgba(255,255,255,.25)}
 }
 body{
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Microsoft YaHei",sans-serif;
@@ -198,11 +239,8 @@ a{color:var(--accent)}
 /* 登录 */
 .login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
 .login-card{
-  width:340px;max-width:100%;background-color:var(--glass);
-  background-image:linear-gradient(180deg,var(--glass-hi),rgba(255,255,255,.06) 34%,transparent 60%);
-  -webkit-backdrop-filter:blur(24px) saturate(1.9) brightness(1.04);backdrop-filter:blur(24px) saturate(1.9) brightness(1.04);
-  border:1px solid var(--glass-line);border-radius:18px;padding:36px 32px;text-align:center;
-  box-shadow:var(--glass-rim),0 24px 70px rgba(31,41,55,.18);animation:cardIn .5s cubic-bezier(.2,.9,.3,1.15) both
+  width:340px;max-width:100%;border-radius:18px;padding:36px 32px;text-align:center;
+  animation:cardIn .5s cubic-bezier(.2,.9,.3,1.15) both
 }
 .logo{
   font-size:28px;font-weight:800;letter-spacing:.5px;
@@ -217,7 +255,7 @@ a{color:var(--accent)}
 .login-card .hint{margin-top:14px;font-size:12px;color:var(--muted)}
 
 /* 布局 */
-.app{display:flex;min-height:100vh}
+.app{display:flex;min-height:100vh} /* 无 z-index：见 .bg 注释 */
 .sidebar{
   width:220px;padding:18px 12px;display:flex;flex-direction:column;
   background:linear-gradient(165deg,var(--c1),var(--c2),var(--c3));
@@ -233,12 +271,17 @@ a{color:var(--accent)}
 .nav-btn.active{background:rgba(255,255,255,.24);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}
 .logout{margin-top:8px;padding:9px 12px;border-radius:9px;color:rgba(255,255,255,.78);font-size:13px;text-align:left;transition:background .15s}
 .logout:hover{background:rgba(255,255,255,.16);color:#fff}
-.group-nav{display:flex;flex-direction:column;gap:3px;margin-top:14px;max-height:34vh;overflow-y:auto;padding:2px}
-.group-nav .g-title{font-size:11px;color:rgba(255,255,255,.6);padding:2px 8px 4px;text-transform:uppercase;letter-spacing:.4px}
-.group-nav .g-btn{padding:5px 12px;border-radius:8px;color:rgba(255,255,255,.75);font-size:12px;text-align:left;transition:background .15s,color .15s}
-.group-nav .g-btn:hover{background:rgba(255,255,255,.14);color:#fff}
-.group-nav .g-btn.active{background:rgba(255,255,255,.26);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.28)}
-.group-nav:empty{display:none}
+/* 分页器 */
+.pager{display:flex;align-items:center;justify-content:center;gap:6px;margin:18px 0 6px;flex-wrap:wrap}
+.pager.hidden{display:none}
+.pg-btn,.pg-num{min-width:34px;height:34px;padding:0 8px;border-radius:9px;border:1px solid rgba(0,0,0,.12);background:var(--glass-chip);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
+.pg-btn:hover:not(:disabled),.pg-num:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-1px)}
+.pg-btn:disabled{opacity:.4;cursor:default}
+.pg-num.active{background:linear-gradient(90deg,var(--c1),var(--c2),var(--c3));color:#fff;border-color:transparent;cursor:text}
+.pg-num.active:hover{color:#fff;transform:none}
+.pg-gap{color:var(--muted);padding:0 2px}
+.pg-info{font-size:12px;color:var(--muted);margin-left:8px}
+.pg-jump{width:52px;height:34px;border:1px solid var(--accent);border-radius:9px;outline:none;font-size:13px;font-weight:600;text-align:center;background:#fff;color:var(--text)}
 .logout-in-settings{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 22px;border-radius:10px;font-size:14px;color:#fff;background:linear-gradient(160deg,#f43f5e,#ef4444);box-shadow:0 6px 18px rgba(239,68,68,.3);transition:transform .1s,box-shadow .15s,opacity .15s}
 .logout-in-settings:hover{box-shadow:0 8px 24px rgba(239,68,68,.4)}
 .logout-in-settings:active{transform:scale(.97)}
@@ -249,13 +292,9 @@ a{color:var(--accent)}
 /* viewIn 带 transform，仅用于自身为 fixed 的灯箱/弹层；视图切换用纯淡入，避免 transform 包含块破坏内部 fixed 子元素 */
 @keyframes viewIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
-/* 卡片（液态玻璃材质） */
+/* 卡片（玻璃本体样式由上方液态玻璃组提供，此处仅保留圆角） */
 .card{
-  /* 顶部镜面高光叠在玻璃底色上：用多层背景而非伪元素，不新增元素、不会盖住卡片内容 */
-  background-image:linear-gradient(180deg,var(--glass-hi),rgba(255,255,255,.06) 38%,transparent 62%);
-  background-color:var(--glass);
-  -webkit-backdrop-filter:blur(20px) saturate(1.9) brightness(1.04);backdrop-filter:blur(20px) saturate(1.9) brightness(1.04);
-  border:1px solid var(--glass-line);border-radius:var(--radius);box-shadow:var(--glass-rim),var(--shadow)
+  border-radius:var(--radius)
 }
 .add-card{padding:20px;margin-bottom:20px}
 .add-card h2{font-size:16px;margin-bottom:14px}
@@ -397,7 +436,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
 .thumb-fallback .tf-id{font-size:11px;word-break:break-all;max-width:92%}
 .card-body{padding:12px;display:flex;flex-direction:column;gap:7px;flex:1}
 /* ===== 壁纸模式：信息区白色玻璃衬底 + 深色文字（通透但可读，纯色底零滤镜开销）===== */
-.img-card:not(.view-list) .card-body{background:rgba(255,255,255,.42)}
+.img-card:not(.view-list) .card-body{background:rgba(255,255,255,.08)} /* 只给文字一层极淡衬底 */
 .img-card .img-name,.img-card .img-name .t{color:var(--text)}
 .img-card .img-name .pen{color:var(--muted)}
 .img-card .img-id,.img-card .img-id .t{color:#4b5563}
@@ -406,7 +445,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
 .img-card .lst-time,.img-card .lst-size{color:var(--muted)}
 .img-card .img-id .zoom-inline{background:rgba(255,255,255,.85);border-color:rgba(0,0,0,.12);color:var(--accent)}
 /* 列表行整行白衬底 */
-.img-card.view-list{background-color:rgba(255,255,255,.42)}
+.img-card.view-list{background-color:rgba(255,255,255,.08)}
 .img-card.view-list .lst-name-hit .t{color:var(--text)}
 /* 名称编辑框 */
 .img-card .name-edit{background:#fff;color:var(--text)}
@@ -542,7 +581,7 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 
 /* 删除确认弹窗 */
 .modal{position:fixed;inset:0;z-index:2300;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.45);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);padding:20px}
-.modal-box{width:360px;max-width:100%;background-color:var(--glass-panel);background-image:linear-gradient(180deg,var(--glass-hi),rgba(255,255,255,.05) 30%,transparent 56%);-webkit-backdrop-filter:blur(26px) saturate(1.9) brightness(1.05);backdrop-filter:blur(26px) saturate(1.9) brightness(1.05);border:1px solid var(--glass-line);border-radius:14px;padding:22px;box-shadow:var(--glass-rim),0 20px 60px rgba(0,0,0,.28);animation:popIn .16s ease-out both}
+.modal-box{width:360px;max-width:100%;border-radius:14px;padding:22px;animation:popIn .16s ease-out both}
 @keyframes popIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
 .modal-box h3{font-size:15px;margin-bottom:10px}
 .modal-box p{font-size:13px;color:#374151;line-height:1.6;word-break:break-all}
@@ -550,7 +589,7 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 
 /* SSRF 白名单快捷添加弹窗：层级高于删除确认（2300）、低于 toast（2400） */
 .origin-modal{position:fixed;inset:0;z-index:2350;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.45);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);padding:20px}
-.origin-box{width:420px;max-width:100%;background-color:var(--glass-panel);background-image:linear-gradient(180deg,var(--glass-hi),rgba(255,255,255,.05) 30%,transparent 56%);-webkit-backdrop-filter:blur(26px) saturate(1.9) brightness(1.05);backdrop-filter:blur(26px) saturate(1.9) brightness(1.05);border:1px solid var(--glass-line);border-radius:14px;padding:22px;box-shadow:var(--glass-rim),0 20px 60px rgba(0,0,0,.28);animation:popIn .16s ease-out both}
+.origin-box{width:420px;max-width:100%;border-radius:14px;padding:22px;animation:popIn .16s ease-out both}
 .origin-title{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;margin-bottom:10px}
 .origin-dot{width:9px;height:9px;border-radius:50%;background:var(--grad);background-size:200% 200%;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent);flex-shrink:0}
 .origin-desc{font-size:13px;color:#374151;line-height:1.6;margin-bottom:14px;word-break:break-all}
@@ -581,17 +620,44 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 .wp-mode-row{display:flex;gap:8px;flex-wrap:wrap}
 .wp-mode-btn{padding:7px 16px;border-radius:999px;font-size:13px;font-weight:600;background:var(--glass-chip);border:1px solid rgba(0,0,0,.12);color:var(--text);cursor:pointer;transition:all .15s}
 .wp-mode-btn.active{background:linear-gradient(90deg,var(--c1),var(--c2),var(--c3));color:#fff;border-color:transparent}
-.wp-pool{display:flex;flex-direction:column;gap:4px;max-height:220px;overflow-y:auto;padding:4px;border:1px solid rgba(0,0,0,.1);border-radius:9px}
-.wp-item{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer;padding:5px 8px;border-radius:8px;transition:background .15s}
-.wp-item:hover{background:rgba(0,0,0,.05)}
-.wp-item .radio{width:14px;height:14px;border-radius:50%;border:2px solid rgba(0,0,0,.25);flex:none;box-sizing:border-box;transition:border-color .15s,background .15s}
-.wp-item.picked .radio{border-color:var(--accent);background:radial-gradient(circle,var(--accent) 42%,transparent 48%)}
-.wp-item .t{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ===== 外观面板（折叠式；控件布局参照 we-pkg-web 的 dock，配色沿用本站浅色玻璃） ===== */
+.ap-panel{padding:0;overflow:hidden}
+.ap-toggle{display:flex;align-items:center;gap:9px;width:100%;padding:15px 22px;font:inherit;font-size:15px;font-weight:600;color:var(--text);text-align:left}
+.ap-dot{width:12px;height:12px;border-radius:50%;background:linear-gradient(180deg,#d7ecff,#58a7ee);box-shadow:0 0 10px var(--lg-glow);flex:none}
+.ap-caret{margin-left:auto;width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);transition:transform .2s}
+.ap-panel.open .ap-caret{transform:rotate(-135deg)}
+.ap-body{padding:2px 22px 20px;display:flex;flex-direction:column;gap:14px}
+.ap-label{margin:0;font-size:12px;font-weight:600;color:var(--muted)}
+.ap-block{display:flex;flex-direction:column;gap:10px}
+.ap-bg-nav{display:flex;align-items:stretch;gap:8px}
+.ap-bg-list{flex:1;display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:7px;max-height:136px;overflow-y:auto;padding:2px}
+.ap-bg-list button{position:relative;aspect-ratio:1;padding:0;cursor:pointer;overflow:hidden;border-radius:11px;border:1px solid rgba(0,0,0,.12);background:rgba(255,255,255,.35)}
+.ap-bg-list img{width:100%;height:100%;object-fit:cover;display:block}
+.ap-bg-list button[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent),0 6px 16px -6px rgba(31,41,55,.45)}
+.ap-bg-arrows{display:flex;flex-direction:column;gap:6px;flex:none}
+.ap-bg-arrow{flex:1;width:26px;font:inherit;font-size:15px;line-height:1;cursor:pointer;color:var(--text);background:rgba(255,255,255,.35);border:1px solid rgba(0,0,0,.12);border-radius:9px;box-shadow:inset 0 1px 0 var(--lg-inner-top)}
+.ap-bg-arrow:hover{border-color:var(--accent);color:var(--accent)}
+.ap-field{display:flex;flex-direction:column;gap:6px;margin-bottom:0}
+.ap-field input[type=url]{padding:7px 10px;border-radius:9px;border:1px solid rgba(0,0,0,.14);background:rgba(255,255,255,.5);color:var(--text)}
+.ap-slider{display:flex;flex-direction:column;gap:5px;margin-bottom:0}
+.ap-slider-top{display:flex;align-items:center;gap:8px}
+.ap-slider-top small{margin-left:auto;color:var(--muted);font-size:12px}
+.ap-reset{margin-left:auto;padding:2px 9px;font:inherit;font-size:11px;border-radius:999px;border:1px solid rgba(0,0,0,.14);background:rgba(255,255,255,.4);color:var(--muted);cursor:pointer}
+.ap-reset:disabled{opacity:.45;cursor:default}
+.ap-slider input[type=range]{width:100%;accent-color:var(--accent)}
+.ap-switches{display:flex;gap:20px;flex-wrap:wrap}
+.ap-switch{display:flex;align-items:center;gap:8px;margin-bottom:0;cursor:pointer}
+.ap-switch .switch{margin-right:0}
+.ap-note{margin:0;font-size:12px;color:var(--muted);line-height:1.5}
+.ap-note:empty{display:none}
+/* 动效开关：外观面板关闭动效后全站过渡归零 */
+body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:none!important;animation-duration:.001s!important}
 .detail-wp-btn{flex:none}
 
 /* 媒体详情弹窗 */
 .detail-modal{position:fixed;inset:0;z-index:2250;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.45);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);padding:18px}
-.detail-box{width:1026px;max-width:100%;max-height:92vh;overflow:auto;background-color:var(--glass-panel);background-image:linear-gradient(180deg,var(--glass-hi),rgba(255,255,255,.04) 22%,transparent 42%);-webkit-backdrop-filter:blur(28px) saturate(1.9) brightness(1.05);backdrop-filter:blur(28px) saturate(1.9) brightness(1.05);border:1px solid var(--glass-line);border-radius:22px;box-shadow:var(--glass-rim),0 27px 81px rgba(0,0,0,.28);animation:popIn .16s ease-out both}
+.detail-box{width:1026px;max-width:100%;max-height:92vh;overflow:auto;border-radius:22px;animation:popIn .16s ease-out both}
 .detail-head{display:flex;align-items:center;justify-content:space-between;padding:19px 24px 0}
 .detail-head h3{font-size:20px;font-weight:600;color:var(--text)}
 .detail-close{font-size:35px;line-height:1;color:#9ca3af;cursor:pointer;transition:color .15s,transform .15s;background:none;border:none;padding:0 2px}
@@ -644,7 +710,6 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
   .toolbar input{width:160px}
   .add-row,.add-row2{flex-direction:column}
   .add-row2 select{max-width:100%}
-  .group-nav{display:none}
   .detail-body{flex-direction:column}
   .detail-left{width:100%}
   .detail-media{min-height:270px}
@@ -674,7 +739,9 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
   </span>
 </button>
 
-<img id="wallpaper" alt="" decoding="async" />
+<div class="bg"><img id="wallpaper" alt="" decoding="async" /></div>
+<div class="bg-scrim"></div>
+<svg id="lg-defs" aria-hidden="true" style="position:absolute;width:0;height:0;overflow:hidden"><defs></defs></svg>
 <div id="clickfx" aria-hidden="true"></div>
 
 <div id="login" class="login-screen hidden">
@@ -694,7 +761,6 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
       <button class="nav-btn active" data-view="images" data-i18n="nav.images"></button>
       <button class="nav-btn" data-view="settings" data-i18n="nav.settings"></button>
     </nav>
-    <div id="group-nav" class="group-nav"></div>
   </aside>
   <main class="main">
     <section id="view-images" class="view active">
@@ -769,6 +835,7 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
       </div>
       <div id="empty" class="empty hidden"></div>
       <div id="grid" class="grid"></div>
+      <div id="pager" class="pager hidden"></div>
     </section>
 
     <section id="view-settings" class="view">
@@ -844,18 +911,62 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
           <label><span data-i18n="set.thumbCache"></span><input id="thumbCache" type="number" min="8" max="1000" step="4" data-i18n-ph="set.thumbCache.ph" /><small data-i18n="set.thumbCache.hint"></small></label>
         </div>
 
-        <div class="card group">
-          <h3 data-i18n="set.group.wallpaper"></h3>
-          <label><span data-i18n="set.wp.mode"></span>
-            <span class="wp-mode-row" id="wp-mode">
-              <button type="button" class="wp-mode-btn" data-mode="random" data-i18n="set.wp.random"></button>
-              <button type="button" class="wp-mode-btn" data-mode="fixed" data-i18n="set.wp.fixed"></button>
-            </span>
-          </label>
-          <label><span data-i18n="set.wp.pool"></span>
-            <div id="wp-pool" class="wp-pool"></div>
-            <small data-i18n="set.wp.pool.hint"></small>
-          </label>
+        <div class="card group ap-panel" id="ap-panel">
+          <button type="button" class="ap-toggle" id="ap-toggle" aria-expanded="false" aria-controls="ap-body">
+            <span class="ap-dot" aria-hidden="true"></span>
+            <span data-i18n="set.group.appearance"></span>
+            <span class="ap-caret" aria-hidden="true"></span>
+          </button>
+          <div class="ap-body" id="ap-body" hidden>
+            <div class="ap-block">
+              <p class="ap-label" data-i18n="set.wp.pool"></p>
+              <div class="ap-bg-nav">
+                <div id="ap-bg-list" class="ap-bg-list" role="group" aria-label="wallpaper pool"></div>
+                <div class="ap-bg-arrows">
+                  <button id="ap-bg-prev" class="ap-bg-arrow" type="button" aria-label="prev wallpaper">&lsaquo;</button>
+                  <button id="ap-bg-next" class="ap-bg-arrow" type="button" aria-label="next wallpaper">&rsaquo;</button>
+                </div>
+              </div>
+              <label class="ap-field"><span data-i18n="set.wp.mode"></span>
+                <span class="wp-mode-row" id="wp-mode">
+                  <button type="button" class="wp-mode-btn" data-mode="random" data-i18n="set.wp.random"></button>
+                  <button type="button" class="wp-mode-btn" data-mode="fixed" data-i18n="set.wp.fixed"></button>
+                </span>
+              </label>
+              <label class="ap-field"><span data-i18n="set.wp.custom"></span>
+                <input type="url" id="ap-custom" placeholder="https://…" />
+              </label>
+            </div>
+
+            <label class="ap-slider">
+              <span class="ap-slider-top"><span data-i18n="set.ap.bright"></span>
+                <button type="button" id="ap-bright-auto" class="ap-reset" data-i18n="set.ap.auto"></button>
+              </span>
+              <input type="range" id="ap-bright" min="0" max="88" step="1" />
+            </label>
+            <label class="ap-slider">
+              <span class="ap-slider-top"><span data-i18n="set.ap.blur"></span><small id="ap-blur-val">24</small></span>
+              <input type="range" id="ap-blur" min="0" max="40" step="1" />
+            </label>
+            <label class="ap-slider">
+              <span class="ap-slider-top"><span data-i18n="set.ap.sat"></span><small id="ap-sat-val">175%</small></span>
+              <input type="range" id="ap-sat" min="100" max="260" step="5" />
+            </label>
+            <label class="ap-slider">
+              <span class="ap-slider-top"><span data-i18n="set.ap.lum"></span><small id="ap-lum-val">105%</small></span>
+              <input type="range" id="ap-lum" min="80" max="140" step="1" />
+            </label>
+
+            <div class="ap-switches">
+              <label class="ap-switch"><span data-i18n="set.ap.refract"></span>
+                <span class="switch"><input type="checkbox" id="ap-refract" /><span></span></span>
+              </label>
+              <label class="ap-switch"><span data-i18n="set.ap.motion"></span>
+                <span class="switch"><input type="checkbox" id="ap-motion" checked /><span></span></span>
+              </label>
+            </div>
+            <p class="ap-note" id="ap-note"></p>
+          </div>
         </div>
 
         <div class="save-row">
@@ -1004,11 +1115,9 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
   var VIEW_MODE_KEY = "mdn_view_mode";
   var viewMode = localStorage.getItem(VIEW_MODE_KEY) === "list" ? "list" : "thumb"; // thumb=图片展示 / list=列表展示
   var sizeCache = {}; // 列表模式文件大小缓存（id → 格式化字符串）
-  var gridState = { cols: 1, rowH: 320, groupSize: 20, rendered: 0, vis: null };
-  var gridSentinel = null;
-  var gridObserver = null;
-  var renderDoneCb = null; // 渲染队列处理完成后回调（分组跳转等需等待高度就位再滚动）
-  var pendingJump = null; // 待执行的分组跳转目标（多次快速点击只保留最后一次）
+  var gridState = { cols: 1, vis: null };
+  var pager = { page: 1 }; // 当前页码（每页张数见 perPageCount）
+  var renderDoneCb = null; // 渲染队列处理完成后回调（切样式动画等需等待渲染就位）
   var thumbObserver2 = null;
   var thumbObsTargets = [];
   var thumbLoaded = 0;
@@ -1252,12 +1361,22 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
       "set.rateAvVal": "每媒体 {limit} 次 / {period} 秒",
       "set.rateNoteText": "限流由 Cloudflare Rate Limit Binding 在边缘执行，数值需在 wrangler.jsonc 中修改后重新部署，此处仅展示当前配置。",
       "set.group.ui": "界面",
-      "set.group.wallpaper": "壁纸",
+      "set.group.appearance": "外观",
       "set.wp.mode": "壁纸模式",
       "set.wp.random": "随机",
       "set.wp.fixed": "固定",
       "set.wp.pool": "图片池",
-      "set.wp.pool.hint": "点击任一张设为固定；选「随机」则每次刷新按假随机轮换。",
+      "set.wp.custom": "自定义壁纸 URL（留空则只用图片池）",
+      "set.ap.bright": "背景亮度",
+      "set.ap.auto": "自动",
+      "set.ap.blur": "磨砂强度",
+      "set.ap.sat": "饱和度",
+      "set.ap.lum": "玻璃提亮",
+      "set.ap.refract": "边缘折射",
+      "set.ap.motion": "动效",
+      "set.ap.noRefract": "当前浏览器不支持边缘折射，已使用纯 CSS 玻璃。",
+      "set.ap.badUrl": "自定义地址需要是完整的 http(s) 图片链接。",
+      "set.ap.noSample": "壁纸未能加载或不允许取样，已保留当前亮度。",
       "detail.wp": "设为壁纸",
       "wp.title": "将此图片设为壁纸",
       "wp.desc": "调整主题三色（已按图片自动取色，可手动微调），确定后加入图片池并立即生效。",
@@ -1270,8 +1389,8 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
       "set.thumbCache": "缩略图缓存上限（个）",
       "set.thumbCache.ph": "如 50",
       "set.thumbCache.hint": "超过上限时自动释放距离当前位置最远、且超过最小释放距离的缩略图，滑到附近时重新加载。仅存在本浏览器。",
-      "nav.groups": "分组",
-      "nav.group.go": "跳到第 {n} 组"
+      "pager.info": "第 {page} / {total} 页",
+      "pager.invalid": "请输入 1 ~ {max} 的页码"
     },
     en: {
       "app.title": "MediaDNS-CDN · Media Manager",
@@ -1494,12 +1613,22 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
       "set.rateAvVal": "{limit} requests per media / {period}s",
       "set.rateNoteText": "Rate limiting runs at the edge via Cloudflare Rate Limit Binding; change values in wrangler.jsonc and re-deploy. This is read-only.",
       "set.group.ui": "Interface",
-      "set.group.wallpaper": "Wallpaper",
+      "set.group.appearance": "Appearance",
       "set.wp.mode": "Wallpaper mode",
       "set.wp.random": "Random",
       "set.wp.fixed": "Fixed",
       "set.wp.pool": "Image pool",
-      "set.wp.pool.hint": "Click any image to pin it; choose Random to rotate via the fake-random deck.",
+      "set.wp.custom": "Custom wallpaper URL (leave empty to use the pool only)",
+      "set.ap.bright": "Background brightness",
+      "set.ap.auto": "Auto",
+      "set.ap.blur": "Frost strength",
+      "set.ap.sat": "Saturation",
+      "set.ap.lum": "Glass brightness",
+      "set.ap.refract": "Edge refraction",
+      "set.ap.motion": "Motion",
+      "set.ap.noRefract": "This browser does not support edge refraction; using pure CSS glass.",
+      "set.ap.badUrl": "A custom wallpaper needs a full http(s) image URL.",
+      "set.ap.noSample": "Wallpaper failed to load or cannot be sampled; keeping the current brightness.",
       "detail.wp": "Set as wallpaper",
       "wp.title": "Set this image as wallpaper",
       "wp.desc": "Tune the theme trio (auto-picked from the image, editable), then add it to the pool and apply immediately.",
@@ -1512,8 +1641,8 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
       "set.thumbCache": "Thumbnail cache cap",
       "set.thumbCache.ph": "e.g. 50",
       "set.thumbCache.hint": "When the cap is exceeded, thumbnails farthest from the viewport (beyond a minimum eviction distance) are released and reload when scrolled back. Stored in this browser only.",
-      "nav.groups": "Groups",
-      "nav.group.go": "Jump to group {n}"
+      "pager.info": "Page {page} / {total}",
+      "pager.invalid": "Enter a page number between 1 and {max}"
     }
   };
 
@@ -2356,29 +2485,15 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
     var html = "";
     for (var i = 0; i < 6; i++) html += '<div class="skeleton"></div>';
     grid.innerHTML = html;
-    resetSentinel();
     thumbLoaded = 0;
     thumbObsTargets = [];
-    renderGroupNav([]);
   }
 
   function computeGridMetrics() {
     var grid = $("grid");
     var w = grid.clientWidth || Math.max(1, document.documentElement.clientWidth - 300);
     var cols = Math.max(1, Math.round((w + 16) / (240 + 16)));
-    var cardW = (w - 16 * (cols - 1)) / cols;
-    // 列表展示：一卡一行，虚拟滚动按行计数
     gridState.cols = viewMode === "list" ? 1 : cols;
-    gridState.rowH = viewMode === "list" ? 48 : cardW * 0.96 + 152;
-    // 实际行距 = 卡高 + 行间距（.grid 的 gap:16px）。分组跳转/高亮的理论位置必须用行距，
-    // 否则偏差随行数累积（thumb 第 9 行、列表第 3 行就差出一整行），导致视口停错行
-    var rowGap = 16;
-    try { rowGap = parseFloat(getComputedStyle(grid).rowGap) || 16; } catch (e) {}
-    gridState.rowPitch = gridState.rowH + rowGap;
-    // 一屏容纳行数必须按行距（含 gap）算：每行实际占位 pitch。
-    // 用不含 gap 的 rowH 会高估行数——列表行小 gap 占比 26%，一屏 21 行会算成 27 行
-    var rows = Math.max(2, Math.round(window.innerHeight / gridState.rowPitch));
-    gridState.groupSize = gridState.cols * rows;
     return cols;
   }
   function thumbWrapHtml(img) {
@@ -2439,13 +2554,7 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
     card.innerHTML = (viewMode === "list" ? "" : thumbWrapHtml(img)) + cardBodyHtml(img);
     return card;
   }
-  function resetSentinel() {
-    if (gridSentinel) {
-      if (gridObserver) { try { gridObserver.unobserve(gridSentinel); } catch (e) {} }
-      if (gridSentinel.parentNode) gridSentinel.parentNode.removeChild(gridSentinel);
-      gridSentinel = null;
-    }
-  }
+
   function resetGridNodes() {
     var grid = $("grid");
     var nodes = grid.querySelectorAll(".thumb-img, video.tv-thumb");
@@ -2453,16 +2562,15 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
     if (cardQueueTimer) { clearTimeout(cardQueueTimer); cardQueueTimer = null; }
     cardQueue = [];
     grid.innerHTML = "";
-    resetSentinel();
     thumbLoaded = 0;
     thumbQueue = [];
     thumbInFlight = 0;
   }
-  function enqueueCardRange(start, end, before, noAnim) {
+  function enqueueCardRange(start, end, noAnim) {
     var vis = gridState.vis;
     if (!vis || start >= end) { if (!cardQueue.length) finishCardQueue(); return; }
     for (var i = start; i < end; i++) {
-      cardQueue.push({ card: buildCard(vis[i], i, noAnim), before: before });
+      cardQueue.push({ card: buildCard(vis[i], i, noAnim) });
     }
     if (!cardQueueTimer) cardQueueTimer = setTimeout(pumpCardQueue, 16);
   }
@@ -2472,9 +2580,7 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
     var done = 0;
     while (cardQueue.length && done < CARD_BATCH) {
       var item = cardQueue.shift();
-      if (item.before && gridSentinel) grid.insertBefore(item.card, gridSentinel);
-      else grid.appendChild(item.card);
-      gridState.rendered++;
+      grid.appendChild(item.card);
       done++;
     }
     if (cardQueue.length) {
@@ -2484,15 +2590,7 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
     finishCardQueue();
   }
   function finishCardQueue() {
-    // 渲染就位后校准列表行高：列表卡实际高度随字号/主题/缩放变化，硬编码 48px 会偏差
-    // （实际约 60px+），直接导致 groupSize 偏大（一屏 20.9 行却算出 27 一组）。
-    // 校准必须先于 renderDoneCb（分组跳转回调），保证跳转使用新 groupSize
-    if (calibrateListRowH()) {
-      updateSentinelHeight();
-      renderGroupNav(gridState.vis); // 组大小变化：重建导航按钮并恢复高亮
-    }
-    if (gridState.vis && gridState.rendered >= gridState.vis.length) resetSentinel();
-    else { ensureSentinel(); updateSentinelHeight(); }
+    if (glassCtl) glassCtl.observe($("grid")); // 新渲染的卡片纳入折射管理
     setupVideoThumbs();
     observeThumbs();
     probeListSizes(); // 列表模式：惰性探测文件大小
@@ -2500,125 +2598,34 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
     renderDoneCb = null;
     if (cb) cb();
   }
-  // 列表行高校准：实测首张可见列表卡的真实高度（thumb 模式公式估算已被验证，不参与校准），
-  // 行距 = 卡高 + gap，据此重算一屏容纳行数作为 groupSize（列表 cols=1，一组 = 一屏最多行数）。
-  // 返回 true 表示 groupSize 变化，调用方需重建分组导航与哨兵高度
-  function calibrateListRowH() {
-    if (viewMode !== "list" || !gridState.vis || !gridState.vis.length) return false;
-    var cards = $("grid").querySelectorAll(".img-card.view-list");
-    var h = 0;
-    for (var i = 0; i < cards.length && i < 5; i++) {
-      var r = cards[i].getBoundingClientRect();
-      if (r.height > 20) { h = r.height; break; } // 跳过 display:none 的筛选隐藏卡（rect 为 0）
-    }
-    if (!h) return false;
-    if (Math.abs(h - gridState.rowH) < 0.5) return false; // 已校准到位，零开销
-    var rowGap = 16;
-    try { rowGap = parseFloat(getComputedStyle($("grid")).rowGap) || 16; } catch (e) {}
-    gridState.rowH = h;
-    gridState.rowPitch = h + rowGap;
-    var newSize = Math.max(2, Math.round(window.innerHeight / gridState.rowPitch));
-    if (newSize === gridState.groupSize) return false;
-    gridState.groupSize = newSize;
-    return true;
-  }
-  // 哨兵占位撑高：把剩余未渲染卡片的高度折算为 sentinel 高度，使虚拟滚动总高度恒定，
-  // 保证任意虚拟位置（分组跳转、锚点定位）都能平滑滚动到真实坐标
-  function updateSentinelHeight() {
-    if (!gridSentinel || !gridState.vis) return;
-    var remaining = gridState.vis.length - gridState.rendered;
-    if (remaining <= 0) { resetSentinel(); return; }
-    gridSentinel.style.height = Math.max(0, Math.ceil(remaining / gridState.cols) * gridState.rowH) + "px";
-  }
-  function ensureSentinel() {
-    if (gridSentinel) return;
-    if (!gridState.vis || gridState.rendered >= gridState.vis.length) return;
-    var grid = $("grid");
-    gridSentinel = document.createElement("div");
-    gridSentinel.className = "grid-sentinel";
-    grid.appendChild(gridSentinel);
-    updateSentinelHeight();
-    if (!gridObserver) {
-      gridObserver = new IntersectionObserver(function (entries) {
-        entries.forEach(function (en) {
-          if (en.isIntersecting) appendMore();
-        });
-      }, { rootMargin: "800px 0px" });
-    }
-    gridObserver.observe(gridSentinel);
-  }
-  function appendMore() {
-    var vis = gridState.vis;
-    if (!vis || gridState.rendered >= vis.length) { resetSentinel(); return; }
-    var start = gridState.rendered + cardQueue.length;
-    var end = Math.min(vis.length, start + gridState.groupSize);
-    if (start >= end) { resetSentinel(); return; }
-    enqueueCardRange(start, end, true);
-  }
-  function renderWindow(vis, start, onDone, noAnim) {
-    resetGridNodes();
-    gridState.vis = vis;
-    renderDoneCb = onDone || null;
-    pendingJump = null; // 全量重建后丢弃过期的分组跳转目标
-    var s0 = Math.max(0, start - 2 * gridState.cols);
-    var end = Math.min(vis.length, start + gridState.groupSize + 2 * gridState.cols);
-    gridState.rendered = s0;
-    enqueueCardRange(s0, end, false, noAnim);
-  }
-  // 增量渲染：确保 [0, end) 区间已渲染。不清空网格，只补渲染缺失区间（插到哨兵前），
-  // 已渲染卡片全部保留、页面总高度不变（哨兵撑高），避免分组跳转时"前组卡片消失"与"先跳顶再滑动"
-  function ensureRangeRendered(end) {
-    var vis = gridState.vis;
-    if (!vis || !vis.length) return;
-    end = Math.max(0, Math.min(vis.length, end));
-    if (gridState.rendered + cardQueue.length >= end) {
-      flushPendingJump(); // 目标区间已渲染或已在排队中，立即跳转
-      return;
-    }
-    if (!renderDoneCb) renderDoneCb = flushPendingJump; // 队列处理完成后执行最新跳转
-    enqueueCardRange(gridState.rendered + cardQueue.length, end, true);
-  }
-  // 执行最新一次分组跳转的平滑滚动（多次快速点击只保留最后一次目标）
-  function flushPendingJump() {
-    if (!pendingJump) return;
-    var j = pendingJump;
-    pendingJump = null;
-    smoothScrollTo(groupScrollTargetY(j.start), undefined, function () {
-      // 动画结束后二次校正：平滑期间图片加载/哨兵变化可能造成停止位置偏移，
-      // 确保视口顶精确对齐组首行（与高亮"完全覆盖才切换"的语义严格一致）
-      var target = groupScrollTargetY(j.start);
-      var cur = window.pageYOffset || document.documentElement.scrollTop;
-      if (Math.abs(cur - target) > 1) window.scrollTo(0, target);
-      updateCurrentGroup();
-    });
-  }
   function renderGrid(images, opts) {
     opts = opts || {};
+    if (opts.resetPage) pager.page = 1;
     var vis = filterImages(images);
     $("img-count").textContent = t("list.count", { n: vis.length });
+    gridState.vis = vis;
+    var per = perPageCount();
+    var total = Math.max(1, Math.ceil(vis.length / per));
+    if (pager.page > total) pager.page = total;
     if (!vis.length) {
       $("empty").classList.remove("hidden");
       $("empty").textContent = images.length ? t("empty.filtered") : t("empty");
       resetGridNodes();
-      gridState.vis = null;
-      renderGroupNav([]);
+      renderPager(0);
       return;
     }
     $("empty").classList.add("hidden");
     computeGridMetrics();
-    var start = 0;
-    if (opts.anchor) {
-      var sy = window.pageYOffset || document.documentElement.scrollTop;
-      if (gridState.rowH > 0) start = Math.floor(sy / gridState.rowH) * gridState.cols;
-    }
-    renderWindow(vis, start, opts.onDone || null, opts.noAnim);
-    renderGroupNav(vis);
-    // 重建网格后续载未就绪的基本信息（删除/搜索/重命名/切语言等场景）
+    var start = (pager.page - 1) * per;
+    var end = Math.min(vis.length, start + per);
+    resetGridNodes();
+    renderDoneCb = opts.onDone || null;
+    enqueueCardRange(start, end, opts.noAnim);
+    renderPager(vis.length);
     ensureInfoLoads();
   }
 
   // ===== 展示样式切换 =====
-  var viewSwitching = false;
   // 按当前 viewMode 同步控件 active 状态（HTML 静态渲染，初始态由 JS 校正）
   function syncViewToggle() {
     var opts = document.querySelectorAll(".vt-opt");
@@ -2632,127 +2639,9 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
     thumbInFlight = 0;
     thumbLoaded = 0;
   }
-  // 堆叠推平动画：切换样式后，重建的新网格卡片先"堆叠"到目标位置，再依次推平到各自位置。
-  // 列表→图片：每行的卡片堆叠到该行行首，向右推平；
-  // 图片→列表：全部堆叠到第一行，向下推平。
-  // 堆叠通过 translate 微偏移 + z-index 递增体现"一叠牌"的层次；错峰 transitionDelay 让推平带节奏；
-  // cubic-bezier(.34,.1,.28,1) 提供先加速后减速的加速度（符合人体观感）。仅当前视口内卡片参与。
-  function playDeckAnimation() {
-    var cards = $("grid").querySelectorAll(".img-card");
-    var vh = window.innerHeight || document.documentElement.clientHeight;
-    var visible = [];
-    if (viewMode === "list") {
-      // 列表样式：视口内（含缓冲）卡片优先，不足 32 个时再向下补充，保证视口内必有动画且用户下滚仍可见
-      var collected = {};
-      for (var j = 0; j < cards.length; j++) {
-        var rj = cards[j].getBoundingClientRect();
-        if (rj.bottom < -40 || rj.top > vh + 40) continue;
-        visible.push({ el: cards[j], left: rj.left, top: rj.top });
-        collected[j] = true;
-      }
-      if (visible.length < 32) {
-        for (var k = 0; k < cards.length && visible.length < 32; k++) {
-          if (collected[k]) continue;
-          var rk = cards[k].getBoundingClientRect();
-          if (rk.top < vh + 40) continue; // 只补视口下方（上方已滚出的不取）
-          visible.push({ el: cards[k], left: rk.left, top: rk.top });
-        }
-      }
-    } else {
-      // 图片样式：视口内 + 下方扩展至约 4 行
-      var rowH = gridState.rowH || 380;
-      for (var j = 0; j < cards.length; j++) {
-        var r2 = cards[j].getBoundingClientRect();
-        if (r2.bottom < -rowH || r2.top > vh + 2 * rowH) continue; // 上方一行缓冲 + 视口 + 下方约 2 行
-        visible.push({ el: cards[j], left: r2.left, top: r2.top });
-      }
-    }
-    if (!visible.length) { viewSwitching = false; return; }
-    // 按 top 聚类成行（同一行的卡片 top 相近）
-    var rows = [];
-    for (var j = 0; j < visible.length; j++) {
-      var v = visible[j];
-      var placed = false;
-      for (var k = 0; k < rows.length; k++) {
-        if (Math.abs(rows[k].top - v.top) < 14) { rows[k].items.push(v); placed = true; break; }
-      }
-      if (!placed) rows.push({ top: v.top, items: [v] });
-    }
-    rows.sort(function (a, b) { return a.top - b.top; });
-    var anims = [];
-    var z = 100;
-    if (viewMode === "thumb") {
-      // 列表→图片：每行堆叠到行首，向右推平（行内按列错峰，加大偏移让层叠清晰）
-      for (var r1 = 0; r1 < rows.length; r1++) {
-        var it1 = rows[r1].items;
-        it1.sort(function (a, b) { return a.left - b.left; });
-        var anchorX = it1[0].left;
-        var anchorY = it1[0].top;
-        for (var c = 0; c < it1.length; c++) {
-          var itm = it1[c];
-          // 堆叠到行首 + 加大偏移（右/下错开 + 基础偏移让行首也有可见动画），z-index 递增
-          anims.push({ el: itm.el, dx: (anchorX + 6 + c * 9) - itm.left, dy: (anchorY + 3 + c * 4) - itm.top, delay: c * 55, z: z++ });
-        }
-      }
-    } else {
-      // 图片→列表：全部堆叠到第一行（最上面），向下推平（交错错开 + 基础偏移，错峰 delay）
-      var topRow = rows.length ? rows[0].items : null;
-      var ax = topRow && topRow.length ? topRow[0].left : 0;
-      var ay = topRow && topRow.length ? topRow[0].top : 0;
-      var idx = 0;
-      for (var r2 = 0; r2 < rows.length; r2++) {
-        for (var c2 = 0; c2 < rows[r2].items.length; c2++) {
-          var it2 = rows[r2].items[c2];
-          anims.push({ el: it2.el, dx: (ax + 4 + (idx % 2) * 14) - it2.left, dy: (ay + 2 + Math.floor(idx / 2) * 4) - it2.top, delay: idx * 28, z: z++ });
-          idx++;
-        }
-      }
-    }
-    applyDeck(anims);
-  }
-  function applyDeck(anims) {
-    if (!anims.length) { viewSwitching = false; return; }
-    // 第一阶段：堆叠位置 + 半透明（避免"先排好再动"且消除实心白叠加）+ z-index 递增
-    for (var i = 0; i < anims.length; i++) {
-      var a = anims[i];
-      a.el.style.transition = "none";
-      a.el.style.zIndex = String(a.z);
-      a.el.style.opacity = "0.4"; // 半透明：掩盖最终位置先渲染、避免堆叠叠加成实心白
-      a.el.style.transform = "translate(" + a.dx + "px," + a.dy + "px)";
-    }
-    void $("grid").offsetWidth; // 确保堆叠位移先应用
-    // 双 rAF：先让浏览器把"堆叠 + grid 隐藏"状态确认下来，再取消 grid 隐藏并启动推平 + 淡入
-    // （grid 在 switchViewMode 中重建前已被 visibility:hidden，避免用户看到"最终位置先渲染再动"）
-    requestAnimationFrame(function () {
-      requestAnimationFrame(function () {
-        var total = 0;
-        for (var k = 0; k < anims.length; k++) {
-          var b = anims[k];
-          b.el.style.transition = "transform .55s cubic-bezier(.34,.1,.28,1), opacity .35s ease";
-          b.el.style.transitionDelay = b.delay + "ms";
-          b.el.style.transform = "translate(0px,0px)";
-          b.el.style.opacity = "1";
-          if (b.delay + 550 > total) total = b.delay + 550;
-        }
-        // 与推平同时取消 grid 隐藏，用户看到的第一帧就是"堆叠+半透明"，无"最终位置先渲染"
-        $("grid").style.visibility = "";
-        setTimeout(function () {
-          for (var n = 0; n < anims.length; n++) {
-            anims[n].el.style.transition = "";
-            anims[n].el.style.transitionDelay = "";
-            anims[n].el.style.transform = "";
-            anims[n].el.style.opacity = "";
-            anims[n].el.style.zIndex = "";
-          }
-          viewSwitching = false;
-        }, total + 80);
-      });
-    });
-  }
-  // 主切换流程：更新控件 → 隐藏 grid → 重建网格 → 堆叠推平动画（仅当前视口内卡片参与）
+  // 主切换流程：更新控件 → 重渲染当前页（分页下重建 ≤24 张卡，cardIn 入场即动画）
   function switchViewMode(next) {
-    if (viewSwitching || next === viewMode) return;
-    viewSwitching = true;
+    if (next === viewMode) return;
     viewMode = next;
     localStorage.setItem(VIEW_MODE_KEY, viewMode);
     syncViewToggle();
@@ -2760,32 +2649,10 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
     tg.classList.remove("flip");
     void tg.offsetWidth;
     tg.classList.add("flip");
-    if (lastImages === null) { viewSwitching = false; return; } // 数据未加载：仅切换控件
+    if (lastImages === null) return; // 数据未加载：仅切换控件
     if (viewMode === "list") clearThumbLoads();
-    var gridEl = $("grid");
-    if (!REDUCED) {
-      // 锁定切换前高度 + 隐藏 grid：
-      // 避免 renderGrid 清空瞬间文档高度骤减导致滚动条"占满又恢复"的抽搐；
-      // visibility:hidden 保留布局占位但不清空高度，min-height 让重建期间高度恒定
-      gridEl.style.minHeight = gridEl.offsetHeight + "px";
-      gridEl.style.visibility = "hidden";
-    }
-    renderGrid(lastImages, {
-      anchor: true, noAnim: true,
-      onDone: REDUCED ? null : function () {
-        // 重建完成：立即释放高度锁定，让 grid 高度 = 新模式应有高度
-        // （避免动画期间 grid 被旧高度撑大、卡片四周出现大片空白而显得"高度异常"）
-        gridEl.style.minHeight = "";
-        playDeckAnimation();
-      }
-    });
-    if (REDUCED) viewSwitching = false; // 无动画：重建即完成
-    // 兜底：空态/无卡片等动画未执行时确保解锁 + 清理 grid 隐藏与高度锁定
-    setTimeout(function () {
-      gridEl.style.minHeight = "";
-      gridEl.style.visibility = "";
-      if (viewSwitching) viewSwitching = false;
-    }, 1300);
+    pager.page = 1; // 两种模式每页张数不同，切样式回第 1 页
+    renderGrid(lastImages);
   }
   // 列表模式：优先用 KV 读到的内存 size；缺失才 HEAD 惰性探测（错峰并发），成功后顺手回写 KV
   var sizeQueue = [];
@@ -2872,92 +2739,12 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
     }
     requestAnimationFrame(step);
   }
-  function updateGroupHighlight(g) {
-    var box = $("group-nav");
-    if (!box) return;
-    var btns = box.querySelectorAll(".g-btn");
-    for (var i = 0; i < btns.length; i++) btns[i].classList.toggle("active", i === g);
-  }
-  // 当前分组判定：视口顶线压住的组——组首顶 <= 视口顶线 < 下一组首顶。
-  // 与分组跳转（滚动目标 = groupStartTop(g)，见 groupScrollTargetY）共用同一几何定义，
-  // 两者使用同一坐标系、同一位置来源（真实 rect 优先 / 理论行距兜底），
-  // 从数学上保证：点击跳转落点必然判定为所点的组；滚动时组首顶到达视口顶才切换高亮。
-  // 不再依赖"视口顶行的卡已渲染"等前提（旧逐卡扫描在哨兵占位区/未渲染区间会失准掉进估算分支）
-  function updateCurrentGroup() {
-    if (!gridState.vis || !gridState.groupSize) return;
-    var last = Math.max(0, Math.ceil(gridState.vis.length / gridState.groupSize) - 1);
-    var top = window.pageYOffset || document.documentElement.scrollTop;
-    // 理论行距估算初值，再用真实组首位置双向微调（正常滚动步进 1~2 次，性能可控）
-    var pitch = gridState.rowPitch || gridState.rowH;
-    var est = Math.floor((top - gridDocTop()) / (pitch * (gridState.groupSize / gridState.cols)));
-    var g = Math.min(last, Math.max(0, est));
-    while (g > 0 && groupStartTop(g) > top + 1) g--;
-    while (g < last && groupStartTop(g + 1) <= top + 1) g++;
-    updateGroupHighlight(g);
-  }
-  function renderGroupNav(vis) {
-    var box = $("group-nav");
-    if (!box) return;
-    if (!vis || !gridState.groupSize) { box.innerHTML = ""; return; }
-    var n = Math.max(1, Math.ceil(vis.length / gridState.groupSize));
-    var h = '<span class="g-title">' + esc(t("nav.groups")) + "</span>";
-    for (var g = 0; g < n; g++) {
-      h += '<button class="g-btn" data-g="' + g + '" aria-label="' + esc(t("nav.group.go", { n: g + 1 })) + '">' + (g + 1) + "</button>";
-    }
-    box.innerHTML = h;
-    updateCurrentGroup(); // 重建导航按钮后恢复当前分组高亮
-  }
-  // 计算分组起点卡的真实文档坐标；目标卡未渲染或被隐藏时回退理论位置（行距含 gap）
-  function groupScrollTargetY(idx) {
-    var card = $("grid").querySelector('.img-card[data-idx="' + idx + '"]');
-    if (card && card.style.display !== "none") {
-      var r = card.getBoundingClientRect();
-      return r.top + (window.pageYOffset || document.documentElement.scrollTop);
-    }
-    var pitch = gridState.rowPitch || gridState.rowH;
-    return gridDocTop() + Math.floor(idx / gridState.cols) * pitch;
-  }
-  // 组 g 首卡的文档顶部坐标：跳转定位与高亮判定共用的唯一几何基准
-  function groupStartTop(g) {
-    return groupScrollTargetY(g * gridState.groupSize);
-  }
-  $("group-nav").addEventListener("click", function (e) {
-    var b = e.target.closest(".g-btn");
-    if (!b) return;
-    var g = parseInt(b.getAttribute("data-g"), 10);
-    var vis = gridState.vis || [];
-    if (!vis.length) return;
-    var start = Math.min(g * gridState.groupSize, Math.max(0, vis.length - 1));
-    pendingJump = { start: start }; // 记录最新跳转目标
-    updateGroupHighlight(g); // 立即切换高亮，不等滚动完成
-    var end = Math.min(vis.length, start + gridState.groupSize + 2 * gridState.cols);
-    // 不清空网格：增量补渲染缺失区间（已渲染卡保留、总高度恒定），渲染就位后平滑滚动到目标卡
-    ensureRangeRendered(end);
-  });
-  window.addEventListener("scroll", function () { requestAnimationFrame(updateCurrentGroup); }, { passive: true });
   window.addEventListener("resize", debounce(function () {
     if (lastImages === null) return;
     var oldCols = gridState.cols;
-    var oldSize = gridState.groupSize;
     computeGridMetrics();
-    // 列数或分组大小任一变化（含仅窗口高度变化导致的 groupSize 变化）都就地刷新分组体系，
-    // 无需刷新页面：重建分组导航、重算哨兵撑高、补齐当前视口缺失区间并同步高亮
-    if (gridState.cols === oldCols && gridState.groupSize === oldSize) return;
-    if (gridState.vis && gridState.vis.length) {
-      var doc = document.documentElement;
-      var maxY = Math.max(0, doc.scrollHeight - window.innerHeight);
-      var top = window.pageYOffset || doc.scrollTop;
-      if (top > maxY) { top = maxY; window.scrollTo(0, maxY); }
-      // groupSize 变化后当前视口覆盖的数据区间可能超出已渲染卡片，
-      // 沿用分组跳转的增量补渲染方式（不清空网格，已渲染卡保留、总高度由哨兵维持）
-      var start = Math.floor(top / gridState.rowPitch) * gridState.cols;
-      var end = Math.min(gridState.vis.length, start + gridState.groupSize + 2 * gridState.cols);
-      if (gridState.rendered + cardQueue.length < end) {
-        enqueueCardRange(gridState.rendered + cardQueue.length, end, true);
-      }
-      updateSentinelHeight();
-      renderGroupNav(gridState.vis); // 按新 groupSize 重建分组按钮并恢复当前分组高亮
-    }
+    if (gridState.cols === oldCols) return;
+    renderGrid(lastImages, { noAnim: true }); // 列数变化：当前页重排（页码不变）
   }, 250));
 
   function renderFolders() {
@@ -3172,10 +2959,13 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
     if (card && card.parentNode) card.parentNode.removeChild(card);
     if (!lastImages.length) {
       renderGrid(lastImages); // 空列表时回到空态（会同步 gridState.vis 与 empty 提示）
-    } else {
-      updateImgCount();
-      renderGroupNav(gridState.vis); // 分组数可能变化，就地刷新导航
+      return;
     }
+    // 当前页删空则回退一页，再重渲染当前页
+    var totalPages = Math.max(1, Math.ceil(gridState.vis.length / perPageCount()));
+    if (pager.page > totalPages) pager.page = totalPages;
+    renderGrid(lastImages);
+    updateImgCount();
   }
 
   // 把一张卡插入 lastImages 首位并就地渲染（乐观添加）
@@ -3184,38 +2974,19 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
     lastImages.unshift(im);
     // 更新当前可见快照：若命中当前筛选则前插，否则仅入数据源
     var matches = cardShouldShow(im);
-    if (gridState.vis) {
-      if (matches) gridState.vis.unshift(im);
-      // 不匹配当前筛选时不进 vis（避免出现本不该显示的卡）
-    }
+    if (gridState.vis && matches) gridState.vis.unshift(im);
+    if (!matches) { updateImgCount(); return; }
+    // 不在第 1 页：跳回第 1 页重渲染，让用户立即看到新添加的媒体
+    if (pager.page !== 1) { pager.page = 1; renderGrid(lastImages); updateImgCount(); return; }
     var grid = $("grid");
-    if (matches) {
-      // 已有已渲染卡的整体后移一位索引，保持分组导航真实坐标定位与新顺序一致
-      var oldCards = grid.querySelectorAll(".img-card");
-      for (var k = 0; k < oldCards.length; k++) {
-        var oi = parseInt(oldCards[k].dataset.idx, 10);
-        if (!isNaN(oi)) oldCards[k].dataset.idx = oi + 1;
-      }
-      var card = buildCard(im, 0);
-      // 始终插入网格最前（顶部可见处）。不能插到 gridSentinel 前——
-      // 虚拟滚动未渲染完时 sentinel 在已渲染区末尾（视口下方），新卡会掉出视口
-      grid.insertBefore(card, grid.firstChild);
-      gridState.rendered++;
-      var emptyEl = $("empty");
-      if (emptyEl) emptyEl.classList.add("hidden"); // 空态首次添加时收起空态提示
-      if (!im._loading) { setupVideoThumbs(); observeThumbs(); }
-      updateImgCount();
-      // 新卡未进入视口时平滑滚动到网格顶部，确保用户立即看到添加结果
-      var r = card.getBoundingClientRect();
-      var vh = window.innerHeight || document.documentElement.clientHeight;
-      if (r.bottom < 0 || r.top > vh) {
-        smoothScrollTo(gridDocTop(), undefined, updateCurrentGroup);
-      }
-    } else {
-      updateImgCount();
-    }
-    if (!gridState.vis) gridState.vis = filterImages(lastImages); // 空态首次添加时补建 vis 快照
-    renderGroupNav(gridState.vis); // 新增媒体后分组数可能变化，就地刷新导航
+    var card = buildCard(im, 0);
+    grid.insertBefore(card, grid.firstChild);
+    var emptyEl = $("empty");
+    if (emptyEl) emptyEl.classList.add("hidden"); // 空态首次添加时收起空态提示
+    if (!im._loading) { setupVideoThumbs(); observeThumbs(); }
+    updateImgCount();
+    window.scrollTo(0, 0); // 回顶部确保用户立即看到添加结果
+    renderPager(gridState.vis.length);
   }
 
   // 乐观添加：convert 返回真实 id 后，把临时占位卡替换为真实 id 的占位对象，
@@ -3285,33 +3056,94 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
   // 就地同步当前过滤（文件夹/搜索）到已渲染卡：显隐 + 更新 vis 快照 + 计数 + 空态。
   // 已渲染可见卡数量不足 vis（例如切到更大的文件夹）时重建网格补齐（本地，无网络）。
   function syncFilterInPlace() {
-    var vis = filterImages(lastImages);
-    gridState.vis = vis;
-    var cards = $("grid").querySelectorAll(".img-card");
-    var visibleCount = 0;
-    for (var i = 0; i < cards.length; i++) {
-      var c = cards[i];
-      var im = findInLast(c.dataset.id);
-      if (!im) { c.style.display = "none"; continue; }
-      if (im._loading) { c.style.display = ""; visibleCount++; continue; } // 占位保持显示
-      var show = cardShouldShow(im);
-      c.style.display = show ? "" : "none";
-      if (show) visibleCount++;
+    pager.page = 1; // 筛选/搜索/换文件夹后回第 1 页
+    renderGrid(lastImages);
+  }
+
+  // ===== 分页器 =====
+  function perPageCount() { return viewMode === "list" ? 20 : 24; }
+  function renderPager(totalCount) {
+    var box = $("pager");
+    if (!box) return;
+    var per = perPageCount();
+    var total = Math.max(1, Math.ceil(totalCount / per));
+    if (pager.page > total) pager.page = total;
+    box.setAttribute("data-total", String(total));
+    if (totalCount <= 0) { box.innerHTML = ""; box.classList.add("hidden"); return; }
+    box.classList.remove("hidden");
+    var page = pager.page;
+    var pgBtn = function (act, label, enabled) {
+      return '<button type="button" class="pg-btn"' + (enabled ? "" : " disabled") + ' data-act="' + act + '">' + label + "</button>";
+    };
+    var h = pgBtn("first", "«", page > 1) + pgBtn("prev", "‹", page > 1);
+    var marks = [];
+    for (var i = 1; i <= total; i++) if (i === 1 || i === total || Math.abs(i - page) <= 2) marks.push(i);
+    var last = 0;
+    for (var n = 0; n < marks.length; n++) {
+      var num = marks[n];
+      if (num - last > 1) h += '<span class="pg-gap">…</span>';
+      h += '<button type="button" class="pg-num' + (num === page ? " active" : "") + '" data-page="' + num + '">' + num + "</button>";
+      last = num;
     }
-    if (!vis.length) {
-      $("empty").classList.remove("hidden");
-      $("empty").textContent = lastImages.length ? t("empty.filtered") : t("empty");
-    } else {
-      $("empty").classList.add("hidden");
-    }
-    $("img-count").textContent = t("list.count", { n: vis.length });
-    if (visibleCount < vis.length) {
-      renderGrid(lastImages); // 需展示更多卡，重建补齐（本地、快速）
+    h += pgBtn("next", "›", page < total) + pgBtn("last", "»", page < total);
+    h += '<span class="pg-info">' + esc(t("pager.info", { page: page, total: total })) + "</span>";
+    box.innerHTML = h;
+  }
+  function gotoPage(p) {
+    var total = Math.max(1, Math.ceil((gridState.vis || []).length / perPageCount()));
+    if (isNaN(p) || p < 1 || p > total) {
+      toast(t("pager.invalid", { max: total }), "error");
+      renderPager(gridState.vis.length);
       return;
     }
-    ensureInfoLoads();
-    renderGroupNav(gridState.vis); // 筛选变化后分组数可能变化，就地刷新导航
+    if (p === pager.page) { renderPager(gridState.vis.length); return; }
+    pager.page = p;
+    renderGrid(lastImages);
+    window.scrollTo(0, 0);
   }
+  // 当前页数字点击 → 变输入框直接跳页；非法输入错误提示且不跳转
+  function startPgJump(btn) {
+    var total = parseInt($("pager").getAttribute("data-total"), 10) || 1;
+    var input = document.createElement("input");
+    input.type = "text";
+    input.className = "pg-jump";
+    input.setAttribute("inputmode", "numeric");
+    input.value = String(pager.page);
+    btn.replaceWith(input);
+    input.focus(); input.select();
+    var done = false;
+    var commit = function () {
+      if (done) return; done = true;
+      var v = parseInt(input.value, 10);
+      if (isNaN(v) || v < 1 || v > total) {
+        toast(t("pager.invalid", { max: total }), "error");
+        renderPager(gridState.vis.length);
+        return;
+      }
+      gotoPage(v);
+    };
+    input.addEventListener("keydown", function (e) {
+      e.stopPropagation();
+      if (e.key === "Enter") commit();
+      else if (e.key === "Escape") { done = true; renderPager(gridState.vis.length); }
+    });
+    input.addEventListener("blur", commit);
+  }
+  $("pager").addEventListener("click", function (e) {
+    var btn = e.target.closest("button");
+    if (!btn || btn.disabled) return;
+    var act = btn.getAttribute("data-act");
+    var total = parseInt(this.getAttribute("data-total"), 10) || 1;
+    if (btn.classList.contains("pg-num")) {
+      if (btn.classList.contains("active")) { startPgJump(btn); return; }
+      gotoPage(parseInt(btn.getAttribute("data-page"), 10));
+      return;
+    }
+    if (act === "first") gotoPage(1);
+    else if (act === "prev") gotoPage(pager.page - 1);
+    else if (act === "next") gotoPage(pager.page + 1);
+    else if (act === "last") gotoPage(total);
+  });
 
   function updateImgCount() {
     if (!lastImages) return;
@@ -4910,6 +4742,202 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
   });
 
 
+  // ===== 液态玻璃折射控制器（上限 30 层、卡片加权优先）=====
+  var LG_MAP_EDGE_CAP = 256, LG_QUANTUM = 8, LG_MAX_LAYERS = 30, LG_LRU_MAX = 40, LG_DISPLACE_PX = 18;
+  function lgDetect(defs) {
+    if (!(window.CSS && CSS.supports && CSS.supports("backdrop-filter", "blur(2px) url(#x)"))) return false;
+    // 必须引用真实存在的 filter：url() 解析不到目标时整条 backdrop-filter 会被丢弃
+    var probeId = "lg-probe";
+    var filter = document.createElementNS("http://www.w3.org/2000/svg", "filter");
+    filter.setAttribute("id", probeId);
+    filter.innerHTML = '<feColorMatrix type="saturate" values="1"/>';
+    defs.appendChild(filter);
+    var probe = document.createElement("div");
+    probe.style.cssText = "position:fixed;left:-9999px;top:0;width:8px;height:8px;backdrop-filter:blur(2px) url(#" + probeId + ")";
+    document.body.appendChild(probe);
+    var kept = (getComputedStyle(probe).backdropFilter || "").indexOf("url(") !== -1;
+    if (probe.parentNode) probe.parentNode.removeChild(probe);
+    if (filter.parentNode) filter.parentNode.removeChild(filter);
+    return kept;
+  }
+  function lgQuantize(v) { return Math.max(LG_QUANTUM, Math.round(v / LG_QUANTUM) * LG_QUANTUM); }
+  function lgEdgeBand(w, h) { return Math.min(Math.max(Math.min(w, h) * 0.16, 6), 24); }
+  // 圆角矩形边缘透镜位移图：SDF 给出到边框的距离与外法线，边缘带内位移最强、向内衰减。
+  // 通道编码 R=dx、G=dy，128 为零点（feDisplacementMap 的约定）
+  function lgBakeMap(w, h, radius) {
+    var cw = Math.min(Math.max(Math.round(w), 4), LG_MAP_EDGE_CAP);
+    var ch = Math.min(Math.max(Math.round(h), 4), LG_MAP_EDGE_CAP);
+    var r = Math.min(radius, w / 2, h / 2);
+    var band = lgEdgeBand(w, h);
+    var canvas = document.createElement("canvas");
+    canvas.width = cw; canvas.height = ch;
+    var ctx = canvas.getContext("2d");
+    if (!ctx) return "";
+    var image = ctx.createImageData(cw, ch);
+    var data = image.data;
+    var sx = w / cw, sy = h / ch;
+    var halfW = w / 2, halfH = h / 2;
+    var flatW = Math.max(halfW - r, 0), flatH = Math.max(halfH - r, 0);
+    function sdf(x, y) {
+      var qx = Math.abs(x - halfW) - flatW;
+      var qy = Math.abs(y - halfH) - flatH;
+      return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
+    }
+    var eps = 0.7;
+    for (var py = 0; py < ch; py++) {
+      var y = (py + 0.5) * sy;
+      for (var px = 0; px < cw; px++) {
+        var x = (px + 0.5) * sx;
+        var d = sdf(x, y);
+        var t = Math.min(Math.max(-d / band, 0), 1);
+        var strength = (1 - t * t * (3 - 2 * t)) * (d <= 0 ? 1 : 0);
+        var gx = (sdf(x + eps, y) - sdf(x - eps, y)) / (2 * eps);
+        var gy = (sdf(x, y + eps) - sdf(x, y - eps)) / (2 * eps);
+        var len = Math.hypot(gx, gy) || 1;
+        var i = (py * cw + px) * 4;
+        data[i] = 128 + Math.round((gx / len) * strength * 127);
+        data[i + 1] = 128 + Math.round((gy / len) * strength * 127);
+        data[i + 2] = 0;
+        data[i + 3] = 255;
+      }
+    }
+    ctx.putImageData(image, 0, 0);
+    return canvas.toDataURL("image/png");
+  }
+  function lgCreateFilter(defs, w, h, radius) {
+    var id = "lg-" + lgQuantize(w) + "x" + lgQuantize(h) + "x" + Math.round(radius);
+    var bw = lgQuantize(w), bh = lgQuantize(h);
+    var band = lgEdgeBand(bw, bh);
+    // backdrop-filter 的滤镜区域不会自适应元素尺寸，必须显式给出 px 区域
+    var filter = document.createElementNS("http://www.w3.org/2000/svg", "filter");
+    filter.setAttribute("id", id);
+    filter.setAttribute("filterUnits", "userSpaceOnUse");
+    filter.setAttribute("primitiveUnits", "userSpaceOnUse");
+    filter.setAttribute("x", String(-band));
+    filter.setAttribute("y", String(-band));
+    filter.setAttribute("width", String(bw + band * 2));
+    filter.setAttribute("height", String(bh + band * 2));
+    filter.setAttribute("color-interpolation-filters", "sRGB");
+    var feImage = document.createElementNS("http://www.w3.org/2000/svg", "feImage");
+    feImage.setAttribute("href", lgBakeMap(bw, bh, radius));
+    feImage.setAttribute("x", "0"); feImage.setAttribute("y", "0");
+    feImage.setAttribute("width", String(bw)); feImage.setAttribute("height", String(bh));
+    feImage.setAttribute("preserveAspectRatio", "none");
+    feImage.setAttribute("result", "map");
+    var disp = document.createElementNS("http://www.w3.org/2000/svg", "feDisplacementMap");
+    disp.setAttribute("in", "SourceGraphic");
+    disp.setAttribute("in2", "map");
+    disp.setAttribute("scale", String(LG_DISPLACE_PX));
+    disp.setAttribute("xChannelSelector", "R");
+    disp.setAttribute("yChannelSelector", "G");
+    disp.setAttribute("result", "warped");
+    var sat = document.createElementNS("http://www.w3.org/2000/svg", "feColorMatrix");
+    sat.setAttribute("in", "warped");
+    sat.setAttribute("type", "saturate");
+    sat.setAttribute("values", "1.42");
+    filter.appendChild(feImage); filter.appendChild(disp); filter.appendChild(sat);
+    defs.appendChild(filter);
+    return id;
+  }
+  function createGlassController(defs, glassSelector) {
+    var supported = lgDetect(defs);
+    var wanted = [];
+    var filterIds = {};
+    var order = [];
+    var enabled = supported;
+    var resizeTimer = null;
+    function filterFor(el) {
+      var rect = el.getBoundingClientRect();
+      if (rect.width < 24 || rect.height < 24) return null;
+      var radius = parseFloat(getComputedStyle(el).borderTopLeftRadius) || 0;
+      var key = lgQuantize(rect.width) + "x" + lgQuantize(rect.height) + "x" + Math.round(radius);
+      var id = filterIds[key];
+      if (!id) {
+        id = lgCreateFilter(defs, rect.width, rect.height, radius);
+        filterIds[key] = id;
+        order.push(key);
+        while (order.length > LG_LRU_MAX) {
+          var dead = order.shift();
+          var deadEl = defs.querySelector("#" + dead);
+          if (deadEl && deadEl.parentNode) deadEl.parentNode.removeChild(deadEl);
+          delete filterIds[dead];
+        }
+      }
+      return id;
+    }
+    function overlapRatio(el) {
+      var r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) return 0;
+      var iw = Math.min(r.right, window.innerWidth) - Math.max(r.left, 0);
+      var ih = Math.min(r.bottom, window.innerHeight) - Math.max(r.top, 0);
+      if (iw <= 0 || ih <= 0) return 0;
+      return (iw * ih) / (r.width * r.height);
+    }
+    function apply(el, on) {
+      if (!on) { el.style.removeProperty("--lg-refract"); return; }
+      if (el.style.getPropertyValue("--lg-refract")) return;
+      var id = filterFor(el);
+      if (id) el.style.setProperty("--lg-refract", "url(#" + id + ")");
+    }
+    function reconcile() {
+      // 关闭时不清除任何状态：重新开启无需等一次滚动才恢复
+      if (!enabled) {
+        for (var i = 0; i < wanted.length; i++) apply(wanted[i], false);
+        return;
+      }
+      // 就地按视口求交集排序（不依赖 IO 回调时机）；卡片与添加栏加权优先
+      var ranked = [];
+      for (var i = 0; i < wanted.length; i++) {
+        var r = overlapRatio(wanted[i]);
+        if (wanted[i].classList.contains("card")) r *= 1.5;
+        if (r > 0.02) ranked.push([wanted[i], r]);
+      }
+      ranked.sort(function (a, b) { return b[1] - a[1]; });
+      var allowed = [];
+      for (var j = 0; j < ranked.length && j < LG_MAX_LAYERS; j++) allowed.push(ranked[j][0]);
+      for (var k = 0; k < wanted.length; k++) apply(wanted[k], allowed.indexOf(wanted[k]) !== -1);
+    }
+    var io = ("IntersectionObserver" in window) ? new IntersectionObserver(function () { reconcile(); }, { threshold: [0, 0.03, 0.25, 0.6] }) : null;
+    window.addEventListener("scroll", function () { requestAnimationFrame(reconcile); }, { passive: true });
+    function collect(root, on) {
+      var nodes = [];
+      if (root instanceof HTMLElement && root.matches(glassSelector)) nodes.push(root);
+      if (root.querySelectorAll) {
+        var list = root.querySelectorAll(glassSelector);
+        for (var i = 0; i < list.length; i++) nodes.push(list[i]);
+      }
+      for (var j = 0; j < nodes.length; j++) {
+        if (on) {
+          if (wanted.indexOf(nodes[j]) !== -1) continue;
+          wanted.push(nodes[j]);
+          if (io) io.observe(nodes[j]);
+        } else {
+          var ix = wanted.indexOf(nodes[j]);
+          if (ix !== -1) wanted.splice(ix, 1);
+          if (io) io.unobserve(nodes[j]);
+          apply(nodes[j], false);
+        }
+      }
+    }
+    window.addEventListener("resize", function () {
+      window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(function () { controller.refresh(); }, 160);
+    });
+    var controller = {
+      supported: supported,
+      observe: function (root) { collect(root, true); reconcile(); requestAnimationFrame(reconcile); },
+      release: function (root) { collect(root, false); },
+      setEnabled: function (on) { enabled = on && supported; reconcile(); },
+      refresh: function () {
+        if (!enabled) return;
+        for (var i = 0; i < wanted.length; i++) wanted[i].style.removeProperty("--lg-refract");
+        reconcile();
+        requestAnimationFrame(reconcile);
+      },
+      activeCount: function () { var n = 0; for (var i = 0; i < wanted.length; i++) if (wanted[i].style.getPropertyValue("--lg-refract")) n++; return n; }
+    };
+    return controller;
+  }
   var CFX_COLORS = null;
   function applyWpColors(url, colors) {
     var s = document.documentElement.style;
@@ -4934,46 +4962,233 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
     applyWpColors(wp.url, wp.colors);
   }
   function wpPoolData() { return (window.__WP__ && window.__WP__.pool) || []; }
-  // 设置页壁纸面板：模式胶囊 + 图片池列表（圆圈 + 文件名.后缀）
-  function renderWpPanel() {
-    var wp = window.__WP__ || {};
-    var pool = wp.pool || [];
-    var mode = wp.mode || "random";
-    var fixed = "";
-    try { fixed = localStorage.getItem("mdn_wp_fixed") || ""; } catch (e) {}
-    var box = $("wp-pool");
+
+  // ===== 外观面板：控件布局参照 we-pkg-web 的 dock，适配本站图片池与浅色主题 =====
+  var UI_KEY = "mdn_ui_v1", WP_SS_KEY = "mdn_wp_session_v1";
+  var UI_DEF = { blur: 24, scrim: 18, scrimMode: "auto", sat: 175, bright: 105, refract: true, motion: true, customUrl: "" };
+  var ui = (function () {
+    var base = {}, raw = null, o = null;
+    try { raw = localStorage.getItem(UI_KEY); } catch (e) {}
+    try { o = raw ? JSON.parse(raw) : null; } catch (e2) { o = null; }
+    if (o) { for (var k in UI_DEF) if (o[k] !== undefined) base[k] = o[k]; }
+    for (var k2 in UI_DEF) if (base[k2] === undefined) base[k2] = UI_DEF[k2];
+    return base;
+  })();
+  function saveUi() { try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch (e) {} }
+  function apNote(msg) { var n = $("ap-note"); if (n) n.textContent = msg || ""; }
+
+  // 亮度自动：本站是浅色主题 + 深色正文 #1f2937，故用「白遮罩提亮」而不是参考站的黑遮罩压暗
+  var SAMPLE_EDGE = 32, SCRIM_MAX = 88, TEXT_LUM = 0.0215, TARGET_CONTRAST = 5.4;
+  var TARGET_LUM = TARGET_CONTRAST * (TEXT_LUM + 0.05) - 0.05;
+  function measureLum(src) {
+    try {
+      var cv = document.createElement("canvas");
+      cv.width = SAMPLE_EDGE; cv.height = SAMPLE_EDGE;
+      var ctx = cv.getContext("2d", { willReadFrequently: true });
+      if (!ctx) return null;
+      ctx.drawImage(src, 0, 0, SAMPLE_EDGE, SAMPLE_EDGE);
+      var data = ctx.getImageData(0, 0, SAMPLE_EDGE, SAMPLE_EDGE).data;
+      var lin = function (c) { var s = c / 255; return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
+      var sum = 0, n = 0;
+      for (var i = 0; i < data.length; i += 4) { sum += 0.2126 * lin(data[i]) + 0.7152 * lin(data[i + 1]) + 0.0722 * lin(data[i + 2]); n++; }
+      return n ? sum / n : null;
+    } catch (e) { return null; } // 图床未给 CORS 时 canvas 被污染
+  }
+  function scrimForLum(l) {
+    if (l === null) return null;
+    if (l >= TARGET_LUM) return 0;
+    return Math.min(SCRIM_MAX, Math.round((TARGET_LUM - l) / (1 - l) * 100));
+  }
+  function applyUi() {
+    var s = document.documentElement.style;
+    s.setProperty("--lg-blur", ui.blur + "px");
+    s.setProperty("--lg-sat", ui.sat + "%");
+    s.setProperty("--lg-bright", (ui.bright / 100).toFixed(2));
+    s.setProperty("--lg-scrim", (ui.scrim / 100).toFixed(3));
+    document.body.classList.toggle("motion-off", !ui.motion);
+  }
+  function wpOptions() {
+    var pool = wpPoolData();
+    return ui.customUrl ? pool.concat([{ url: ui.customUrl, name: ui.customUrl, colors: null }]) : pool;
+  }
+  function markActiveWp() {
+    var box = $("ap-bg-list");
     if (!box) return;
-    var h = "";
-    for (var i = 0; i < pool.length; i++) {
-      var it = pool[i];
-      var picked = mode === "fixed" && it.url === fixed;
-      h += '<div class="wp-item' + (picked ? " picked" : "") + '" data-url="' + esc(it.url) + '"><span class="radio"></span><span class="t">' + esc(it.name) + "</span></div>";
+    var cur = (window.__WP__ && window.__WP__.url) || "";
+    var btns = box.querySelectorAll("button");
+    for (var i = 0; i < btns.length; i++) btns[i].setAttribute("aria-pressed", String(btns[i].getAttribute("data-url") === cur));
+  }
+  function buildBgList() {
+    var box = $("ap-bg-list");
+    if (!box) return;
+    box.innerHTML = "";
+    var all = wpOptions();
+    for (var i = 0; i < all.length; i++) {
+      (function (it) {
+        var b = document.createElement("button");
+        b.type = "button";
+        b.setAttribute("data-url", it.url);
+        b.title = it.name || it.url;
+        var im = document.createElement("img");
+        im.src = it.url; im.alt = ""; im.loading = "lazy";
+        im.addEventListener("error", function () { b.style.opacity = ".3"; });
+        b.appendChild(im);
+        b.addEventListener("click", function () { pickWpItem(it, true); });
+        box.appendChild(b);
+      })(all[i]);
     }
-    box.innerHTML = h;
-    var btns = $("wp-mode").querySelectorAll(".wp-mode-btn");
+    markActiveWp();
+  }
+  // 换壁纸后取样亮度（自动模式下反解遮罩）；token 防止快速连点时的竞态
+  var wpToken = 0;
+  function sampleAndApply(url) {
+    var mine = ++wpToken;
+    var probe = new Image();
+    probe.crossOrigin = "anonymous";
+    probe.onload = function () {
+      if (mine !== wpToken) return;
+      var l = measureLum(probe);
+      if (l === null) { apNote(t("set.ap.noSample")); return; }
+      if (ui.scrimMode !== "auto") return;
+      var v = scrimForLum(l);
+      if (v === null) return;
+      ui.scrim = v;
+      var sl = $("ap-bright");
+      if (sl) sl.value = String(v);
+      applyUi(); saveUi();
+    };
+    probe.onerror = function () { if (mine === wpToken) apNote(t("set.ap.noSample")); };
+    probe.src = url;
+  }
+  function pickWpItem(it, fromUser) {
+    var go = function (cols) {
+      try { localStorage.setItem("mdn_wp_mode", "fixed"); localStorage.setItem("mdn_wp_fixed", it.url); } catch (e) {}
+      if (window.__WP__) { window.__WP__.mode = "fixed"; window.__WP__.url = it.url; }
+      applyWpColors(it.url, cols);
+      sampleAndApply(it.url);
+      if (fromUser) { try { sessionStorage.setItem(WP_SS_KEY, it.url); } catch (e) {} }
+      renderWpMode(); markActiveWp();
+    };
+    if (it.colors) go(it.colors);
+    else suggestColors(it.url).then(function (cols) { go(cols || ["#34b5ec", "#8cc5ee", "#f16b84"]); });
+  }
+  function stepWp(delta) {
+    var all = wpOptions();
+    if (!all.length) return;
+    var cur = (window.__WP__ && window.__WP__.url) || "";
+    var at = -1;
+    for (var i = 0; i < all.length; i++) if (all[i].url === cur) { at = i; break; }
+    pickWpItem(all[((at + delta) % all.length + all.length) % all.length], true);
+  }
+  function renderWpMode() {
+    var row = $("wp-mode");
+    if (!row) return;
+    var mode = (window.__WP__ && window.__WP__.mode) || "random";
+    var btns = row.querySelectorAll(".wp-mode-btn");
     for (var j = 0; j < btns.length; j++) btns[j].classList.toggle("active", btns[j].getAttribute("data-mode") === mode);
   }
-  $("wp-mode").addEventListener("click", function (e) {
-    var b = e.target.closest(".wp-mode-btn");
-    if (!b) return;
-    var mode = b.getAttribute("data-mode");
-    try { localStorage.setItem("mdn_wp_mode", mode); } catch (err) {}
-    if (window.__WP__) window.__WP__.mode = mode;
-    renderWpPanel();
-  });
-  $("wp-pool").addEventListener("click", function (e) {
-    var it = e.target.closest(".wp-item");
-    if (!it) return;
-    var url = it.getAttribute("data-url");
-    var pool = wpPoolData();
-    var item = null;
-    for (var i = 0; i < pool.length; i++) if (pool[i].url === url) { item = pool[i]; break; }
-    if (!item) return;
-    try { localStorage.setItem("mdn_wp_mode", "fixed"); localStorage.setItem("mdn_wp_fixed", url); } catch (err) {}
-    if (window.__WP__) { window.__WP__.mode = "fixed"; window.__WP__.url = url; }
-    applyWpColors(url, item.colors);
-    renderWpPanel();
-  });
+  function commitCustom() {
+    var v = ($("ap-custom").value || "").trim();
+    if (!v) {
+      if (ui.customUrl) { ui.customUrl = ""; saveUi(); buildBgList(); }
+      return;
+    }
+    var ok = false;
+    try { var u = new URL(v); ok = (u.protocol === "http:" || u.protocol === "https:"); } catch (e) { ok = false; }
+    if (!ok) { apNote(t("set.ap.badUrl")); return; }
+    ui.customUrl = v; saveUi(); buildBgList();
+    pickWpItem({ url: v, name: v, colors: null }, true);
+  }
+  // 详情页「设为壁纸」写入自定义池后同步重建网格
+  function syncWpPanel() { buildBgList(); renderWpMode(); }
+
+  // 外观面板全部控件绑定（交互照抄 we-pkg-web 的 dock）
+  function initAppearance(ctl) {
+    var panel = $("ap-panel"), toggle = $("ap-toggle"), body = $("ap-body");
+    var bright = $("ap-bright"), brightAuto = $("ap-bright-auto");
+    var blur = $("ap-blur"), blurVal = $("ap-blur-val");
+    var sat = $("ap-sat"), satVal = $("ap-sat-val");
+    var lum = $("ap-lum"), lumVal = $("ap-lum-val");
+    var refract = $("ap-refract"), motion = $("ap-motion"), custom = $("ap-custom");
+
+    bright.value = String(ui.scrim);
+    brightAuto.disabled = ui.scrimMode === "auto";
+    blur.value = String(ui.blur); blurVal.textContent = String(ui.blur);
+    sat.value = String(ui.sat); satVal.textContent = ui.sat + "%";
+    lum.value = String(ui.bright); lumVal.textContent = ui.bright + "%";
+    motion.checked = !!ui.motion;
+    custom.value = ui.customUrl || "";
+
+    bright.addEventListener("input", function () {
+      ui.scrimMode = "manual";
+      ui.scrim = Math.max(0, Math.min(SCRIM_MAX, parseInt(this.value, 10) || 0));
+      brightAuto.disabled = false;
+      applyUi(); saveUi();
+    });
+    brightAuto.addEventListener("click", function () {
+      ui.scrimMode = "auto";
+      brightAuto.disabled = true;
+      var cur = window.__WP__ && window.__WP__.url;
+      if (cur) sampleAndApply(cur);
+      saveUi();
+    });
+    blur.addEventListener("input", function () {
+      ui.blur = Math.max(0, Math.min(40, parseInt(this.value, 10) || 0));
+      blurVal.textContent = String(ui.blur);
+      applyUi();
+    });
+    blur.addEventListener("change", function () { saveUi(); if (ctl) ctl.refresh(); }); // 松手才重建折射滤镜
+    sat.addEventListener("input", function () {
+      ui.sat = Math.max(100, Math.min(260, parseInt(this.value, 10) || 175));
+      satVal.textContent = ui.sat + "%";
+      applyUi(); saveUi();
+    });
+    lum.addEventListener("input", function () {
+      ui.bright = Math.max(80, Math.min(140, parseInt(this.value, 10) || 105));
+      lumVal.textContent = ui.bright + "%";
+      applyUi(); saveUi();
+    });
+    refract.addEventListener("change", function () {
+      ui.refract = this.checked;
+      if (ctl) ctl.setEnabled(ui.refract);
+      saveUi();
+    });
+    motion.addEventListener("change", function () {
+      ui.motion = this.checked;
+      applyUi(); saveUi();
+    });
+    custom.addEventListener("change", commitCustom);
+    custom.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); commitCustom(); } });
+    $("ap-bg-prev").addEventListener("click", function () { stepWp(-1); });
+    $("ap-bg-next").addEventListener("click", function () { stepWp(1); });
+    $("wp-mode").addEventListener("click", function (e) {
+      var b = e.target.closest(".wp-mode-btn");
+      if (!b) return;
+      var mode = b.getAttribute("data-mode");
+      try { localStorage.setItem("mdn_wp_mode", mode); } catch (err) {}
+      if (window.__WP__) window.__WP__.mode = mode;
+      renderWpMode();
+    });
+    toggle.addEventListener("click", function () {
+      var open = body.hidden;
+      body.hidden = !open;
+      toggle.setAttribute("aria-expanded", String(open));
+      panel.classList.toggle("open", open);
+      if (open && ctl) ctl.refresh(); // 展开后新露出的玻璃元素立即补上折射
+    });
+
+    buildBgList();
+    renderWpMode();
+    if (ctl) ctl.setEnabled(ui.refract);
+    refract.checked = !!ui.refract && !!(ctl && ctl.supported);
+    if (!ctl || !ctl.supported) {
+      refract.disabled = true;
+      refract.checked = false;
+      apNote(t("set.ap.noRefract"));
+    }
+    var cur0 = window.__WP__ && window.__WP__.url;
+    if (cur0) sampleAndApply(cur0); // 首屏壁纸的自动亮度
+  }
   // ===== 详情页「设为壁纸」：canvas 自动取色建议 + 手动三色确认 =====
   var wpTarget = null;
   function wpFileName(img) {
@@ -5090,7 +5305,8 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
     if (mode === "fixed") { try { localStorage.setItem("mdn_wp_fixed", wpTarget.url); } catch (e) {} }
     applyWpColors(wpTarget.url, colors);
     toast(t("wp.applied"), "success");
-    renderWpPanel();
+    sampleAndApply(wpTarget.url);
+    syncWpPanel();
   });
   function cfxColors() {
     if (CFX_COLORS) return CFX_COLORS;
@@ -5135,6 +5351,15 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 
   applyLang();
   applyWallpaper();
+  applyUi();
+  // 液态玻璃控制器：折射能力探测失败（Safari/Firefox）自动降级纯 CSS 玻璃
+  var glassCtl = null;
+  var lgDefs = document.querySelector("#lg-defs defs") || document.getElementById("lg-defs");
+  if (lgDefs) {
+    glassCtl = createGlassController(lgDefs, ".glass,.card,.login-card,.modal-box,.origin-box,.detail-box");
+    glassCtl.observe(document.body);
+  }
+  initAppearance(glassCtl);
   if (token) {
     hideLogin();
     loadImages();
