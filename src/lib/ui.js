@@ -240,7 +240,7 @@ a{color:var(--accent)}
 .login-screen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:16px}
 .login-card{
   width:340px;max-width:100%;border-radius:18px;padding:36px 32px;text-align:center;
-  animation:cardIn .5s cubic-bezier(.2,.9,.3,1.15) both
+  animation:cardIn .5s cubic-bezier(.2,.9,.3,1.15) /* 无 fill：玻璃元素动画结束后必须释放合成层，否则 backdrop 采样失效 */
 }
 .logo{
   font-size:28px;font-weight:800;letter-spacing:.5px;
@@ -287,7 +287,7 @@ a{color:var(--accent)}
 .logout-in-settings:active{transform:scale(.97)}
 .main{flex:1;padding:28px 34px;width:100%;min-width:0}
 .view{display:none}
-.view.active{display:block;animation:viewFadeIn .28s ease both}
+.view.active{display:block;animation:viewFadeIn .28s ease} /* 无 fill：同 .login-card 注释，fill 会让 .view 长期占住合成层，磨砂全废 */
 @keyframes viewFadeIn{from{opacity:0}to{opacity:1}}
 /* viewIn 带 transform，仅用于自身为 fixed 的灯箱/弹层；视图切换用纯淡入，避免 transform 包含块破坏内部 fixed 子元素 */
 @keyframes viewIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
@@ -526,7 +526,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
 .body-skeleton{display:flex;flex-direction:column;gap:9px}
 .sk-line{height:10px;border-radius:6px;background:linear-gradient(100deg,rgba(255,255,255,.28) 20%,rgba(255,255,255,.6) 45%,rgba(255,255,255,.28) 70%);background-size:200% 100%;animation:shimmer 1.3s infinite}
 .sk-line.ht{height:14px}
-.img-card.fill-done .thumb img{animation:cardFade .35s ease both}
+.img-card.fill-done .thumb img{animation:cardFade .35s ease}
 @keyframes cardFade{from{opacity:0}to{opacity:1}}
 
 /* 设置 */
@@ -581,7 +581,7 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 
 /* 删除确认弹窗 */
 .modal{position:fixed;inset:0;z-index:2300;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.45);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);padding:20px}
-.modal-box{width:360px;max-width:100%;border-radius:14px;padding:22px;animation:popIn .16s ease-out both}
+.modal-box{width:360px;max-width:100%;border-radius:14px;padding:22px;animation:popIn .16s ease-out}
 @keyframes popIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
 .modal-box h3{font-size:15px;margin-bottom:10px}
 .modal-box p{font-size:13px;color:#374151;line-height:1.6;word-break:break-all}
@@ -589,7 +589,7 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 
 /* SSRF 白名单快捷添加弹窗：层级高于删除确认（2300）、低于 toast（2400） */
 .origin-modal{position:fixed;inset:0;z-index:2350;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.45);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);padding:20px}
-.origin-box{width:420px;max-width:100%;border-radius:14px;padding:22px;animation:popIn .16s ease-out both}
+.origin-box{width:420px;max-width:100%;border-radius:14px;padding:22px;animation:popIn .16s ease-out}
 .origin-title{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;margin-bottom:10px}
 .origin-dot{width:9px;height:9px;border-radius:50%;background:var(--grad);background-size:200% 200%;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent);flex-shrink:0}
 .origin-desc{font-size:13px;color:#374151;line-height:1.6;margin-bottom:14px;word-break:break-all}
@@ -657,7 +657,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
 
 /* 媒体详情弹窗 */
 .detail-modal{position:fixed;inset:0;z-index:2250;display:flex;align-items:center;justify-content:center;background:rgba(15,23,42,.45);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);padding:18px}
-.detail-box{width:1026px;max-width:100%;max-height:92vh;overflow:auto;border-radius:22px;animation:popIn .16s ease-out both}
+.detail-box{width:1026px;max-width:100%;max-height:92vh;overflow:auto;border-radius:22px;animation:popIn .16s ease-out}
 .detail-head{display:flex;align-items:center;justify-content:space-between;padding:19px 24px 0}
 .detail-head h3{font-size:20px;font-weight:600;color:var(--text)}
 .detail-close{font-size:35px;line-height:1;color:#9ca3af;cursor:pointer;transition:color .15s,transform .15s;background:none;border:none;padding:0 2px}
@@ -4874,10 +4874,13 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       return (iw * ih) / (r.width * r.height);
     }
     function apply(el, on) {
-      if (!on) { el.style.removeProperty("--lg-refract"); return; }
+      if (!on) { el.style.removeProperty("--lg-refract"); refreshGlassPaintOne(el); return; }
       if (el.style.getPropertyValue("--lg-refract")) return;
       var id = filterFor(el);
-      if (id) el.style.setProperty("--lg-refract", "url(#" + id + ")");
+      if (id) {
+        el.style.setProperty("--lg-refract", "url(#" + id + ")");
+        refreshGlassPaintOne(el); // 折射变化必须同步重建 inline 声明，否则不重绘
+      }
     }
     function reconcile() {
       // 关闭时不清除任何状态：重新开启无需等一次滚动才恢复
@@ -4999,13 +5002,43 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     if (l >= TARGET_LUM) return 0;
     return Math.min(SCRIM_MAX, Math.round((TARGET_LUM - l) / (1 - l) * 100));
   }
+  // Chromium 对 backdrop-filter 引用的 var() 变量更新不做合成层失效（表现为拖滑条无效果，
+  // 开关其它设置触发全站重算才生效）。根治：不依赖变量更新 backdrop-filter，而是把完整
+  // 声明直接写进各玻璃元素的 inline style——inline 属性变化必然触发重新解析与 backdrop 重算。
+  var GLASS_SEL = ".glass,.card,.login-card,.modal-box,.origin-box,.detail-box";
+  function glassFilterValue(el) {
+    var r = el.style.getPropertyValue("--lg-refract");
+    return "blur(" + ui.blur + "px) saturate(" + (ui.sat / 100).toFixed(2) + ") brightness(" + (ui.bright / 100).toFixed(2) + ")" + (r ? " " + r.trim() : "");
+  }
+  function refreshGlassPaintOne(el) {
+    // 降级路径（不支持 backdrop-filter / 系统要求减弱透明度）交给 CSS :root 规则接管
+    var reduce = false;
+    try { reduce = window.matchMedia("(prefers-reduced-transparency: reduce)").matches; } catch (e) {}
+    var supported = false;
+    try { supported = window.CSS && (CSS.supports("backdrop-filter", "blur(1px)") || CSS.supports("-webkit-backdrop-filter", "blur(1px)")); } catch (e2) {}
+    if (!supported || reduce) { el.style.removeProperty("backdrop-filter"); return; }
+    el.style.backdropFilter = glassFilterValue(el);
+  }
+  function refreshGlassPaint() {
+    var els = document.querySelectorAll(GLASS_SEL);
+    for (var i = 0; i < els.length; i++) refreshGlassPaintOne(els[i]);
+  }
+  var paintQueued = false;
+  function queueGlassPaint() {
+    if (paintQueued) return;
+    paintQueued = true;
+    requestAnimationFrame(function () { paintQueued = false; refreshGlassPaint(); });
+  }
   function applyUi() {
+    // 变量仍要写：新动态插入的卡片与降级路径靠 CSS 规则 + var() 兜底；
+    // 已在视口内的玻璃元素则由 refreshGlassPaint 写 inline 声明（绕开 Chromium 变量缓存缺陷）
     var s = document.documentElement.style;
     s.setProperty("--lg-blur", ui.blur + "px");
     s.setProperty("--lg-sat", ui.sat + "%");
     s.setProperty("--lg-bright", (ui.bright / 100).toFixed(2));
     s.setProperty("--lg-scrim", (ui.scrim / 100).toFixed(3));
     document.body.classList.toggle("motion-off", !ui.motion);
+    queueGlassPaint();
   }
   function wpOptions() {
     var pool = wpPoolData();
@@ -5150,7 +5183,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     });
     refract.addEventListener("change", function () {
       ui.refract = this.checked;
-      if (ctl) ctl.setEnabled(ui.refract);
+      if (ctl) ctl.setEnabled(ui.refract); // 内部已同步重建 inline 声明
       saveUi();
     });
     motion.addEventListener("change", function () {
