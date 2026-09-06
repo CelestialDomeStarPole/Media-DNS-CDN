@@ -103,8 +103,9 @@ export function renderUI() {
   --lg-sat:175%;
   --lg-bright:1.05;
   --lg-scrim:.18;                          /* 背景亮度遮罩（白系），由外观面板的亮度滑条/自动测光覆写 */
-  --lg-tint-top:rgba(255,255,255,.28);
-  --lg-tint-bottom:rgba(31,41,55,.05);
+  --lg-tint-top:rgba(255,255,255,.04);
+  --lg-tint-bottom:rgba(31,41,55,.03);
+  --card-body-alpha:0.08;
   --lg-spec:rgba(255,255,255,.22);
   --lg-hairline:rgba(255,255,255,.55);
   --lg-inner-top:rgba(255,255,255,.75);
@@ -211,8 +212,23 @@ a{color:var(--accent)}
 .hidden{display:none!important}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
-/* 侧边栏渐变流动动画（壁纸化后仅侧边栏仍在用） */
+/* 主题渐变填充统一：禁止重复平铺。
+   background-size 放大渐变（200%/220%）时默认 repeat 会平铺出"第二轮渐变"，
+   在元素两侧露出 1~2px 异色（用户观察完全正确）。骨架屏 shimmer 依赖 repeat 做无缝滚动，故排除。 */
+.fchip.active,.wp-mode-btn.active,.vt-opt.active,.dchip.active,.at-seg.active,.pg-num.active,
+.nav-btn.active,.primary,#od-resolve-btn,.detail-wp-btn,.origin-dot,.lang-toggle{background-repeat:no-repeat}
+
+/* 侧边栏渐变流动动画（已随侧边栏玻璃化剔除，keyframes 保留给 .logo 使用） */
 @keyframes shift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+
+/* 无限动画层隔离：把每帧重绘限制在独立合成层内，避免连带祖先玻璃（登录卡/侧边栏/dock）
+   的 backdrop 每帧重算 → GPU 常驻。动画本身全部保留 */
+.logo{contain:paint} /* background-position 动画不可合成，contain 限制重绘不外溢（logo 无溢出内容） */
+.lang-toggle{contain:layout paint} /* 伪元素渐变层靠 overflow 裁剪，contain 进一步限制布局影响 */
+.lang-toggle svg{will-change:transform} /* rotateY 可合成：进独立合成层 */
+.lang-toggle .sparkle{will-change:opacity,transform}
+.lt-seg-opt.active::after{will-change:opacity,transform}
+.skeleton,.sk-line{contain:paint} /* 骨架屏闪耀同理由 */
 
 /* 点击星火 */
 #clickfx{position:fixed;inset:0;z-index:2300;pointer-events:none}
@@ -228,10 +244,17 @@ a{color:var(--accent)}
 .lang-toggle{
   position:fixed;top:16px;right:16px;z-index:1500;display:flex;align-items:center;gap:8px;
   padding:5px 8px 5px 7px;border-radius:999px;
-  background:var(--grad);background-size:200% 200%;
-  box-shadow:0 6px 18px rgba(0,0,0,.2);transition:transform .15s ease,box-shadow .15s ease;
-  animation:gradShift 8s ease-in-out infinite
+  /* 渐变流动交给伪元素用 transform 做：background-position 动画不可合成，
+     每帧主线程重绘会触发全页合成 → 所有玻璃 backdrop 重算（静止时 GPU 常驻的元凶） */
+  overflow:hidden;isolation:isolate;
+  box-shadow:0 6px 18px rgba(0,0,0,.2);transition:transform .15s ease,box-shadow .15s ease
 }
+.lang-toggle::before{
+  content:"";position:absolute;top:0;bottom:0;left:-8%;right:-8%;z-index:-1;border-radius:inherit;
+  background:var(--grad);background-size:200% 100%;background-repeat:no-repeat;
+  animation:gradSlide 8s ease-in-out infinite;will-change:transform
+}
+@keyframes gradSlide{0%,100%{transform:translateX(-6%)}50%{transform:translateX(6%)}}
 .lang-toggle:hover{transform:translateY(-1px) scale(1.05);box-shadow:0 10px 26px rgba(0,0,0,.3)}
 @keyframes gradShift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
 .lang-toggle .lt-globe{width:22px;height:22px;perspective:120px;color:#fff;filter:drop-shadow(0 1px 2px rgba(0,0,0,.25))}
@@ -247,7 +270,8 @@ a{color:var(--accent)}
 .lt-seg-opt.is-zh b{font-size:13px}
 .lt-seg-opt.is-en b{font-size:10.5px;font-weight:800}
 .lt-seg-opt.active{background:#fff;color:var(--accent);box-shadow:0 2px 8px rgba(0,0,0,.18);animation:segPop .4s cubic-bezier(.34,1.56,.64,1)}
-.lt-seg-opt.active::after{content:"✦";position:absolute;top:-9px;right:-4px;font-size:10px;color:#fff;animation:twinkle 1.2s ease-in-out infinite;text-shadow:0 1px 3px rgba(0,0,0,.35)}
+/* 星标位置收敛到控件内：父级 overflow:hidden（伪元素渐变层需要裁剪）会裁掉溢出的装饰 */
+.lt-seg-opt.active::after{content:"✦";position:absolute;top:-3px;right:1px;font-size:9px;color:#fff;animation:twinkle 1.2s ease-in-out infinite;text-shadow:0 1px 3px rgba(0,0,0,.35)}
 .lt-seg-opt.inactive{color:rgba(255,255,255,.55);cursor:pointer}
 .lt-seg-opt.inactive:hover{color:#fff}
 @keyframes segPop{0%{transform:scale(.8)}60%{transform:scale(1.08)}100%{transform:scale(1)}}
@@ -276,28 +300,43 @@ a{color:var(--accent)}
 
 /* 布局 */
 .app{display:flex;min-height:100vh} /* 无 z-index：见 .bg 注释 */
+/* 侧边栏：玻璃材质（渐变填充与 shift 流动动画已剔除）。
+   ⚠ 不可再加无限动画：侧边栏静止，动画会让它每帧重算 backdrop，GPU 常驻。
+   烘焙策略：纳入 GlassController 静态组，仅初始化/切壁纸/改设置时烘焙一次。 */
 .sidebar{
   width:220px;padding:18px 12px;display:flex;flex-direction:column;
-  background:linear-gradient(165deg,var(--c1),var(--c2),var(--c3));
-  /* 纵向轻放大给 shift 动画留流动空间； */
-  background-size:100% 150%;animation:shift 20s ease-in-out infinite;
-  color:rgba(255,255,255,.9);position:sticky;top:0;height:100vh;
-  box-shadow:4px 0 30px color-mix(in srgb,var(--c2) 35%,transparent)
+  /* 内缩悬浮面板：上下各留 15px、左侧留 7px（sticky + calc 高度，不用 100vh 满高贴边） */
+  position:sticky;top:15px;height:calc(100vh - 30px);margin-left:7px;border-radius:16px;
+  border:1px solid var(--lg-hairline);
+  background:
+    linear-gradient(180deg,var(--lg-tint-top),var(--lg-tint-bottom)),
+    radial-gradient(130% 90% at 50% -30%,rgba(255,255,255,.16),transparent 62%);
+  box-shadow:
+    inset 0 1px 0 var(--lg-inner-top),
+    inset 0 -1px 0 var(--lg-inner-bottom),
+    inset 0 0 0 1px rgba(255,255,255,.04),
+    4px 0 30px -12px rgba(31,41,55,.22);
+  backdrop-filter:blur(var(--lg-blur)) saturate(var(--lg-sat)) brightness(var(--lg-bright)) var(--lg-refract,);
+  -webkit-backdrop-filter:blur(var(--lg-blur)) saturate(var(--lg-sat)) brightness(var(--lg-bright));
+  isolation:isolate;
+  color:var(--text)
 }
-.sidebar .brand{font-size:19px;font-weight:800;color:#fff;padding:4px 10px 18px;text-shadow:0 1px 8px rgba(0,0,0,.2)}
+.sidebar>*{position:relative;z-index:1}
+.sidebar .brand{font-size:19px;font-weight:800;color:var(--text);padding:4px 10px 18px}
 .sidebar nav{display:flex;flex-direction:column;gap:4px;flex:1}
-.nav-btn{text-align:left;padding:10px 12px;border-radius:9px;color:rgba(255,255,255,.88);font-size:14px;transition:background .15s}
-.nav-btn:hover{background:rgba(255,255,255,.14)}
-.nav-btn.active{background:rgba(255,255,255,.24);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.25)}
-.logout{margin-top:8px;padding:9px 12px;border-radius:9px;color:rgba(255,255,255,.78);font-size:13px;text-align:left;transition:background .15s}
-.logout:hover{background:rgba(255,255,255,.16);color:#fff}
+.nav-btn{text-align:left;padding:10px 12px;border-radius:9px;color:var(--text);font-size:14px;transition:background .15s,color .15s}
+.nav-btn:hover{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent)}
+/* active 用主题渐变胶囊（渐变下垫同色实底，避免圆角边缘透底） */
+.nav-btn.active{background:var(--grad) var(--c1);color:#fff;box-shadow:0 4px 14px color-mix(in srgb,var(--accent) 35%,transparent)}
+.logout{margin-top:8px;padding:9px 12px;border-radius:9px;color:var(--muted);font-size:13px;text-align:left;transition:background .15s,color .15s}
+.logout:hover{background:color-mix(in srgb,#ef4444 12%,transparent);color:#dc2626}
 /* 分页器 */
 .pager{display:flex;align-items:center;justify-content:center;gap:6px;margin:18px 0 6px;flex-wrap:wrap}
 .pager.hidden{display:none}
 .pg-btn,.pg-num{min-width:34px;height:34px;padding:0 8px;border-radius:9px;border:1px solid rgba(0,0,0,.12);background:var(--glass-chip);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
 .pg-btn:hover:not(:disabled),.pg-num:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-1px)}
 .pg-btn:disabled{opacity:.4;cursor:default}
-.pg-num.active{background:linear-gradient(90deg,var(--c1),var(--c2),var(--c3));color:#fff;border-color:transparent;cursor:text}
+.pg-num.active{background:var(--grad) var(--c1);color:#fff;border:none;cursor:text}
 .pg-num.active:hover{color:#fff;transform:none}
 .pg-gap{color:var(--muted);padding:0 2px}
 .pg-info{font-size:12px;color:var(--muted);margin-left:8px}
@@ -307,8 +346,10 @@ a{color:var(--accent)}
 .logout-in-settings:active{transform:scale(.97)}
 .main{flex:1;padding:28px 34px;width:100%;min-width:0}
 .view{display:none}
-.view.active{display:block;animation:viewFadeIn .28s ease} /* 无 fill：同 .login-card 注释，fill 会让 .view 长期占住合成层，磨砂全废 */
-@keyframes viewFadeIn{from{opacity:0}to{opacity:1}}
+/* 切视图不做整页淡入：.view 必须始终 opacity:1（祖先 opacity<1 会创建 backdrop root，
+   动画期间内部玻璃采样不到壁纸）；此前用伪元素遮罩淡出，但关闭动效时 animation:none
+   会让遮罩永远停在 opacity:1 → 整页白遮罩。视觉过渡交给卡片自带的 cardIn 入场动画 */
+.view.active{display:block}
 /* viewIn 带 transform，仅用于自身为 fixed 的灯箱/弹层；视图切换用纯淡入，避免 transform 包含块破坏内部 fixed 子元素 */
 @keyframes viewIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
@@ -336,7 +377,8 @@ a{color:var(--accent)}
 .at-seg:hover{border-color:var(--accent);color:var(--text)}
 /* 激活态用水平三色渐变：宽扁长条上 135deg 对角渐变会让第三色挤在角落，
    且 background-size 放大超过 100% 会把色标推出元素外 */
-.at-seg.active{background:linear-gradient(90deg,var(--c1),var(--c2),var(--c3));color:#fff;border-color:transparent;box-shadow:0 6px 16px color-mix(in srgb,var(--accent) 38%,transparent)}
+/* 激活态统一 var(--grad)：跟随设置的渐变方向；垫同色实底避免圆角边缘透底；去透明边框补偿 1px padding */
+.at-seg.active{background:var(--grad) var(--c1);color:#fff;border:none;padding:11px 15px;box-shadow:0 6px 16px color-mix(in srgb,var(--accent) 38%,transparent)}
 /* OneDrive 解析结果信息条 */
 .od-info{display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px 14px;border:1px dashed rgba(0,0,0,.16);border-radius:9px;background:rgba(255,255,255,.5)}
 .od-icon{width:10px;height:10px;border-radius:3px;background:var(--grad);flex-shrink:0}
@@ -391,7 +433,10 @@ a{color:var(--accent)}
 .folder-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px}
 .fchip{padding:6px 14px;border-radius:999px;font-size:13px;background:var(--glass-chip);border:1px solid rgba(0,0,0,.1);color:#374151;transition:all .15s}
 .fchip:hover{transform:translateY(-1px);border-color:var(--accent)}
-.fchip.active{background:var(--grad);color:#fff;border-color:transparent;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+/* 渐变 active 态统一规范（对齐 .primary）：去掉透明边框（补偿 1px padding）+ 渐变下垫同色实底。
+   垫底是为了让圆角边缘的半像素抗锯齿透出主题色而非父背景——这正是此前"两侧 1px 没被渐变覆盖"的成因
+   （图片壁纸上尤其明显，纯 CSS 浅色背景时因色差小而不易察觉） */
+.fchip.active{background:var(--grad) var(--c1);color:#fff;border:none;padding:7px 15px;box-shadow:0 4px 14px rgba(0,0,0,.2)}
 .fchip.add{background:rgba(255,255,255,.5);border-style:dashed;font-weight:700}
 .fchip-wrap{position:relative;display:inline-flex;align-items:center;gap:3px;cursor:grab}
 .fchip-wrap.dragging{opacity:.45}
@@ -425,7 +470,7 @@ a{color:var(--accent)}
 .vt-opt{display:flex;align-items:center;justify-content:center;width:30px;height:26px;border-radius:999px;color:var(--accent);transition:color .2s ease,background .25s ease,box-shadow .2s ease}
 .vt-opt svg{width:16px;height:16px;display:block}
 .vt-opt:hover{color:var(--accent2)}
-.vt-opt.active{background:var(--grad);background-size:200% 200%;color:#fff;box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 35%,transparent);animation:segPop .4s cubic-bezier(.34,1.56,.64,1)}
+.vt-opt.active{background:var(--grad) var(--c1);background-size:100% 100%;color:#fff;box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 35%,transparent);animation:segPop .4s cubic-bezier(.34,1.56,.64,1)}
 .vt-opt.active svg{filter:drop-shadow(0 1px 2px rgba(0,0,0,.2))}
 
 /* 图片网格 */
@@ -456,7 +501,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
 .thumb-fallback .tf-id{font-size:11px;word-break:break-all;max-width:92%}
 .card-body{padding:12px;display:flex;flex-direction:column;gap:7px;flex:1}
 /* ===== 壁纸模式：信息区白色玻璃衬底 + 深色文字（通透但可读，纯色底零滤镜开销）===== */
-.img-card:not(.view-list) .card-body{background:rgba(255,255,255,.08)} /* 只给文字一层极淡衬底 */
+.img-card:not(.view-list) .card-body{background:rgba(255,255,255,var(--card-body-alpha,.08))} /* 信息区底色，外观面板可调 */
 .img-card .img-name,.img-card .img-name .t{color:var(--text)}
 .img-card .img-name .pen{color:var(--muted)}
 .img-card .img-id,.img-card .img-id .t{color:#4b5563}
@@ -465,7 +510,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
 .img-card .lst-time,.img-card .lst-size{color:var(--muted)}
 .img-card .img-id .zoom-inline{background:rgba(255,255,255,.85);border-color:rgba(0,0,0,.12);color:var(--accent)}
 /* 列表行整行白衬底 */
-.img-card.view-list{background-color:rgba(255,255,255,.08)}
+.img-card.view-list{background-color:rgba(255,255,255,var(--card-body-alpha,.08))}
 .img-card.view-list .lst-name-hit .t{color:var(--text)}
 /* 名称编辑框 */
 .img-card .name-edit{background:#fff;color:var(--text)}
@@ -553,6 +598,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
 .page-title{font-size:18px;margin-bottom:18px}
 .settings-form{display:flex;flex-direction:column;gap:18px;max-width:900px;margin:0 auto}
 .group{padding:20px 22px}
+
 .group h3{font-size:15px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid rgba(0,0,0,.08)}
 .group label{display:block;font-size:13px;color:#374151;margin-bottom:14px}
 .group label small{color:var(--muted);display:block;margin-top:2px;font-size:12px}
@@ -667,15 +713,33 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 /* 设置页壁纸分组 */
 .wp-mode-row{display:flex;gap:8px;flex-wrap:wrap}
 .wp-mode-btn{padding:7px 16px;border-radius:999px;font-size:13px;font-weight:600;background:var(--glass-chip);border:1px solid rgba(0,0,0,.12);color:var(--text);cursor:pointer;transition:all .15s}
-.wp-mode-btn.active{background:linear-gradient(90deg,var(--c1),var(--c2),var(--c3));color:#fff;border-color:transparent}
+.wp-mode-btn.active{background:var(--grad) var(--c1);color:#fff;border:none;padding:8px 17px}
 
 /* ===== 外观面板（折叠式；控件布局参照 we-pkg-web 的 dock，配色沿用本站浅色玻璃） ===== */
-.ap-panel{padding:0;overflow:hidden}
+/* 外观 dock：常驻左下角的独立玻璃面板（脱离设置页），默认折叠 */
+.ap-dock{
+  position:fixed;left:20px;bottom:20px;z-index:1200;width:300px;
+  border-radius:16px;overflow:hidden;
+  background:
+    linear-gradient(180deg,var(--lg-tint-top),var(--lg-tint-bottom)),
+    radial-gradient(130% 90% at 50% -30%,rgba(255,255,255,.16),transparent 62%);
+  border:1px solid var(--lg-hairline);
+  box-shadow:
+    inset 0 1px 0 var(--lg-inner-top),
+    inset 0 -1px 0 var(--lg-inner-bottom),
+    0 18px 44px -16px rgba(31,41,55,.35);
+  -webkit-backdrop-filter:blur(var(--lg-blur)) saturate(var(--lg-sat)) brightness(var(--lg-bright));
+  backdrop-filter:blur(var(--lg-blur)) saturate(var(--lg-sat)) brightness(var(--lg-bright));
+  isolation:isolate;
+}
+.ap-dock .ap-body{max-height:min(72vh,620px);overflow-y:auto}
 .ap-toggle{display:flex;align-items:center;gap:9px;width:100%;padding:15px 22px;font:inherit;font-size:15px;font-weight:600;color:var(--text);text-align:left}
 .ap-dot{width:12px;height:12px;border-radius:50%;background:linear-gradient(180deg,#d7ecff,#58a7ee);box-shadow:0 0 10px var(--lg-glow);flex:none}
 .ap-caret{margin-left:auto;width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);transition:transform .2s}
 .ap-panel.open .ap-caret{transform:rotate(-135deg)}
 .ap-body{padding:2px 22px 20px;display:flex;flex-direction:column;gap:14px}
+/* 折叠靠 hidden 属性：display:flex 会覆盖 [hidden] 的 UA display:none，必须显式声明 */
+.ap-body[hidden]{display:none}
 .ap-label{margin:0;font-size:12px;font-weight:600;color:var(--muted)}
 .ap-block{display:flex;flex-direction:column;gap:10px}
 .ap-bg-nav{display:flex;align-items:stretch;gap:8px}
@@ -710,6 +774,10 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
    ⚠ 必须用 animation:none（而非缩短 duration）：duration .001s 会把全站 11 处 infinite
      循环动画（地球自转/星闪/渐变位移/骨架屏闪耀/转圈等）压成每秒千帧循环 = 抽搐 */
 body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:none!important;animation:none!important}
+/* 解析按钮与「设为壁纸」按钮用主题渐变（.secondary 的玻璃底 + 渐变覆盖，保留 hover/禁用态） */
+#od-resolve-btn,.detail-wp-btn{background:var(--grad) var(--c1);background-size:220% 220%;color:#fff;border:none;font-weight:600;transition:transform .12s ease,box-shadow .15s ease,background-position .5s ease}
+#od-resolve-btn:hover,.detail-wp-btn:hover{background-position:100% 50%;box-shadow:0 8px 20px color-mix(in srgb,var(--accent) 40%,transparent)}
+#od-resolve-btn:disabled,.detail-wp-btn:disabled{opacity:.6;background:var(--glass-chip);color:var(--text);box-shadow:none}
 .detail-wp-btn{flex:none}
 
 /* 媒体详情弹窗 */
@@ -748,7 +816,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
 .detail-chips{display:flex;flex-wrap:wrap;gap:11px}
 .dchip{padding:8px 19px;border-radius:999px;font-size:17px;background:var(--glass-chip);-webkit-backdrop-filter:blur(10px) saturate(1.7);backdrop-filter:blur(10px) saturate(1.7);border:1px solid rgba(0,0,0,.1);color:#374151;transition:all .15s;font-weight:500}
 .dchip:hover{transform:translateY(-1px);border-color:var(--accent)}
-.dchip.active{background:var(--grad);color:#fff;border-color:transparent;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+.dchip.active{background:var(--grad) var(--c1);color:#fff;border:none;padding:9px 20px;box-shadow:0 4px 14px rgba(0,0,0,.2)}
 .detail-preview{margin-top:3px}
 .detail-preview textarea{width:100%;min-height:97px;resize:vertical;padding:14px 16px;border-radius:10px;border:1px solid rgba(0,0,0,.12);background:#fafafa;color:#374151;font-size:17px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.6;word-break:break-all}
 .detail-preview textarea:focus{border-color:var(--accent);outline:none}
@@ -969,65 +1037,6 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
           <label><span data-i18n="set.thumbCache"></span><input id="thumbCache" type="number" min="8" max="1000" step="4" data-i18n-ph="set.thumbCache.ph" /><small data-i18n="set.thumbCache.hint"></small></label>
         </div>
 
-        <div class="card group ap-panel" id="ap-panel">
-          <button type="button" class="ap-toggle" id="ap-toggle" aria-expanded="false" aria-controls="ap-body">
-            <span class="ap-dot" aria-hidden="true"></span>
-            <span data-i18n="set.group.appearance"></span>
-            <span class="ap-caret" aria-hidden="true"></span>
-          </button>
-          <div class="ap-body" id="ap-body" hidden>
-            <div class="ap-block">
-              <p class="ap-label" data-i18n="set.wp.pool"></p>
-              <div class="ap-bg-nav">
-                <div id="ap-bg-list" class="ap-bg-list" role="group" aria-label="wallpaper pool"></div>
-                <div class="ap-bg-arrows">
-                  <button id="ap-bg-prev" class="ap-bg-arrow" type="button" aria-label="prev wallpaper">&lsaquo;</button>
-                  <button id="ap-bg-next" class="ap-bg-arrow" type="button" aria-label="next wallpaper">&rsaquo;</button>
-                </div>
-              </div>
-              <label class="ap-field"><span data-i18n="set.wp.mode"></span>
-                <span class="wp-mode-row" id="wp-mode">
-                  <button type="button" class="wp-mode-btn" data-mode="random" data-i18n="set.wp.random"></button>
-                  <button type="button" class="wp-mode-btn" data-mode="fixed" data-i18n="set.wp.fixed"></button>
-                </span>
-              </label>
-              <p class="ap-label" data-i18n="set.wp.cssRow"></p>
-              <div id="ap-css-row" class="ap-bg-list ap-css-row" role="group" aria-label="solid backgrounds"></div>
-              <label class="ap-field"><span data-i18n="set.wp.custom"></span>
-                <input type="url" id="ap-custom" placeholder="https://…" />
-              </label>
-            </div>
-
-            <label class="ap-slider">
-              <span class="ap-slider-top"><span data-i18n="set.ap.bright"></span>
-                <button type="button" id="ap-bright-auto" class="ap-reset" data-i18n="set.ap.auto"></button>
-              </span>
-              <input type="range" id="ap-bright" min="0" max="88" step="1" />
-            </label>
-            <label class="ap-slider">
-              <span class="ap-slider-top"><span data-i18n="set.ap.blur"></span><small id="ap-blur-val">24</small></span>
-              <input type="range" id="ap-blur" min="0" max="40" step="1" />
-            </label>
-            <label class="ap-slider">
-              <span class="ap-slider-top"><span data-i18n="set.ap.sat"></span><small id="ap-sat-val">175%</small></span>
-              <input type="range" id="ap-sat" min="100" max="260" step="5" />
-            </label>
-            <label class="ap-slider">
-              <span class="ap-slider-top"><span data-i18n="set.ap.lum"></span><small id="ap-lum-val">105%</small></span>
-              <input type="range" id="ap-lum" min="80" max="140" step="1" />
-            </label>
-
-            <div class="ap-switches">
-              <label class="ap-switch"><span data-i18n="set.ap.refract"></span>
-                <span class="switch"><input type="checkbox" id="ap-refract" /><span></span></span>
-              </label>
-              <label class="ap-switch"><span data-i18n="set.ap.motion"></span>
-                <span class="switch"><input type="checkbox" id="ap-motion" checked /><span></span></span>
-              </label>
-            </div>
-            <p class="ap-note" id="ap-note"></p>
-          </div>
-        </div>
 
         <div class="save-row">
           <button id="logout-in-settings" class="logout-in-settings" data-i18n="nav.logout"></button>
@@ -1039,6 +1048,70 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
   </main>
 </div>
 
+<!-- 外观 dock：常驻左下角，默认折叠，脱离设置页（z 低于弹窗 2300 与 toast 2400） -->
+<div id="ap-dock" class="ap-dock hidden">
+  <button type="button" class="ap-toggle" id="ap-toggle" aria-expanded="false" aria-controls="ap-body">
+    <span class="ap-dot" aria-hidden="true"></span>
+    <span data-i18n="set.group.appearance"></span>
+    <span class="ap-caret" aria-hidden="true"></span>
+  </button>
+  <div class="ap-body" id="ap-body" hidden>
+    <div class="ap-block">
+      <p class="ap-label" data-i18n="set.wp.pool"></p>
+      <div class="ap-bg-nav">
+        <div id="ap-bg-list" class="ap-bg-list" role="group" aria-label="wallpaper pool"></div>
+        <div class="ap-bg-arrows">
+          <button id="ap-bg-prev" class="ap-bg-arrow" type="button" aria-label="prev wallpaper">&lsaquo;</button>
+          <button id="ap-bg-next" class="ap-bg-arrow" type="button" aria-label="next wallpaper">&rsaquo;</button>
+        </div>
+      </div>
+      <label class="ap-field"><span data-i18n="set.wp.mode"></span>
+        <span class="wp-mode-row" id="wp-mode">
+          <button type="button" class="wp-mode-btn" data-mode="random" data-i18n="set.wp.random"></button>
+          <button type="button" class="wp-mode-btn" data-mode="fixed" data-i18n="set.wp.fixed"></button>
+        </span>
+      </label>
+      <p class="ap-label" data-i18n="set.wp.cssRow"></p>
+      <div id="ap-css-row" class="ap-bg-list ap-css-row" role="group" aria-label="solid backgrounds"></div>
+      <label class="ap-field"><span data-i18n="set.wp.custom"></span>
+        <input type="url" id="ap-custom" placeholder="https://…" />
+      </label>
+    </div>
+
+    <label class="ap-slider">
+      <span class="ap-slider-top"><span data-i18n="set.ap.bright"></span>
+        <button type="button" id="ap-bright-auto" class="ap-reset" data-i18n="set.ap.auto"></button>
+      </span>
+      <input type="range" id="ap-bright" min="0" max="88" step="1" />
+    </label>
+    <label class="ap-slider">
+      <span class="ap-slider-top"><span data-i18n="set.ap.blur"></span><small id="ap-blur-val">24</small></span>
+      <input type="range" id="ap-blur" min="0" max="40" step="1" />
+    </label>
+    <label class="ap-slider">
+      <span class="ap-slider-top"><span data-i18n="set.ap.sat"></span><small id="ap-sat-val">175%</small></span>
+      <input type="range" id="ap-sat" min="100" max="260" step="5" />
+    </label>
+    <label class="ap-slider">
+      <span class="ap-slider-top"><span data-i18n="set.ap.lum"></span><small id="ap-lum-val">105%</small></span>
+      <input type="range" id="ap-lum" min="80" max="140" step="1" />
+    </label>
+    <label class="ap-slider">
+      <span class="ap-slider-top"><span data-i18n="set.ap.cardBody"></span><small id="ap-body-val">8%</small></span>
+      <input type="range" id="ap-body-alpha" min="0" max="100" step="1" />
+    </label>
+
+    <div class="ap-switches">
+      <label class="ap-switch"><span data-i18n="set.ap.refract"></span>
+        <span class="switch"><input type="checkbox" id="ap-refract" /><span></span></span>
+      </label>
+      <label class="ap-switch"><span data-i18n="set.ap.motion"></span>
+        <span class="switch"><input type="checkbox" id="ap-motion" checked /><span></span></span>
+      </label>
+    </div>
+    <p class="ap-note" id="ap-note"></p>
+  </div>
+</div>
 <div id="toast" class="toast"></div>
 <div id="lightbox" class="lightbox hidden">
   <div id="lightbox-media"></div>
@@ -1441,7 +1514,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "set.wp.fixed": "固定",
       "set.wp.pool": "壁纸池",
       "set.wp.cssRow": "纯色背景",
-      "set.wp.custom": "自定义壁纸 URL（留空则只用图片池）",
+      "set.wp.custom": "自定义壁纸 URL（留空则只用壁纸池）",
       "set.ap.bright": "背景亮度",
       "set.ap.auto": "自动",
       "set.ap.blur": "磨砂强度",
@@ -1452,6 +1525,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "set.ap.noRefract": "当前浏览器不支持边缘折射，已使用纯 CSS 玻璃。",
       "set.ap.badUrl": "自定义地址需要是完整的 http(s) 图片链接。",
       "set.ap.noSample": "壁纸未能加载或不允许取样，已保留当前亮度。",
+      "set.ap.cardBody": "信息区底色",
       "wp.bg.white": "纯白", "wp.bg.sky": "天蓝", "wp.bg.pink": "樱粉",
       "wp.bg.dawn": "晨光", "wp.bg.aurora": "极光", "wp.bg.dusk": "暮色",
       "wp.gradAngle": "渐变方向",
@@ -1464,7 +1538,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "wp.randRemoved": "已移出随机轮换",
       "detail.wp": "设为壁纸",
       "wp.title": "将此图片设为壁纸",
-      "wp.desc": "调整主题三色（已按图片自动取色，可手动微调），确定后加入图片池并立即生效。",
+      "wp.desc": "调整主题三色（已按图片自动取色，可手动微调），确定后加入壁纸池并立即生效。",
       "wp.color1": "颜色 1",
       "wp.color2": "颜色 2",
       "wp.color3": "颜色 3",
@@ -1709,7 +1783,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "set.wp.fixed": "Fixed",
       "set.wp.pool": "Wallpaper pool",
       "set.wp.cssRow": "Solid backgrounds",
-      "set.wp.custom": "Custom wallpaper URL (leave empty to use the pool only)",
+      "set.wp.custom": "Custom wallpaper URL (leave empty to use the wallpaper pool only)",
       "set.ap.bright": "Background brightness",
       "set.ap.auto": "Auto",
       "set.ap.blur": "Frost strength",
@@ -1720,6 +1794,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "set.ap.noRefract": "This browser does not support edge refraction; using pure CSS glass.",
       "set.ap.badUrl": "A custom wallpaper needs a full http(s) image URL.",
       "set.ap.noSample": "Wallpaper failed to load or cannot be sampled; keeping the current brightness.",
+      "set.ap.cardBody": "Info area tint",
       "wp.bg.white": "White", "wp.bg.sky": "Sky", "wp.bg.pink": "Sakura",
       "wp.bg.dawn": "Daybreak", "wp.bg.aurora": "Aurora", "wp.bg.dusk": "Dusk",
       "wp.gradAngle": "Gradient angle",
@@ -1732,7 +1807,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "wp.randRemoved": "Removed from random rotation",
       "detail.wp": "Set as wallpaper",
       "wp.title": "Set this image as wallpaper",
-      "wp.desc": "Tune the theme trio (auto-picked from the image, editable), then add it to the pool and apply immediately.",
+      "wp.desc": "Tune the theme trio (auto-picked from the image, editable), then add it to the wallpaper pool and apply immediately.",
       "wp.color1": "Color 1",
       "wp.color2": "Color 2",
       "wp.color3": "Color 3",
@@ -1832,11 +1907,15 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
   function showLogin() {
     $("app").classList.add("hidden");
     $("login").classList.remove("hidden");
+    var dock = $("ap-dock");
+    if (dock) dock.classList.add("hidden"); // 登录页不显示外观 dock，避免遮挡登录卡
     $("login-token").focus();
   }
   function hideLogin() {
     $("login").classList.add("hidden");
     $("app").classList.remove("hidden");
+    var dock = $("ap-dock");
+    if (dock) dock.classList.remove("hidden");
   }
   function logout() {
     token = "";
@@ -5155,6 +5234,8 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
         refreshGlassPaintOne(el); // 折射变化必须同步重建 inline 声明，否则不重绘
       }
     }
+    var staticEls = [];
+    function isStatic(el) { return !!(el.matches && el.matches(STATIC_GLASS_SEL)); }
     var lastAllowedSig = "";
     function reconcile() {
       // ⚠ setEnabled(true)/refresh() 前必须置空 lastAllowedSig：
@@ -5164,9 +5245,12 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
         for (var i = 0; i < wanted.length; i++) apply(wanted[i], false);
         return;
       }
+      // 静态玻璃（侧边栏/dock）：不随滚动重算，仅在需要时烘焙一次（apply 内部已注入则短路，零开销）
+      for (var s = 0; s < staticEls.length; s++) apply(staticEls[s], true);
       // 就地按视口求交集排序（不依赖 IO 回调时机）；卡片与添加栏加权优先
       var ranked = [];
       for (var i = 0; i < wanted.length; i++) {
+        if (staticEls.indexOf(wanted[i]) !== -1) continue; // 静态组不参与滚动排序
         var r = overlapRatio(wanted[i]);
         if (wanted[i].classList.contains("card")) r *= 1.5;
         if (r > 0.02) ranked.push([wanted[i], r]);
@@ -5176,10 +5260,13 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       for (var j = 0; j < ranked.length && j < LG_MAX_LAYERS; j++) allowed.push(ranked[j][0]);
       // 静止/微滚时允许集合通常不变：签名相同直接跳过，零计算零重绘
       var sig = "";
-      for (var k = 0; k < wanted.length; k++) sig += allowed.indexOf(wanted[k]) !== -1 ? "1" : "0";
+      for (var k = 0; k < wanted.length; k++) sig += staticEls.indexOf(wanted[k]) !== -1 ? "s" : (allowed.indexOf(wanted[k]) !== -1 ? "1" : "0");
       if (sig === lastAllowedSig) return;
       lastAllowedSig = sig;
-      for (var m = 0; m < wanted.length; m++) apply(wanted[m], allowed.indexOf(wanted[m]) !== -1);
+      for (var m = 0; m < wanted.length; m++) {
+        if (staticEls.indexOf(wanted[m]) !== -1) continue;
+        apply(wanted[m], allowed.indexOf(wanted[m]) !== -1);
+      }
     }
     var io = ("IntersectionObserver" in window) ? new IntersectionObserver(function () { reconcile(); }, { threshold: [0, 0.03, 0.25, 0.6] }) : null;
     // 尺寸变化修复：面板展开/弹窗增高等无滚动的尺寸变化不会触发 backdrop 重算，
@@ -5220,11 +5307,14 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
         if (on) {
           if (wanted.indexOf(nodes[j]) !== -1) continue;
           wanted.push(nodes[j]);
+          if (isStatic(nodes[j])) staticEls.push(nodes[j]);
           if (io) io.observe(nodes[j]);
           if (ro) ro.observe(nodes[j]);
         } else {
           var ix = wanted.indexOf(nodes[j]);
           if (ix !== -1) wanted.splice(ix, 1);
+          var sx = staticEls.indexOf(nodes[j]);
+          if (sx !== -1) staticEls.splice(sx, 1);
           if (io) io.unobserve(nodes[j]);
           if (ro) ro.unobserve(nodes[j]);
           apply(nodes[j], false);
@@ -5289,7 +5379,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
 
   // ===== 外观面板：控件布局参照 we-pkg-web 的 dock，适配本站图片池与浅色主题 =====
   var UI_KEY = "mdn_ui_v1", WP_SS_KEY = "mdn_wp_session_v1";
-  var UI_DEF = { blur: 24, scrim: 18, scrimMode: "auto", sat: 175, bright: 105, refract: true, motion: true, customUrl: "" };
+  var UI_DEF = { blur: 24, scrim: 18, scrimMode: "auto", sat: 175, bright: 105, refract: true, motion: true, customUrl: "", cardBodyAlpha: 8 };
   var ui = (function () {
     var base = {}, raw = null, o = null;
     try { raw = localStorage.getItem(UI_KEY); } catch (e) {}
@@ -5326,7 +5416,9 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
   // Chromium 对 backdrop-filter 引用的 var() 变量更新不做合成层失效（表现为拖滑条无效果，
   // 开关其它设置触发全站重算才生效）。根治：不依赖变量更新 backdrop-filter，而是把完整
   // 声明直接写进各玻璃元素的 inline style——inline 属性变化必然触发重新解析与 backdrop 重算。
-  var GLASS_SEL = ".glass,.card,.login-card,.modal-box,.origin-box,.detail-box";
+  var GLASS_SEL = ".glass,.card,.login-card,.modal-box,.origin-box,.detail-box,.sidebar,#ap-dock";
+  // 静态玻璃：位置固定不变（侧边栏/外观 dock），不参与滚动 reconcile，仅在初始化/切壁纸/改设置时烘焙一次
+  var STATIC_GLASS_SEL = ".sidebar,#ap-dock";
   function glassFilterValue(el) {
     var r = el.style.getPropertyValue("--lg-refract");
     return "blur(" + ui.blur + "px) saturate(" + (ui.sat / 100).toFixed(2) + ") brightness(" + (ui.bright / 100).toFixed(2) + ")" + (r ? " " + r.trim() : "");
@@ -5362,6 +5454,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     s.setProperty("--lg-sat", ui.sat + "%");
     s.setProperty("--lg-bright", (ui.bright / 100).toFixed(2));
     s.setProperty("--lg-scrim", (ui.scrim / 100).toFixed(3));
+    s.setProperty("--card-body-alpha", (ui.cardBodyAlpha / 100).toFixed(2));
     document.body.classList.toggle("motion-off", !ui.motion);
     queueGlassPaint();
   }
@@ -5715,11 +5808,12 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
 
   // 外观面板全部控件绑定（交互照抄 we-pkg-web 的 dock）
   function initAppearance(ctl) {
-    var panel = $("ap-panel"), toggle = $("ap-toggle"), body = $("ap-body");
+    var panel = $("ap-dock"), toggle = $("ap-toggle"), body = $("ap-body");
     var bright = $("ap-bright"), brightAuto = $("ap-bright-auto");
     var blur = $("ap-blur"), blurVal = $("ap-blur-val");
     var sat = $("ap-sat"), satVal = $("ap-sat-val");
     var lum = $("ap-lum"), lumVal = $("ap-lum-val");
+    var bodyA = $("ap-body-alpha"), bodyAv = $("ap-body-val");
     var refract = $("ap-refract"), motion = $("ap-motion"), custom = $("ap-custom");
 
     bright.value = String(ui.scrim);
@@ -5727,6 +5821,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     blur.value = String(ui.blur); blurVal.textContent = String(ui.blur);
     sat.value = String(ui.sat); satVal.textContent = ui.sat + "%";
     lum.value = String(ui.bright); lumVal.textContent = ui.bright + "%";
+    bodyA.value = String(ui.cardBodyAlpha); bodyAv.textContent = ui.cardBodyAlpha + "%";
     motion.checked = !!ui.motion;
     custom.value = ui.customUrl || "";
 
@@ -5757,6 +5852,11 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     lum.addEventListener("input", function () {
       ui.bright = Math.max(80, Math.min(140, parseInt(this.value, 10) || 105));
       lumVal.textContent = ui.bright + "%";
+      applyUi(); saveUi();
+    });
+    bodyA.addEventListener("input", function () {
+      ui.cardBodyAlpha = Math.max(0, Math.min(100, parseInt(this.value, 10) || 0));
+      bodyAv.textContent = ui.cardBodyAlpha + "%";
       applyUi(); saveUi();
     });
     refract.addEventListener("change", function () {
@@ -5947,6 +6047,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     var bl = $("ap-blur"); if (bl) { bl.value = String(ui.blur); var bv = $("ap-blur-val"); if (bv) bv.textContent = String(ui.blur); }
     var sa = $("ap-sat"); if (sa) { sa.value = String(ui.sat); var sv = $("ap-sat-val"); if (sv) sv.textContent = ui.sat + "%"; }
     var lu = $("ap-lum"); if (lu) { lu.value = String(ui.bright); var lv = $("ap-lum-val"); if (lv) lv.textContent = ui.bright + "%"; }
+    var ba = $("ap-body-alpha"); if (ba) { ba.value = String(ui.cardBodyAlpha); var bav = $("ap-body-val"); if (bav) bav.textContent = ui.cardBodyAlpha + "%"; }
   }
   function syncWpSliderLabels() {
     $("wp-scrim-val").textContent = $("wp-scrim").value;
