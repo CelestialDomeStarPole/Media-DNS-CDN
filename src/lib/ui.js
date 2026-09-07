@@ -106,7 +106,6 @@ export function renderUI() {
   --lg-tint-top:rgba(255,255,255,.04);
   --lg-tint-bottom:rgba(31,41,55,.03);
   --card-body-alpha:0.08;
-  --lg-spec:rgba(255,255,255,.22);
   --lg-hairline:rgba(255,255,255,.55);
   --lg-inner-top:rgba(255,255,255,.75);
   --lg-inner-bottom:rgba(255,255,255,.25);
@@ -150,8 +149,6 @@ export function renderUI() {
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 .glass>*,.card>*,.login-card>*,.modal-box>*,.origin-box>*,.detail-box>*{position:relative;z-index:1}
-/* 顶部高光扫过：只给按钮/悬浮面板等小面积元素用 */
-.lg-sheen::after{content:"";position:absolute;inset:0;z-index:0;border-radius:inherit;pointer-events:none;background:linear-gradient(168deg,var(--lg-spec),transparent 46%);opacity:.75}
 html,body{height:100%}
 /* 背景层：.bg(壁纸) + .bg-scrim(白系遮罩)，对齐参考站的两层负 z 结构。
    ⚠ 内容层（.app / .login-screen）不要加 z-index：会创建 stacking context 把 backdrop 采样范围
@@ -218,8 +215,7 @@ a{color:var(--accent)}
 .fchip.active,.wp-mode-btn.active,.vt-opt.active,.dchip.active,.at-seg.active,.pg-num.active,
 .nav-btn.active,.primary,#od-resolve-btn,.detail-wp-btn,.origin-dot,.lang-toggle{background-repeat:no-repeat}
 
-/* 侧边栏渐变流动动画（已随侧边栏玻璃化剔除，keyframes 保留给 .logo 使用） */
-@keyframes shift{0%{background-position:0% 50%}50%{background-position:100% 50%}100%{background-position:0% 50%}}
+/* 渐变流动动画已全部移除（logo / 侧边栏 / 语言控件 / 骨架屏均改为静态渐变） */
 
 /* 无限动画层隔离：把每帧重绘限制在独立合成层内，避免连带祖先玻璃（登录卡/侧边栏/dock）
    的 backdrop 每帧重算 → GPU 常驻。动画本身全部保留 */
@@ -244,19 +240,12 @@ a{color:var(--accent)}
 .lang-toggle{
   position:fixed;top:16px;right:16px;z-index:1500;display:flex;align-items:center;gap:8px;
   padding:5px 8px 5px 7px;border-radius:999px;
-  /* 渐变流动交给伪元素用 transform 做：background-position 动画不可合成，
-     每帧主线程重绘会触发全页合成 → 所有玻璃 backdrop 重算（静止时 GPU 常驻的元凶） */
-  overflow:hidden;isolation:isolate;
+  /* 静态主题渐变（填充铺满、不重复）：渐变流动动画已全部移除 */
+  background:var(--grad) var(--c1);background-size:100% 100%;background-repeat:no-repeat;
   box-shadow:0 6px 18px rgba(0,0,0,.2);transition:transform .15s ease,box-shadow .15s ease
-}
-.lang-toggle::before{
-  content:"";position:absolute;top:0;bottom:0;left:-8%;right:-8%;z-index:-1;border-radius:inherit;
-  background:var(--grad);background-size:200% 100%;background-repeat:no-repeat;
-  animation:gradSlide 8s ease-in-out infinite;will-change:transform
 }
 @keyframes gradSlide{0%,100%{transform:translateX(-6%)}50%{transform:translateX(6%)}}
 .lang-toggle:hover{transform:translateY(-1px) scale(1.05);box-shadow:0 10px 26px rgba(0,0,0,.3)}
-@keyframes gradShift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
 .lang-toggle .lt-globe{width:22px;height:22px;perspective:120px;color:#fff;filter:drop-shadow(0 1px 2px rgba(0,0,0,.25))}
 .lang-toggle svg{display:block;width:22px;height:22px;animation:globeSpin 7s linear infinite}
 .lang-toggle:hover svg{animation-duration:2s}
@@ -288,9 +277,9 @@ a{color:var(--accent)}
 }
 .logo{
   font-size:28px;font-weight:800;letter-spacing:.5px;
-  background:var(--grad);background-size:220% 220%;
-  -webkit-background-clip:text;background-clip:text;color:transparent;
-  animation:shift 9s ease-in-out infinite
+  background:var(--grad);background-size:100% 100%;background-repeat:no-repeat;
+  -webkit-background-clip:text;background-clip:text;color:transparent
+  /* 流动动画已移除（静态渐变） */
 }
 .login-card .sub{color:var(--muted);margin:6px 0 22px;font-size:13px}
 .login-card input{width:100%;padding:11px 14px;border:1px solid rgba(0,0,0,.12);border-radius:9px;margin-bottom:14px;outline:none;background:rgba(255,255,255,.8)}
@@ -492,7 +481,6 @@ body.no-select{user-select:none;-webkit-user-select:none}
 .thumb img,.thumb video{-webkit-user-drag:none;user-select:none}
 .thumb img{width:100%;height:100%;object-fit:contain;display:block;transition:opacity .25s ease}
 .thumb img.thumb-pending{opacity:0;position:absolute;inset:0;pointer-events:none}
-.grid-sentinel{height:1px}
 .thumb video{width:100%;height:100%;object-fit:contain;display:block;background:rgba(255,255,255,.7)}
 .thumb .zoom{position:absolute;right:8px;bottom:8px;background:rgba(15,23,42,.72);color:#fff;font-size:12px;padding:5px 10px;border-radius:6px;transition:background .15s}
 .thumb .zoom:hover{background:rgba(15,23,42,.92)}
@@ -581,6 +569,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
 .switch input:checked + span:before{transform:translateX(14px)}
 
 /* 骨架屏 */
+/* 骨架屏：白灰微光流动（与主题三色渐变无关，保留） */
 .skeleton{height:300px;border-radius:var(--radius);background:linear-gradient(100deg,rgba(255,255,255,.3) 20%,rgba(255,255,255,.62) 45%,rgba(255,255,255,.3) 70%);background-size:200% 100%;animation:shimmer 1.3s infinite;border:1px solid var(--glass-line)}
 @keyframes shimmer{to{background-position:-200% 0}}
 
@@ -618,12 +607,13 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 
 /* 按钮 */
 .primary{
-  background:var(--grad);background-size:220% 220%;color:#fff;border:none;padding:11px 22px;
+  background:var(--grad) var(--c1);background-size:100% 100%;background-repeat:no-repeat;color:#fff;
+  border:none;padding:11px 22px;
   border-radius:10px;font-size:14px;font-weight:700;letter-spacing:.3px;
   box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 42%,transparent);
-  transition:transform .12s ease,box-shadow .15s ease,background-position .5s ease
+  transition:transform .12s ease,box-shadow .15s ease /* 渐变位移流动已移除 */
 }
-.primary:hover{background-position:100% 50%;transform:translateY(-1px);box-shadow:0 10px 26px color-mix(in srgb,var(--accent) 52%,transparent)}
+.primary:hover{transform:translateY(-1px);box-shadow:0 10px 26px color-mix(in srgb,var(--accent) 52%,transparent)}
 .primary:active{transform:translateY(0)}
 .primary:disabled{opacity:.6;cursor:default;box-shadow:none;transform:none}
 
@@ -705,11 +695,12 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 .wp-hover .wh-title{margin:0 0 6px;font-size:12px;font-weight:600;color:var(--muted)}
 .wp-hover .wh-name{margin:0 0 8px;font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .wp-hover .wh-hint{margin:8px 0 0;font-size:11px;color:var(--muted)}
-.wh-remove{
+/*  wh-remove 是 id 不是 class：选择器必须用 #wh-remove */
+#wh-remove{
   display:block;width:100%;margin-top:10px;padding:7px 0;border-radius:9px;font:inherit;font-size:12px;font-weight:600;
   color:#dc2626;background:rgba(220,38,38,.06);border:1px solid rgba(220,38,38,.35);cursor:pointer;transition:background .15s
 }
-.wh-remove:hover{background:rgba(220,38,38,.14)}
+#wh-remove:hover{background:rgba(220,38,38,.14)}
 /* 设置页壁纸分组 */
 .wp-mode-row{display:flex;gap:8px;flex-wrap:wrap}
 .wp-mode-btn{padding:7px 16px;border-radius:999px;font-size:13px;font-weight:600;background:var(--glass-chip);border:1px solid rgba(0,0,0,.12);color:var(--text);cursor:pointer;transition:all .15s}
@@ -736,7 +727,7 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 .ap-toggle{display:flex;align-items:center;gap:9px;width:100%;padding:15px 22px;font:inherit;font-size:15px;font-weight:600;color:var(--text);text-align:left}
 .ap-dot{width:12px;height:12px;border-radius:50%;background:linear-gradient(180deg,#d7ecff,#58a7ee);box-shadow:0 0 10px var(--lg-glow);flex:none}
 .ap-caret{margin-left:auto;width:8px;height:8px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);transition:transform .2s}
-.ap-panel.open .ap-caret{transform:rotate(-135deg)}
+.ap-dock.open .ap-caret{transform:rotate(-135deg)}
 .ap-body{padding:2px 22px 20px;display:flex;flex-direction:column;gap:14px}
 /* 折叠靠 hidden 属性：display:flex 会覆盖 [hidden] 的 UA display:none，必须显式声明 */
 .ap-body[hidden]{display:none}
@@ -775,8 +766,8 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
      循环动画（地球自转/星闪/渐变位移/骨架屏闪耀/转圈等）压成每秒千帧循环 = 抽搐 */
 body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:none!important;animation:none!important}
 /* 解析按钮与「设为壁纸」按钮用主题渐变（.secondary 的玻璃底 + 渐变覆盖，保留 hover/禁用态） */
-#od-resolve-btn,.detail-wp-btn{background:var(--grad) var(--c1);background-size:220% 220%;color:#fff;border:none;font-weight:600;transition:transform .12s ease,box-shadow .15s ease,background-position .5s ease}
-#od-resolve-btn:hover,.detail-wp-btn:hover{background-position:100% 50%;box-shadow:0 8px 20px color-mix(in srgb,var(--accent) 40%,transparent)}
+#od-resolve-btn,.detail-wp-btn{background:var(--grad) var(--c1);background-size:100% 100%;background-repeat:no-repeat;color:#fff;border:none;font-weight:600;transition:transform .12s ease,box-shadow .15s ease}
+#od-resolve-btn:hover,.detail-wp-btn:hover{transform:translateY(-1px);box-shadow:0 8px 20px color-mix(in srgb,var(--accent) 40%,transparent)}
 #od-resolve-btn:disabled,.detail-wp-btn:disabled{opacity:.6;background:var(--glass-chip);color:var(--text);box-shadow:none}
 .detail-wp-btn{flex:none}
 
@@ -1420,10 +1411,8 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "op.copyOk": "链接已复制",
       "op.saved": "已保存",
       "op.moved": "已移动",
-      "op.sorted": "已更新排序",
       "op.sortOk": "排序保存成功，KV同步需要一会",
       "op.sortCancelled": "已取消排序",
-      "op.updated": "已更新",
       "lightbox.open": "在新标签打开原图",
       "lightbox.openSite": "在新标签打开网站外链",
       "lightbox.close": "关闭",
@@ -1543,9 +1532,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "wp.color2": "颜色 2",
       "wp.color3": "颜色 3",
       "wp.ok": "确定",
-      "wp.save": "保存预设",
       "wp.editTitle": "编辑壁纸预设",
-      "wp.editDesc": "调整主题三色与绑定参数，保存后切到此壁纸自动应用。",
       "wp.preset.label": "绑定预设",
       "wp.preset.hint": "预设随壁纸保存；之后在外观面板调滑条为临时调整，切换壁纸时仍会按预设生效。",
       "wp.applied": "已设为壁纸",
@@ -1689,10 +1676,8 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "op.copyOk": "Link copied",
       "op.saved": "Saved",
       "op.moved": "Moved",
-      "op.sorted": "Order updated",
       "op.sortOk": "Order saved, KV sync may take a moment",
       "op.sortCancelled": "Sorting cancelled",
-      "op.updated": "Updated",
       "lightbox.open": "Open original in new tab",
       "lightbox.openSite": "Open site link in new tab",
       "lightbox.close": "Close",
@@ -1812,9 +1797,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "wp.color2": "Color 2",
       "wp.color3": "Color 3",
       "wp.ok": "Confirm",
-      "wp.save": "Save preset",
       "wp.editTitle": "Edit wallpaper preset",
-      "wp.editDesc": "Tune the theme colors and bound values; they apply automatically whenever this wallpaper is picked.",
       "wp.preset.label": "Bound preset",
       "wp.preset.hint": "The preset is saved with this wallpaper. Slider tweaks afterwards are temporary; switching wallpapers re-applies the preset.",
       "wp.applied": "Wallpaper set",
@@ -5748,7 +5731,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       '<label class="ap-slider"><span class="ap-slider-top"><span data-i18n="set.ap.sat"></span><small id="wh-sat-v"></small></span><input type="range" id="wh-sat" min="100" max="260" step="5" /></label>' +
       '<label class="ap-slider"><span class="ap-slider-top"><span data-i18n="set.ap.lum"></span><small id="wh-lum-v"></small></span><input type="range" id="wh-lum" min="80" max="140" step="1" /></label>' +
       '<label class="ap-slider"><span class="ap-slider-top"><span data-i18n="wp.gradAngle"></span><small id="wh-grad-v"></small></span><input type="range" id="wh-grad" min="0" max="360" step="5" /></label>' +
-      '<button type="button" id="wh-remove"></button>' +
+      '<button type="button" id="wh-remove" data-i18n="wp.remove"></button>' +
       '<p class="wh-hint" data-i18n="wp.escHintLine"></p>';
     document.body.appendChild(hoverEl);
     fillHoverI18n();
@@ -6071,13 +6054,13 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     $("wp-grad").value = String(p.gradAngle != null ? p.gradAngle : (ui.gradAngle != null ? ui.gradAngle : 135));
     syncWpSliderLabels();
     var title = $("wp-modal-title"), desc = $("wp-modal-desc"), ok = $("wp-ok");
-    var tKey = info.editing ? ["wp.editTitle", "wp.editDesc", "wp.save"] : ["wp.title", "wp.desc", "wp.ok"];
+    var tKey = ["wp.title", "wp.desc", "wp.ok"]; // editing 入口已删（改悬浮编辑器），弹窗仅剩新增条目
     title.setAttribute("data-i18n", tKey[0]); title.textContent = t(tKey[0]);
     desc.setAttribute("data-i18n", tKey[1]); desc.textContent = t(tKey[1]);
     ok.setAttribute("data-i18n", tKey[2]); ok.textContent = t(tKey[2]);
     updateWpPreview();
     $("wp-modal").classList.remove("hidden");
-    if (!info.editing && !info.colors) {
+    if (!info.colors) {
       suggestColors(info.url).then(function (cols) {
         if (!cols || $("wp-modal").classList.contains("hidden")) return; // 弹窗已关则不覆盖
         c1.value = cols[0]; c2.value = cols[1]; c3.value = cols[2];
@@ -6087,7 +6070,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
   }
   $("detail-wp-btn").addEventListener("click", function () {
     if (!detailModalImg) return;
-    var info = { url: detailModalImg.url || "", name: wpFileName(detailModalImg), editing: false };
+    var info = { url: detailModalImg.url || "", name: wpFileName(detailModalImg) };
     if (!info.url) { toast(t("wp.err"), "error"); return; }
     openWpModal(info);
   });
@@ -6101,20 +6084,6 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     if (!wpTarget) return;
     var colors = [$("wp-c1").value, $("wp-c2").value, $("wp-c3").value];
     var preset = { scrim: Math.max(0, Math.min(88, +$("wp-scrim").value || 0)), blur: Math.max(0, Math.min(40, +$("wp-blur").value || 0)), sat: Math.max(100, Math.min(260, +$("wp-sat").value || 175)), bright: Math.max(80, Math.min(140, +$("wp-lum").value || 105)), gradAngle: Math.max(0, Math.min(360, +$("wp-grad").value || 135)) };
-    if (wpTarget.editing) {
-      // 编辑既有条目：写回颜色 + 预设，并立即应用到全站
-      var it = wpTarget.itemRef;
-      it.colors = colors;
-      savePresetFor(it, preset);
-      applyWpColors(it.url, colors, it);
-      Object.assign(ui, preset); // preset 键名与 ui 一致（scrim/blur/sat/bright）
-      applyGradAngle(preset.gradAngle);
-      syncSlidersFromUi(); applyUi(); saveUi();
-      markActiveWp();
-      toast(t("wp.applied"), "success");
-      wpTarget = null;
-      return;
-    }
     var custom = [];
     try { custom = JSON.parse(localStorage.getItem("mdn_wp_custom") || "[]") || []; } catch (e) { custom = []; }
     if (!Array.isArray(custom)) custom = [];
