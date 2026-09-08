@@ -31,7 +31,7 @@ export function renderUI() {
     { url: "css:dusk", i18n: "wp.bg.dusk", name: "Dusk", colors: ["#e885ae", "#f0b485", "#85aee0"], scrim: 0,
       css: "radial-gradient(80% 60% at 82% 0%,rgba(255,255,255,.92),transparent 60%),linear-gradient(135deg,#ffe0ec 0%,#fff3e0 45%,#dfeaff 100%)" }
   ];
-  var K_MODE = "mdn_wp_mode", K_FIXED = "mdn_wp_fixed", K_DECK = "mdn_wp_deck", K_CUSTOM = "mdn_wp_custom";
+  var K_MODE = "mdn_wp_mode", K_FIXED = "mdn_wp_fixed", K_DECK = "mdn_wp_deck", K_CUSTOM = "mdn_wp_custom", K_POOL_ORDER = "mdn_wp_pool_order";
   function wls(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
   function wlsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   function shuffle(a) {
@@ -244,7 +244,6 @@ a{color:var(--accent)}
   background:var(--grad) var(--c1);background-size:100% 100%;background-repeat:no-repeat;
   box-shadow:0 6px 18px rgba(0,0,0,.2);transition:transform .15s ease,box-shadow .15s ease
 }
-@keyframes gradSlide{0%,100%{transform:translateX(-6%)}50%{transform:translateX(6%)}}
 .lang-toggle:hover{transform:translateY(-1px) scale(1.05);box-shadow:0 10px 26px rgba(0,0,0,.3)}
 .lang-toggle .lt-globe{width:22px;height:22px;perspective:120px;color:#fff;filter:drop-shadow(0 1px 2px rgba(0,0,0,.25))}
 .lang-toggle svg{display:block;width:22px;height:22px;animation:globeSpin 7s linear infinite}
@@ -620,9 +619,9 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 /* toast */
 .toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%) translateY(90px);color:#fff;padding:11px 20px;border-radius:10px;font-size:14px;opacity:0;transition:.25s;z-index:2400;box-shadow:0 10px 34px rgba(0,0,0,.28);pointer-events:none;max-width:80vw}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-.toast.success{background:linear-gradient(135deg,#10b981,#0ea5e9)}
+.toast.success{background:var(--grad)}
 .toast.error{background:linear-gradient(135deg,#f43f5e,#ef4444)}
-.toast.info{background:linear-gradient(135deg,#6366f1,#a855f7)}
+.toast.info{background:linear-gradient(135deg,#f59e0b,#f97316)}
 .toast.accent{background:var(--grad)}
 
 /* 灯箱预览 */
@@ -734,9 +733,11 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 .ap-label{margin:0;font-size:12px;font-weight:600;color:var(--muted)}
 .ap-block{display:flex;flex-direction:column;gap:10px}
 .ap-bg-nav{display:flex;align-items:stretch;gap:8px}
-.ap-bg-list{flex:1;display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:7px;max-height:136px;overflow-y:auto;padding:2px}
-.ap-bg-list button{position:relative;aspect-ratio:1;padding:0;cursor:pointer;overflow:hidden;border-radius:11px;border:1px solid rgba(0,0,0,.12);background:rgba(255,255,255,.35)}
-.ap-bg-list img{width:100%;height:100%;object-fit:cover;display:block}
+.ap-bg-list{flex:1;display:grid;grid-template-columns:repeat(auto-fill,44px);grid-auto-rows:44px;justify-content:space-evenly;gap:11px 7px;max-height:196px;overflow-y:auto;scrollbar-gutter:stable;padding:4px} /* 列宽行高双锁死：滚动条出现/条目增多都不改变格子尺寸 */
+.ap-bg-list button{position:relative;width:44px;height:44px;padding:0;cursor:pointer;overflow:hidden;border-radius:11px;border:1px solid rgba(0,0,0,.12);background:rgba(255,255,255,.35)}
+.ap-bg-list img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none} /* 事件穿透到按钮：img 原生拖拽会劫持 pointer 手势 */
+/* 壁纸池拖拽占位：方形虚线框 + phPulse 脉冲（对照 fchip-ph） */
+.ap-bg-ph{width:44px;height:44px;border:2px dashed color-mix(in srgb,var(--accent) 62%,transparent);border-radius:11px;background:color-mix(in srgb,var(--accent) 12%,transparent);animation:phPulse 1.3s ease-in-out infinite;pointer-events:none}
 .ap-bg-css{width:100%;height:100%} /* 纯 CSS 背景预览色块（background 由 JS 写入） */
 /* 随机集合框选标记：主题色描边 + 右上角渐变圆点 */
 .ap-bg-list button.rand-in{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 55%,transparent)}
@@ -2558,18 +2559,30 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
   }
   window.addEventListener("pointerup", endCardDrag);
   window.addEventListener("pointercancel", endCardDrag);
+  // ESC 取消拖拽后 no-select 保持到松开左键：用户常先按 ESC 再松键，期间鼠标仍在移动，
+  // 若立即恢复文本选择会从按下处一路选中到松开处。此窗口结束后立即释放，不影响正常文本选择。
+  var noSelectHold = false;
+  function releaseNoSelectHold() {
+    if (!noSelectHold) return;
+    noSelectHold = false;
+    document.body.classList.remove("no-select");
+  }
+  window.addEventListener("pointerup", releaseNoSelectHold);
+  window.addEventListener("pointercancel", releaseNoSelectHold);
   // Esc 取消拖拽：占位归位、卡片放回原位，不提交顺序
   function cancelCardDrag(e) {
     if (!dnd) return;
     var d = dnd;
     dnd = null;
-    document.body.classList.remove("no-select");
     hideToast(); // 取消拖拽，隐藏 ESC 提示
     d.card.classList.remove("drag-pickup");
     d.card.style.touchAction = "";
     try { d.card.releasePointerCapture(d.pointerId); } catch (err) {}
-    if (!d.active) return; // 未激活：卡片仍在 grid，无占位，恢复即可
-    // 激活中：占位先移回原位槽位，再让卡片落回（commit=false，不提交排序）
+    if (!d.active) { document.body.classList.remove("no-select"); return; } // 未激活：卡片仍在 grid，无占位，恢复即可
+    // 激活中取消：no-select 保持到松开左键（防 ESC 后拖动选字），并提示已取消
+    noSelectHold = true;
+    toast(t("op.sortCancelled"), "accent");
+    // 占位先移回原位槽位，再让卡片落回（commit=false，不提交排序）
     movePlaceholderTo(d, d.origIndex);
     finishDrag(d, false);
   }
@@ -2579,11 +2592,23 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       // 取消文件夹拖拽：源 chip 放回原位
       var d = fDnd;
       fDnd = null;
-      document.body.classList.remove("no-select");
+      if (d.active) noSelectHold = true; // 激活中取消：no-select 保持到松开左键（未激活时本就未加该类）
       if (d.wrap) d.wrap.classList.remove("dragging");
       if (d.ph && d.ph.parentNode) d.ph.parentNode.removeChild(d.ph);
       if (d.active) {
         restoreSourceWrap(d);
+        toast(t("op.sortCancelled"), "accent");
+      }
+      return;
+    }
+    if (wpDnd) {
+      // 取消壁纸池拖拽：源按钮已从网格移除，重建即恢复原序
+      var w = wpDnd;
+      wpDnd = null;
+      if (w.ph && w.ph.parentNode) w.ph.parentNode.removeChild(w.ph);
+      if (w.active) {
+        noSelectHold = true; // no-select 保持到松开左键
+        buildBgList();
         toast(t("op.sortCancelled"), "accent");
       }
       return;
@@ -4255,7 +4280,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     if (!id) return;
     // 乐观删除：确认后立即从本地数据源与 DOM 移除，无需等待请求；KV 最终一致由后端保证
     removeCardLocal(id);
-    toast(t("op.del"));
+    toast(t("op.del"), "error");
     api("/api/image/delete", { method: "POST", body: JSON.stringify({ id: id }) })
       .catch(function (err) {
         // 删除失败（极少）：全量重拉恢复真实状态，保证数据一致性
@@ -4861,7 +4886,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       refreshCardBodies();
       syncFilterInPlace();
       api("/api/folder/delete", { method: "POST", body: JSON.stringify({ name: delName }) })
-        .then(function () { toast(t("folder.deleted"), "success"); })
+        .then(function () { toast(t("folder.deleted"), "error"); })
         .catch(function (err) {
           restoreImagesFrom(savedImgs2);
           lastFolders = savedFolders2;
@@ -5443,7 +5468,42 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
   }
   function wpOptions() {
     var pool = wpPoolData();
-    return ui.customUrl ? pool.concat([{ url: ui.customUrl, name: ui.customUrl, colors: null }]) : pool;
+    var cssItems = [], imgItems = [], i;
+    for (i = 0; i < pool.length; i++) (pool[i].css ? cssItems : imgItems).push(pool[i]);
+    imgItems = applyPoolOrder(imgItems); // 图片壁纸按用户拖拽顺序排列；新条目自动追加尾部
+    var all = cssItems.concat(imgItems); // CSS 背景条目固定渲染在最前（ap-css-row），不参与拖拽
+    if (ui.customUrl) all.push({ url: ui.customUrl, name: ui.customUrl, colors: null }); // 自定义 URL 临时条目固定最后，不参与拖拽
+    return all;
+  }
+  // 壁纸池图片条目顺序：mdn_wp_pool_order 存 url 数组；失效 url 忽略、新条目追加尾部
+  function loadPoolOrder() {
+    try { var a = JSON.parse(wls(K_POOL_ORDER) || "[]"); return Array.isArray(a) ? a : []; } catch (e) { return []; }
+  }
+  function applyPoolOrder(imgs) {
+    var order = loadPoolOrder();
+    if (!order.length) return imgs;
+    var byUrl = {}, i;
+    for (i = 0; i < imgs.length; i++) byUrl[imgs[i].url] = imgs[i];
+    var out = [];
+    for (i = 0; i < order.length; i++) { var it = byUrl[order[i]]; if (it) { out.push(it); delete byUrl[order[i]]; } }
+    for (var k in byUrl) if (Object.prototype.hasOwnProperty.call(byUrl, k)) out.push(byUrl[k]);
+    return out;
+  }
+  // 拖拽落位：持久化新顺序。预置池 → K_POOL_ORDER；自定义条目同步回 mdn_wp_custom 数组顺序；
+  // window.__WP__.pool 同步重排，保证 stepWp 上下张、pickWpItem 等与新网格顺序一致
+  function savePoolOrder(urlArr) {
+    wlsSet(K_POOL_ORDER, JSON.stringify(urlArr));
+    var pos = {}, i;
+    for (i = 0; i < urlArr.length; i++) pos[urlArr[i]] = i;
+    function rank(a, b) { var pa = pos[a.url] != null ? pos[a.url] : 1e9, pb = pos[b.url] != null ? pos[b.url] : 1e9; return pa - pb; }
+    try {
+      var custom = JSON.parse(wls(K_CUSTOM) || "[]");
+      if (Array.isArray(custom) && custom.length > 1) {
+        custom.sort(rank);
+        wlsSet(K_CUSTOM, JSON.stringify(custom));
+      }
+    } catch (e) {}
+    if (window.__WP__ && Array.isArray(window.__WP__.pool) && window.__WP__.pool.length > 1) window.__WP__.pool.sort(rank);
   }
   function markActiveWp() {
     var cur = (window.__WP__ && window.__WP__.url) || "";
@@ -5471,20 +5531,116 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
           b.appendChild(d);
         } else {
           var im = document.createElement("img");
-          im.src = it.url; im.alt = ""; im.loading = "lazy";
+          im.src = it.url; im.alt = ""; im.loading = "lazy"; im.draggable = false; // 禁用原生图片拖拽，手势由按钮接管
           im.addEventListener("error", function () { b.style.opacity = ".3"; });
           b.appendChild(im);
         }
         // 随机集合框选标记（仅随机模式显示）
         if (mode === "random" && rand.indexOf(it.url) !== -1) b.classList.add("rand-in");
-        b.addEventListener("click", function () { pickWpItem(it, true); });
-        b.addEventListener("mouseenter", function () { openHoverEditor(it, b); });
+        b.addEventListener("click", function () { if (wpDragActive) { wpDragActive = false; return; } pickWpItem(it, true); }); // 拖拽结束的首次 click 抑制（对照 folderDragActive）
+        b.addEventListener("mouseenter", function () { if (wpDnd && wpDnd.active) return; openHoverEditor(it, b); });
         b.addEventListener("mouseleave", scheduleHideHover);
         (it.css ? cssBox : box).appendChild(b);
       })(all[i]);
     }
     markActiveWp();
   }
+
+  // ===== 壁纸池拖拽排序（pointer 事件，模式对照文件夹拖拽；仅图片壁纸，CSS 条目在独立行不参与）=====
+  var wpDnd = null; // 壁纸池拖拽状态
+  var wpDragActive = false; // 抑制拖拽结束后误触点击选择
+  $("ap-bg-list").addEventListener("pointerdown", function (e) {
+    if (wpDnd) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    var b = e.target.closest ? e.target.closest("button[data-url]") : null;
+    if (!b) return;
+    wpDragActive = false;
+    wpDnd = { url: b.getAttribute("data-url"), el: b, pointerId: e.pointerId, startX: e.clientX, startY: e.clientY, active: false, ph: null };
+  });
+  window.addEventListener("pointermove", function (e) {
+    if (!wpDnd || e.pointerId !== wpDnd.pointerId) return;
+    if (!wpDnd.active) {
+      if (Math.abs(e.clientX - wpDnd.startX) + Math.abs(e.clientY - wpDnd.startY) < 7) return;
+      wpDnd.active = true;
+      wpDragActive = true;
+      toast(t("drag.escCancel"), "accent"); // 拖拽开始：提示按 ESC 取消
+      var box = $("ap-bg-list");
+      var srcIdx = -1;
+      for (var i = 0; i < box.children.length; i++) if (box.children[i] === wpDnd.el) { srcIdx = i; break; }
+      wpDnd.origIdx = srcIdx === -1 ? 0 : srcIdx;
+      box.removeChild(wpDnd.el); // 源按钮移出网格，其余自动补位（对照文件夹源 chip 移除）
+      document.body.classList.add("no-select");
+    }
+    e.preventDefault();
+    updateWpPh(e.clientX, e.clientY);
+  }, { passive: false });
+  // 占位判定（照抄媒体卡片 dropIndexAt 的三规则，防多行抖动）：
+  //  0) 光标在占位自身矩形内 → 保持不动（锁定当前落点；否则"ph 让位→重排→判定回选"无限抖动）
+  //  1) 光标在某按钮内部（收缩矩形，HYST 迟滞带）→ 按行内左右半区插到该按钮前/后
+  //  2) 光标在边缘迟滞带/gap/空白 → 保持当前占位不动（消除交接处来回切换）
+  function updateWpPh(x, y) {
+    var box = $("ap-bg-list");
+    var btns = box.querySelectorAll("button[data-url]");
+    var ph = wpDnd.ph;
+    if (!ph) { ph = wpDnd.ph = document.createElement("div"); ph.className = "ap-bg-ph"; }
+    // 0) 占位槽位锁定
+    if (ph.parentNode === box) {
+      var pr = ph.getBoundingClientRect();
+      if (x >= pr.left && x <= pr.right && y >= pr.top && y <= pr.bottom) return;
+    }
+    // 1) 按钮内部命中（收缩矩形）
+    var HYST = 5;
+    for (var i = 0; i < btns.length; i++) {
+      var r = btns[i].getBoundingClientRect();
+      if (x >= r.left + HYST && x <= r.right - HYST && y >= r.top + HYST && y <= r.bottom - HYST) {
+        if (x > (r.left + r.right) / 2) box.insertBefore(ph, btns[i].nextSibling);
+        else box.insertBefore(ph, btns[i]);
+        return;
+      }
+    }
+    // 2) 边缘/gap/空白：保持不动；仅占位尚未入 DOM 时（首次激活）取最近按钮落初始位
+    if (ph.parentNode !== box) {
+      var best = null, bestD = Infinity;
+      for (var j = 0; j < btns.length; j++) {
+        var r2 = btns[j].getBoundingClientRect();
+        var d = Math.abs(x - (r2.left + r2.right) / 2) + Math.abs(y - (r2.top + r2.bottom) / 2);
+        if (d < bestD) { bestD = d; best = btns[j]; }
+      }
+      if (!best) { box.appendChild(ph); return; }
+      var r3 = best.getBoundingClientRect();
+      if (x < (r3.left + r3.right) / 2) box.insertBefore(ph, best); else box.insertBefore(ph, best.nextSibling);
+    }
+  }
+  function endWpDrag() {
+    if (!wpDnd) return;
+    var d = wpDnd;
+    wpDnd = null;
+    document.body.classList.remove("no-select");
+    if (!d.active) return; // 未激活（未超过阈值）：源按钮从未移除，无需处理
+    // 落位：占位在网格 children 中的索引 → 图片条目 url 新序（源按钮已被移除，其余按现序）
+    var box = $("ap-bg-list");
+    var phIdx = -1, i;
+    if (d.ph && d.ph.parentNode === box) {
+      for (i = 0; i < box.children.length; i++) if (box.children[i] === d.ph) { phIdx = i; break; }
+    }
+    if (d.ph && d.ph.parentNode) d.ph.parentNode.removeChild(d.ph);
+    var cur = [];
+    for (i = 0; i < box.children.length; i++) {
+      var u = box.children[i].getAttribute && box.children[i].getAttribute("data-url");
+      if (u) cur.push(u);
+    }
+    if (phIdx === -1) { buildBgList(); return; } // 占位未显示（拖到面板外）：顺序无变化，重建恢复
+    var urls = cur.slice();
+    urls.splice(Math.min(phIdx, urls.length), 0, d.url);
+    // 顺序未变判定：占位索引与源原索引等价（phIdx===origIdx 即原位；phIdx===origIdx+1 即紧邻右位，等价原位）
+    if (phIdx === d.origIdx || phIdx === d.origIdx + 1) { buildBgList(); return; }
+    savePoolOrder(urls);
+    buildBgList();
+    toast(t("op.sortOk"), "success");
+  }
+  window.addEventListener("pointerup", endWpDrag);
+  window.addEventListener("pointercancel", endWpDrag);
+
   // 换壁纸后取样亮度（自动模式下反解遮罩）；CSS 背景跳过测光用预定义 scrim；token 防连点竞态
   var wpToken = 0;
   function sampleAndApply(item) {
@@ -5706,7 +5862,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       pickWpItem(target, false);
     }
     buildBgList();
-    toast(t("wp.removed"));
+    toast(t("wp.removed"), "error"); // 删除类操作用红色警示渐变（原未传 type 落到紫色 info）
   }
   // 悬浮窗为运行时创建的 DOM，不经过启动时的 applyLang：创建后与每次打开时手动填充文案
   function fillHoverI18n() {
