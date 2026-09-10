@@ -20,15 +20,15 @@ export function renderUI() {
   ];
   // 纯 CSS 背景预置（url 用 "css:" 伪地址区分；css 为 .bg 的 background 值；scrim 为预定义亮度遮罩，跳过测光）
   var CSS_PRESET = [
-    { url: "css:sky", i18n: "wp.bg.sky", name: "Sky", colors: ["#5eb2ef", "#8fd0f5", "#6fa8e8"], scrim: 0,
+    { url: "css:sky", i18n: "wp.bg.sky", name: "Sky", colors: ["#5eb2ef", "#8fd0f5", "#6fa8e8"], scrim: 100,
       css: "linear-gradient(180deg,#d8eeff,#b9dff9)" },
-    { url: "css:pink", i18n: "wp.bg.pink", name: "Sakura", colors: ["#f08cb8", "#f5b0cd", "#e87aad"], scrim: 0,
+    { url: "css:pink", i18n: "wp.bg.pink", name: "Sakura", colors: ["#f08cb8", "#f5b0cd", "#e87aad"], scrim: 100,
       css: "linear-gradient(180deg,#ffe4ee,#ffcfe0)" },
-    { url: "css:dawn", i18n: "wp.bg.dawn", name: "Daybreak", colors: ["#f5b878", "#f08ca8", "#6fa8e8"], scrim: 0,
+    { url: "css:dawn", i18n: "wp.bg.dawn", name: "Daybreak", colors: ["#f5b878", "#f08ca8", "#6fa8e8"], scrim: 100,
       css: "radial-gradient(60% 50% at 18% 12%,#ffe9c9,transparent 70%),radial-gradient(50% 45% at 85% 18%,#ffd9e8,transparent 70%),radial-gradient(70% 60% at 50% 96%,#cfe8ff,transparent 75%),linear-gradient(180deg,#fff7ef,#fdf0f4)" },
-    { url: "css:aurora", i18n: "wp.bg.aurora", name: "Aurora", colors: ["#48b8e8", "#9a86e8", "#4ed0a4"], scrim: 0,
+    { url: "css:aurora", i18n: "wp.bg.aurora", name: "Aurora", colors: ["#48b8e8", "#9a86e8", "#4ed0a4"], scrim: 100,
       css: "radial-gradient(55% 45% at 15% 25%,#c9f0ff,transparent 70%),radial-gradient(50% 50% at 85% 28%,#d9ccff,transparent 70%),radial-gradient(65% 55% at 50% 92%,#c2f0db,transparent 75%),linear-gradient(180deg,#f3fbff,#f5f2ff)" },
-    { url: "css:dusk", i18n: "wp.bg.dusk", name: "Dusk", colors: ["#e885ae", "#f0b485", "#85aee0"], scrim: 0,
+    { url: "css:dusk", i18n: "wp.bg.dusk", name: "Dusk", colors: ["#e885ae", "#f0b485", "#85aee0"], scrim: 100,
       css: "radial-gradient(80% 60% at 82% 0%,rgba(255,255,255,.92),transparent 60%),linear-gradient(135deg,#ffe0ec 0%,#fff3e0 45%,#dfeaff 100%)" }
   ];
   var K_MODE = "mdn_wp_mode", K_FIXED = "mdn_wp_fixed", K_DECK = "mdn_wp_deck", K_CUSTOM = "mdn_wp_custom", K_POOL_ORDER = "mdn_wp_pool_order";
@@ -94,7 +94,10 @@ export function renderUI() {
 :root{
   --c1:#6366f1;--c2:#a855f7;--c3:#ec4899;
   --accent:#8b5cf6;--accent2:#ec4899;
-  --text:#1f2937;--muted:#6b7280;
+  /* 文字色令牌：--text=「文字颜色」设置色（黑/白）；--muted=由 --text 派生（跟随设置）；
+     --on-grad=主题渐变底按钮内文字（跟随设置）；--opposite=互斥组未选中对立色；--text-fixed=固定浅底控件文字（恒深色） */
+  --text:#111827;--muted:color-mix(in srgb,var(--text) 62%,transparent);
+  --on-grad:var(--text);--opposite:#ffffff;--text-fixed:#1f2937;
   /* 玻璃材质：白覆盖越低越通透，靠 saturate 提色而非白膜提亮（数值均可调） */
   --glass-chip:rgba(255,255,255,.55);   /* 小控件：轻微通透 */
   --glass-line:rgba(255,255,255,.65);
@@ -102,7 +105,8 @@ export function renderUI() {
   --lg-blur:24px;
   --lg-sat:175%;
   --lg-bright:1.05;
-  --lg-scrim:.18;                          /* 背景亮度遮罩（白系），由外观面板的亮度滑条/自动测光覆写 */
+  --lg-scrim:.18;                          /* 背景亮度白遮罩（提亮侧），由外观面板的亮度滑条/自动测光覆写 */
+  --lg-shade:0;                            /* 背景亮度黑遮罩（压暗侧） */
   --lg-tint-top:rgba(255,255,255,.04);
   --lg-tint-bottom:rgba(31,41,55,.03);
   --card-body-alpha:0.08;
@@ -149,6 +153,9 @@ export function renderUI() {
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 .glass>*,.card>*,.login-card>*,.modal-box>*,.origin-box>*,.detail-box>*{position:relative;z-index:1}
+/* 文字颜色设置：html[data-text] 切换主文字色与对立色（--muted/--on-grad 派生自 --text，自动跟随） */
+html[data-text="black"]{--text:#111827;--opposite:#ffffff}
+html[data-text="white"]{--text:#ffffff;--opposite:#111827}
 html,body{height:100%}
 /* 背景层：.bg(壁纸) + .bg-scrim(白系遮罩)，对齐参考站的两层负 z 结构。
    ⚠ 内容层（.app / .login-screen）不要加 z-index：会创建 stacking context 把 backdrop 采样范围
@@ -157,7 +164,10 @@ html,body{height:100%}
 .bg img{width:100%;height:100%;object-fit:cover;object-position:center;opacity:0;transform:scale(1.02);transition:opacity .35s ease}
 .bg img.show{opacity:1}
 /* 亮度遮罩：白色系（本站浅色主题 + 深色正文），强度由「外观」面板的亮度滑条/自动测光写入 */
-.bg-scrim{z-index:-1;background:linear-gradient(180deg,rgba(255,255,255,calc(var(--lg-scrim)*.9)) 0%,rgba(255,255,255,var(--lg-scrim)) 40%,rgba(255,255,255,calc(var(--lg-scrim)*1.18)) 100%)}
+/* 亮度遮罩：>100% 用白遮罩提亮、<100% 用黑遮罩压暗（两层互斥，同时只会有一层不透明） */
+.bg-scrim{z-index:-1;background:
+  linear-gradient(180deg,rgba(0,0,0,calc(var(--lg-shade)*1.18)) 0%,rgba(0,0,0,var(--lg-shade)) 40%,rgba(0,0,0,calc(var(--lg-shade)*.9)) 100%),
+  linear-gradient(180deg,rgba(255,255,255,calc(var(--lg-scrim)*.9)) 0%,rgba(255,255,255,var(--lg-scrim)) 40%,rgba(255,255,255,calc(var(--lg-scrim)*1.18)) 100%)}
 /* 兜底：壁纸/CSS 背景加载前的纯色底（渐变兜底已移除，由图片池的 CSS 背景预置承担） */
 html{background-color:#f4f2fb;scrollbar-gutter:stable}
 
@@ -315,7 +325,7 @@ a{color:var(--accent)}
 .nav-btn{text-align:left;padding:10px 12px;border-radius:9px;color:var(--text);font-size:14px;transition:background .15s,color .15s}
 .nav-btn:hover{background:color-mix(in srgb,var(--accent) 12%,transparent);color:var(--accent)}
 /* active 用主题渐变胶囊（渐变下垫同色实底，避免圆角边缘透底） */
-.nav-btn.active{background:var(--grad) var(--c1);color:#fff;box-shadow:0 4px 14px color-mix(in srgb,var(--accent) 35%,transparent)}
+.nav-btn.active{background:var(--grad) var(--c1);color:var(--on-grad);box-shadow:0 4px 14px color-mix(in srgb,var(--accent) 35%,transparent)}
 .logout{margin-top:8px;padding:9px 12px;border-radius:9px;color:var(--muted);font-size:13px;text-align:left;transition:background .15s,color .15s}
 .logout:hover{background:color-mix(in srgb,#ef4444 12%,transparent);color:#dc2626}
 /* 分页器 */
@@ -324,11 +334,11 @@ a{color:var(--accent)}
 .pg-btn,.pg-num{min-width:34px;height:34px;padding:0 8px;border-radius:9px;border:1px solid rgba(0,0,0,.12);background:var(--glass-chip);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
 .pg-btn:hover:not(:disabled),.pg-num:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-1px)}
 .pg-btn:disabled{opacity:.4;cursor:default}
-.pg-num.active{background:var(--grad) var(--c1);color:#fff;border:none;cursor:text}
-.pg-num.active:hover{color:#fff;transform:none}
+.pg-num.active{background:var(--grad) var(--c1);color:var(--on-grad);border:none;cursor:text}
+.pg-num.active:hover{color:var(--on-grad);transform:none}
 .pg-gap{color:var(--muted);padding:0 2px}
 .pg-info{font-size:12px;color:var(--muted);margin-left:8px}
-.pg-jump{width:52px;height:34px;border:1px solid var(--accent);border-radius:9px;outline:none;font-size:13px;font-weight:600;text-align:center;background:#fff;color:var(--text)}
+.pg-jump{width:52px;height:34px;border:1px solid var(--accent);border-radius:9px;outline:none;font-size:13px;font-weight:600;text-align:center;background:#fff;color:var(--text-fixed)}
 .logout-in-settings{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 22px;border-radius:10px;font-size:14px;color:#fff;background:linear-gradient(160deg,#f43f5e,#ef4444);box-shadow:0 6px 18px rgba(239,68,68,.3);transition:transform .1s,box-shadow .15s,opacity .15s}
 .logout-in-settings:hover{box-shadow:0 8px 24px rgba(239,68,68,.4)}
 .logout-in-settings:active{transform:scale(.97)}
@@ -361,12 +371,12 @@ a{color:var(--accent)}
 .mode-option em{font-style:normal;color:var(--muted);font-size:12px}
 /* 添加栏模式切换（普通链接 / OneDrive 链接） */
 .add-mode-toggle{display:flex;gap:8px;margin-bottom:16px}
-.at-seg{flex:1;padding:10px 14px;border-radius:10px;font-size:14px;font-weight:600;color:var(--muted);background:rgba(255,255,255,.55);border:1px solid rgba(0,0,0,.1);cursor:pointer;transition:all .18s ease}
+.at-seg{flex:1;padding:10px 14px;border-radius:10px;font-size:14px;font-weight:600;color:var(--opposite);background:rgba(255,255,255,.55);border:1px solid rgba(0,0,0,.1);cursor:pointer;transition:all .18s ease}
 .at-seg:hover{border-color:var(--accent);color:var(--text)}
 /* 激活态用水平三色渐变：宽扁长条上 135deg 对角渐变会让第三色挤在角落，
    且 background-size 放大超过 100% 会把色标推出元素外 */
 /* 激活态统一 var(--grad)：跟随设置的渐变方向；垫同色实底避免圆角边缘透底；去透明边框补偿 1px padding */
-.at-seg.active{background:var(--grad) var(--c1);color:#fff;border:none;padding:11px 15px;box-shadow:0 6px 16px color-mix(in srgb,var(--accent) 38%,transparent)}
+.at-seg.active{background:var(--grad) var(--c1);color:var(--on-grad);border:none;padding:11px 15px;box-shadow:0 6px 16px color-mix(in srgb,var(--accent) 38%,transparent)}
 /* OneDrive 解析结果信息条 */
 .od-info{display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px 14px;border:1px dashed rgba(0,0,0,.16);border-radius:9px;background:rgba(255,255,255,.5)}
 .od-icon{width:10px;height:10px;border-radius:3px;background:var(--grad);flex-shrink:0}
@@ -405,7 +415,7 @@ a{color:var(--accent)}
 .batch-result .br-fail li{display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-top:1px dashed rgba(0,0,0,.1)}
 .batch-result .br-url{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
 .batch-result .br-err{flex-shrink:0;font-size:12px;color:#d33}
-.batch-result .br-retry{flex-shrink:0;font-size:12px;padding:2px 10px;border-radius:999px;border:1px solid rgba(0,0,0,.15);cursor:pointer;background:#fff;color:var(--text)}
+.batch-result .br-retry{flex-shrink:0;font-size:12px;padding:2px 10px;border-radius:999px;border:1px solid rgba(0,0,0,.15);cursor:pointer;background:#fff;color:var(--text-fixed)}
 .batch-result .br-retry:hover{border-color:var(--accent);color:var(--accent)}
 /* 次级按钮 */
 .secondary{padding:11px 18px;border-radius:10px;font-size:14px;font-weight:600;background:var(--glass-chip);-webkit-backdrop-filter:blur(10px) saturate(1.7);backdrop-filter:blur(10px) saturate(1.7);border:1px solid rgba(0,0,0,.14);color:var(--text);cursor:pointer;transition:all .15s ease;white-space:nowrap}
@@ -419,24 +429,24 @@ a{color:var(--accent)}
 
 /* 文件夹栏 */
 .folder-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px}
-.fchip{padding:6px 14px;border-radius:999px;font-size:13px;background:var(--glass-chip);border:1px solid rgba(0,0,0,.1);color:#374151;transition:all .15s}
+.fchip{padding:6px 14px;border-radius:999px;font-size:13px;background:var(--glass-chip);border:1px solid rgba(0,0,0,.1);color:var(--text);transition:all .15s}
 .fchip:hover{transform:translateY(-1px);border-color:var(--accent)}
 /* 渐变 active 态统一规范（对齐 .primary）：去掉透明边框（补偿 1px padding）+ 渐变下垫同色实底。
    垫底是为了让圆角边缘的半像素抗锯齿透出主题色而非父背景——这正是此前"两侧 1px 没被渐变覆盖"的成因
    （图片壁纸上尤其明显，纯 CSS 浅色背景时因色差小而不易察觉） */
-.fchip.active{background:var(--grad) var(--c1);color:#fff;border:none;padding:7px 15px;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+.fchip.active{background:var(--grad) var(--c1);color:var(--on-grad);border:none;padding:7px 15px;box-shadow:0 4px 14px rgba(0,0,0,.2)}
 .fchip.add{background:rgba(255,255,255,.5);border-style:dashed;font-weight:700}
 .fchip-wrap{position:relative;display:inline-flex;align-items:center;gap:3px;cursor:grab}
 .fchip-wrap.dragging{opacity:.45}
 .fchip-wrap.dragging:active{cursor:grabbing}
 .fchip-ph{display:inline-flex;align-items:center;justify-content:center;min-width:40px;padding:6px 14px;margin:0 2px;border:2px dashed color-mix(in srgb,var(--accent) 62%,transparent);border-radius:999px;background:color-mix(in srgb,var(--accent) 12%,transparent);font-size:13px;line-height:1.4;color:color-mix(in srgb,var(--accent) 78%,#444);white-space:nowrap;vertical-align:middle;pointer-events:none;animation:phPulse 1.3s ease-in-out infinite}
-.fchip-menu{width:24px;height:30px;border-radius:8px;background:rgba(255,255,255,.6);border:1px solid rgba(0,0,0,.08);color:#6b7280;font-size:12px}
-.fchip-menu:hover{background:#fff;color:var(--text)}
+.fchip-menu{width:24px;height:30px;border-radius:8px;background:rgba(255,255,255,.6);border:1px solid rgba(0,0,0,.08);color:var(--text-fixed);font-size:12px}
+.fchip-menu:hover{background:#fff;color:var(--text-fixed)}
 .chip-pop{
   position:fixed;z-index:1600;background:#fff;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.2);
   padding:6px;min-width:130px;display:flex;flex-direction:column;gap:2px
 }
-.chip-pop button{text-align:left;padding:7px 10px;border-radius:7px;font-size:13px;color:#374151}
+.chip-pop button{text-align:left;padding:7px 10px;border-radius:7px;font-size:13px;color:var(--text-fixed)}
 .chip-pop button:hover{background:#f3f4f6}
 .chip-pop button.danger{color:#dc2626}
 .chip-pop button.danger:hover{background:#fef2f2}
@@ -455,10 +465,10 @@ a{color:var(--accent)}
 .toolbar-right{display:flex;align-items:center;gap:10px}
 .view-toggle{display:flex;align-items:center;background:var(--glass-chip);-webkit-backdrop-filter:blur(10px) saturate(1.7);backdrop-filter:blur(10px) saturate(1.7);border:1px solid rgba(0,0,0,.1);border-radius:999px;padding:3px;gap:3px}
 .view-toggle.flip{animation:langFlip .45s ease}
-.vt-opt{display:flex;align-items:center;justify-content:center;width:30px;height:26px;border-radius:999px;color:var(--accent);transition:color .2s ease,background .25s ease,box-shadow .2s ease}
+.vt-opt{display:flex;align-items:center;justify-content:center;width:30px;height:26px;border-radius:999px;color:var(--opposite);transition:color .2s ease,background .25s ease,box-shadow .2s ease}
 .vt-opt svg{width:16px;height:16px;display:block}
 .vt-opt:hover{color:var(--accent2)}
-.vt-opt.active{background:var(--grad) var(--c1);background-size:100% 100%;color:#fff;box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 35%,transparent);animation:segPop .4s cubic-bezier(.34,1.56,.64,1)}
+.vt-opt.active{background:var(--grad) var(--c1);background-size:100% 100%;color:var(--on-grad);box-shadow:0 2px 8px color-mix(in srgb,var(--accent) 35%,transparent);animation:segPop .4s cubic-bezier(.34,1.56,.64,1)}
 .vt-opt.active svg{filter:drop-shadow(0 1px 2px rgba(0,0,0,.2))}
 
 /* 图片网格 */
@@ -491,7 +501,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
 .img-card:not(.view-list) .card-body{background:rgba(255,255,255,var(--card-body-alpha,.08))} /* 信息区底色，外观面板可调 */
 .img-card .img-name,.img-card .img-name .t{color:var(--text)}
 .img-card .img-name .pen{color:var(--muted)}
-.img-card .img-id,.img-card .img-id .t{color:#4b5563}
+.img-card .img-id,.img-card .img-id .t{color:var(--muted)}
 .img-card .img-url{color:var(--muted)}
 .img-card .muted{color:var(--muted)}
 .img-card .lst-time,.img-card .lst-size{color:var(--muted)}
@@ -500,13 +510,13 @@ body.no-select{user-select:none;-webkit-user-select:none}
 .img-card.view-list{background-color:rgba(255,255,255,var(--card-body-alpha,.08))}
 .img-card.view-list .lst-name-hit .t{color:var(--text)}
 /* 名称编辑框 */
-.img-card .name-edit{background:#fff;color:var(--text)}
+.img-card .name-edit{background:#fff;color:var(--text-fixed)}
 .card-top{display:flex;align-items:center;justify-content:space-between;min-height:22px;line-height:22px}
 .badge{font-size:11px;padding:2px 8px;border-radius:999px;font-weight:600}
 .badge-proxy{background:color-mix(in srgb,var(--c1) 16%,#fff);color:var(--c1)}
 /* 卡片内徽章数量多（每卡 1-2 个），只降白覆盖、不加 backdrop-filter，避免几十个滤镜拖垮滚动 */
-.badge-dns{background:var(--glass-chip);color:#4b5563;border:1px solid rgba(0,0,0,.08)}
-.badge-type{background:var(--glass-chip);color:#4b5563;border:1px solid rgba(0,0,0,.1)}
+.badge-dns{background:var(--glass-chip);color:var(--text);border:1px solid rgba(0,0,0,.08)}
+.badge-type{background:var(--glass-chip);color:var(--text);border:1px solid rgba(0,0,0,.1)}
 .badge-type-image{background:color-mix(in srgb,#3b82f6 14%,#fff);color:#2563eb;border-color:transparent}
 .badge-type-audio{background:color-mix(in srgb,#10b981 14%,#fff);color:#059669;border-color:transparent}
 .badge-type-video{background:color-mix(in srgb,#f59e0b 14%,#fff);color:#d97706;border-color:transparent}
@@ -515,7 +525,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
 .img-name .pen{flex:none;font-size:11px;color:var(--muted);opacity:0;transition:opacity .15s}
 .img-name:hover .pen{opacity:1}
 .name-edit{width:100%;padding:5px 8px;font-size:14px;font-weight:600;border:1px solid var(--accent);border-radius:7px;outline:none}
-.img-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#4b5563;line-height:16px;min-height:16px;display:flex;align-items:center;gap:6px}
+.img-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:var(--muted);line-height:16px;min-height:16px;display:flex;align-items:center;gap:6px}
 .img-id .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .img-id .zoom-inline{flex:none;background:rgba(255,255,255,.85);border:1px solid rgba(0,0,0,.12);color:var(--accent);font-size:11px;line-height:18px;padding:0 8px;border-radius:6px;transition:background .15s,color .15s,border-color .15s}
 .img-id .zoom-inline:hover{background:#fff;color:var(--accent2);border-color:var(--accent)}
@@ -530,7 +540,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
 .img-card.view-list .lst-name-hit .pen{flex:none;font-size:11px;color:var(--muted);opacity:0;transition:opacity .15s}
 .img-card.view-list .lst-name-hit:hover .pen{opacity:1}
 .img-card.view-list .badge{flex:none;white-space:nowrap;line-height:1}
-.img-card.view-list .lst-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:#4b5563;flex:0 1 120px;min-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1}
+.img-card.view-list .lst-id{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;color:var(--muted);flex:0 1 120px;min-width:76px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1}
 .img-card.view-list .fsel{flex:0 1 130px;width:auto;min-width:90px;padding:3px 6px;font-size:12px}
 .img-card.view-list .lst-time{flex:0 1 100px;min-width:78px;color:var(--muted);font-size:12px;line-height:1}
 .img-card.view-list .lst-size{flex:0 0 72px;color:var(--muted);font-size:12px;text-align:right;line-height:1}
@@ -551,7 +561,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
   .img-card.view-list .fsel{min-width:80px}
 }
 .img-url{font-size:11px;color:var(--muted);line-height:15px;min-height:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.fsel{width:100%;padding:5px 8px;font-size:12px;border:1px solid rgba(0,0,0,.12);border-radius:7px;background:rgba(255,255,255,.85);color:#374151;cursor:pointer}
+.fsel{width:100%;padding:5px 8px;font-size:12px;border:1px solid rgba(0,0,0,.12);border-radius:7px;background:rgba(255,255,255,.85);color:var(--text-fixed);cursor:pointer}
 .fsel:focus{border-color:var(--accent)}
 .actions{display:flex;align-items:center;gap:8px;margin-top:2px}
 .mini{font-size:12px;padding:5px 11px;border-radius:7px;border:1px solid rgba(0,0,0,.12);background:rgba(255,255,255,.85);transition:background .15s,transform .1s}
@@ -559,7 +569,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
 .mini:active{transform:none}
 .mini.danger{color:#dc2626;border-color:#f3c1c1}
 .mini.danger:hover{background:#fef2f2}
-.mini.copied{background:#16a34a;color:#fff;border-color:transparent}
+.mini.copied{background:#16a34a;color:var(--on-grad);border-color:transparent}
 .switch{position:relative;display:inline-flex;width:34px;height:20px;margin-right:auto;flex:none}
 .switch input{opacity:0;width:0;height:0}
 .switch span{position:absolute;inset:0;background:#d1d5db;border-radius:999px;transition:.2s}
@@ -588,7 +598,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
 .group{padding:20px 22px}
 
 .group h3{font-size:15px;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid rgba(0,0,0,.08)}
-.group label{display:block;font-size:13px;color:#374151;margin-bottom:14px}
+.group label{display:block;font-size:13px;color:var(--text);margin-bottom:14px}
 .group label small{color:var(--muted);display:block;margin-top:2px;font-size:12px}
 /* 多值设置项（如白名单）用 textarea：随内容自动增高，满一行即伸展，长列表不再挤成一行 */
 textarea.auto-grow{display:block;width:100%;min-height:38px;max-height:220px;resize:none;overflow-y:auto;padding:11px 14px;border:1px solid rgba(0,0,0,.12);border-radius:9px;outline:none;background:rgba(255,255,255,.85);font-family:inherit;font-size:14px;line-height:1.6;color:inherit;transition:border-color .15s,box-shadow .15s}
@@ -597,7 +607,7 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 .group input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent)}
 .checkline{display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:14px;cursor:pointer}
 .checkline input{width:16px;height:16px;accent-color:var(--accent)}
-.readonly-box{background:rgba(255,255,255,.6);border:1px solid rgba(0,0,0,.08);border-radius:8px;padding:10px 12px;font-size:13px;color:#374151;margin-top:6px}
+.readonly-box{background:rgba(255,255,255,.6);border:1px solid rgba(0,0,0,.08);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--text-fixed);margin-top:6px}
 .mode-radio-row{display:flex;gap:22px;margin-top:6px;flex-wrap:wrap}
 .mode-radio-row label{display:flex;align-items:center;gap:7px;font-size:14px;cursor:pointer}
 .mode-radio-row input{accent-color:var(--accent)}
@@ -606,7 +616,7 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 
 /* 按钮 */
 .primary{
-  background:var(--grad) var(--c1);background-size:100% 100%;background-repeat:no-repeat;color:#fff;
+  background:var(--grad) var(--c1);background-size:100% 100%;background-repeat:no-repeat;color:var(--on-grad);
   border:none;padding:11px 22px;
   border-radius:10px;font-size:14px;font-weight:700;letter-spacing:.3px;
   box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 42%,transparent);
@@ -643,7 +653,7 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
    动画结束后覆盖不全、需二次重建；纯淡入使打开瞬间即为最终尺寸，滤镜一次到位 */
 @keyframes popIn{from{opacity:0}to{opacity:1}}
 .modal-box h3{font-size:15px;margin-bottom:10px}
-.modal-box p{font-size:13px;color:#374151;line-height:1.6;word-break:break-all}
+.modal-box p{font-size:13px;color:var(--text);line-height:1.6;word-break:break-all}
 .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:18px}
 
 /* SSRF 白名单快捷添加弹窗：层级高于删除确认（2300）、低于 toast（2400）。遮罩不加 backdrop-filter（同 .modal 注释） */
@@ -651,9 +661,9 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 .origin-box{width:420px;max-width:100%;border-radius:14px;padding:22px;animation:popIn .16s ease-out}
 .origin-title{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;margin-bottom:10px}
 .origin-dot{width:9px;height:9px;border-radius:50%;background:var(--grad);background-size:200% 200%;box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent);flex-shrink:0}
-.origin-desc{font-size:13px;color:#374151;line-height:1.6;margin-bottom:14px;word-break:break-all}
+.origin-desc{font-size:13px;color:var(--text);line-height:1.6;margin-bottom:14px;word-break:break-all}
 .origin-host{display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12.5px;padding:2px 8px;border-radius:7px;background:color-mix(in srgb,var(--accent) 12%,transparent);border:1px solid color-mix(in srgb,var(--accent) 32%,transparent);color:var(--accent);word-break:break-all}
-.origin-field label{display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:6px}
+.origin-field label{display:block;font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px}
 .origin-field input{width:100%;padding:11px 14px;border:1px solid rgba(0,0,0,.12);border-radius:9px;outline:none;background:rgba(255,255,255,.85);font-size:13.5px;transition:border-color .15s,box-shadow .15s}
 .origin-field input:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 14%,transparent)}
 .origin-hints{margin-top:12px;display:flex;flex-direction:column;gap:6px}
@@ -663,16 +673,16 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 .origin-err.show{display:block}
 /* 主按钮沿用 .mini 尺寸（与删除确认弹窗按钮组一致）+ 水平三色渐变。
    hover 必须重申渐变背景：.mini:hover 有 background:#fff，同特异性下会覆盖渐变导致白底白字 */
-.origin-ok{background:linear-gradient(90deg,var(--c1),var(--c2),var(--c3));color:#fff;border:none;box-shadow:0 6px 16px color-mix(in srgb,var(--accent) 32%,transparent);transition:filter .15s,box-shadow .15s,transform .1s,opacity .15s}
+.origin-ok{background:linear-gradient(90deg,var(--c1),var(--c2),var(--c3));color:var(--on-grad);border:none;box-shadow:0 6px 16px color-mix(in srgb,var(--accent) 32%,transparent);transition:filter .15s,box-shadow .15s,transform .1s,opacity .15s}
 .origin-ok:hover{background:linear-gradient(90deg,var(--c1),var(--c2),var(--c3));filter:brightness(1.1);box-shadow:0 9px 22px color-mix(in srgb,var(--accent) 44%,transparent);transform:translateY(-1px)}
 .origin-ok:active{transform:translateY(0);filter:brightness(.95);box-shadow:0 4px 12px color-mix(in srgb,var(--accent) 30%,transparent)}
 .origin-ok:disabled{opacity:.6;filter:none;transform:none;box-shadow:none;cursor:default}
 
 /* 壁纸取色弹窗：层级高于 origin-modal（2350）、低于 toast（2400） */
 .wp-modal{z-index:2360}
-.wp-desc{font-size:13px;color:#374151;line-height:1.6;margin-bottom:12px}
+.wp-desc{font-size:13px;color:var(--text);line-height:1.6;margin-bottom:12px}
 .wp-colors{display:flex;gap:12px;margin-bottom:12px}
-.wp-colors label{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;color:#374151}
+.wp-colors label{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:12px;color:var(--text)}
 .wp-colors input[type="color"]{width:52px;height:36px;border:1px solid rgba(0,0,0,.12);border-radius:8px;padding:2px;background:#fff;cursor:pointer}
 .wp-preview{height:14px;border-radius:999px;margin:4px 0 2px;background:linear-gradient(90deg,#6366f1,#a855f7,#ec4899);transition:background .15s}
 .wp-preset-label{margin:12px 0 4px;font-size:12px;font-weight:600;color:var(--muted)}
@@ -702,13 +712,18 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 #wh-remove:hover{background:rgba(220,38,38,.14)}
 /* 设置页壁纸分组 */
 .wp-mode-row{display:flex;gap:8px;flex-wrap:wrap}
-.wp-mode-btn{padding:7px 16px;border-radius:999px;font-size:13px;font-weight:600;background:var(--glass-chip);border:1px solid rgba(0,0,0,.12);color:var(--text);cursor:pointer;transition:all .15s}
-.wp-mode-btn.active{background:var(--grad) var(--c1);color:#fff;border:none;padding:8px 17px}
+.wp-mode-btn{padding:7px 16px;border-radius:999px;font-size:13px;font-weight:600;background:var(--glass-chip);border:1px solid rgba(0,0,0,.12);color:var(--opposite);cursor:pointer;transition:all .15s}
+.wp-mode-btn.active{background:var(--grad) var(--c1);color:var(--on-grad);border:none;padding:8px 17px}
+/* 悬浮编辑器内的文字颜色按钮组（比设置页更紧凑） */
+.wh-text-row{display:flex;align-items:center;gap:8px;margin-top:8px}
+.wh-text-row .wh-text-label{font-size:12px;color:var(--muted);margin-right:auto}
+.wh-text-row .wp-mode-btn{padding:5px 12px;font-size:12px}
+.wh-text-row .wp-mode-btn.active{padding:5px 12px}
 
 /* ===== 外观面板（折叠式；控件布局参照 we-pkg-web 的 dock，配色沿用本站浅色玻璃） ===== */
 /* 外观 dock：常驻左下角的独立玻璃面板（脱离设置页），默认折叠 */
 .ap-dock{
-  position:fixed;left:20px;bottom:20px;z-index:1200;width:300px;
+  position:fixed;left:4px;bottom:20px;z-index:1200;width:300px;
   border-radius:16px;overflow:hidden;
   background:
     linear-gradient(180deg,var(--lg-tint-top),var(--lg-tint-bottom)),
@@ -744,16 +759,11 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 .ap-bg-list button.rand-in{border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 55%,transparent)}
 .ap-bg-list button.rand-in::after{content:"";position:absolute;top:3px;right:3px;width:8px;height:8px;border-radius:50%;background:var(--grad);box-shadow:0 0 0 2px rgba(255,255,255,.85)}
 .ap-bg-list button[aria-pressed="true"]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent),0 6px 16px -6px rgba(31,41,55,.45)}
-.ap-bg-arrows{display:flex;flex-direction:column;gap:6px;flex:none}
-.ap-bg-arrow{flex:1;width:26px;font:inherit;font-size:15px;line-height:1;cursor:pointer;color:var(--text);background:rgba(255,255,255,.35);border:1px solid rgba(0,0,0,.12);border-radius:9px;box-shadow:inset 0 1px 0 var(--lg-inner-top)}
-.ap-bg-arrow:hover{border-color:var(--accent);color:var(--accent)}
 .ap-field{display:flex;flex-direction:column;gap:6px;margin-bottom:0}
 .ap-field input[type=url]{padding:7px 10px;border-radius:9px;border:1px solid rgba(0,0,0,.14);background:rgba(255,255,255,.5);color:var(--text)}
 .ap-slider{display:flex;flex-direction:column;gap:5px;margin-bottom:0}
 .ap-slider-top{display:flex;align-items:center;gap:8px}
 .ap-slider-top small{margin-left:auto;color:var(--muted);font-size:12px}
-.ap-reset{margin-left:auto;padding:2px 9px;font:inherit;font-size:11px;border-radius:999px;border:1px solid rgba(0,0,0,.14);background:rgba(255,255,255,.4);color:var(--muted);cursor:pointer}
-.ap-reset:disabled{opacity:.45;cursor:default}
 .ap-slider input[type=range]{width:100%;accent-color:var(--accent)}
 /* 拖滑条圆点时防止 label 文本被选中，触发浏览器"松开以搜索"浮条 */
 .ap-slider,.ap-slider-top,.wp-hover,.wp-colors,.ap-switches{user-select:none;-webkit-user-select:none}
@@ -768,7 +778,7 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
      循环动画（地球自转/星闪/渐变位移/骨架屏闪耀/转圈等）压成每秒千帧循环 = 抽搐 */
 body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:none!important;animation:none!important}
 /* 解析按钮与「设为壁纸」按钮用主题渐变（.secondary 的玻璃底 + 渐变覆盖，保留 hover/禁用态） */
-#od-resolve-btn,.detail-wp-btn{background:var(--grad) var(--c1);background-size:100% 100%;background-repeat:no-repeat;color:#fff;border:none;font-weight:600;transition:transform .12s ease,box-shadow .15s ease}
+#od-resolve-btn,.detail-wp-btn{background:var(--grad) var(--c1);background-size:100% 100%;background-repeat:no-repeat;color:var(--on-grad);border:none;font-weight:600;transition:transform .12s ease,box-shadow .15s ease}
 #od-resolve-btn:hover,.detail-wp-btn:hover{transform:translateY(-1px);box-shadow:0 8px 20px color-mix(in srgb,var(--accent) 40%,transparent)}
 #od-resolve-btn:disabled,.detail-wp-btn:disabled{opacity:.6;background:var(--glass-chip);color:var(--text);box-shadow:none}
 .detail-wp-btn{flex:none}
@@ -779,7 +789,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
 .detail-box{width:1026px;max-width:100%;max-height:92vh;overflow:auto;border-radius:22px;animation:popIn .16s ease-out}
 .detail-head{display:flex;align-items:center;justify-content:space-between;padding:19px 24px 0}
 .detail-head h3{font-size:20px;font-weight:600;color:var(--text)}
-.detail-close{font-size:35px;line-height:1;color:#9ca3af;cursor:pointer;transition:color .15s,transform .15s;background:none;border:none;padding:0 2px}
+.detail-close{font-size:35px;line-height:1;color:var(--muted);cursor:pointer;transition:color .15s,transform .15s;background:none;border:none;padding:0 2px}
 .detail-close:hover{color:#dc2626;transform:rotate(90deg)}
 .detail-body{display:flex;gap:24px;padding:19px 24px 24px}
 .detail-left{width:405px;flex:none;display:flex;flex-direction:column;gap:13px}
@@ -787,9 +797,9 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
 .detail-name{font-size:19px;font-weight:600;cursor:pointer;line-height:1.35;word-break:break-all;display:flex;align-items:center;gap:8px;color:var(--text);max-width:100%}
 .detail-name:hover .pen{opacity:1}
 .detail-name .pen{opacity:.6}
-.detail-name input{width:100%;font-size:17px;padding:5px 11px;border-radius:6px;border:1px solid var(--accent);outline:none;color:#1f2937}
+.detail-name input{width:100%;font-size:17px;padding:5px 11px;border-radius:6px;border:1px solid var(--accent);outline:none;color:var(--text-fixed)}
 .detail-folder{font-size:16px;color:var(--muted);display:flex;align-items:center;gap:8px;max-width:100%;word-break:break-all}
-.detail-folder select{width:100%;font-size:16px;padding:5px 11px;border-radius:8px;border:1px solid rgba(0,0,0,.15);background:#fff;color:#1f2937;outline:none;cursor:pointer}
+.detail-folder select{width:100%;font-size:16px;padding:5px 11px;border-radius:8px;border:1px solid rgba(0,0,0,.15);background:#fff;color:var(--text-fixed);outline:none;cursor:pointer}
 .detail-folder select:focus{border-color:var(--accent)}
 .detail-media{width:100%;border-radius:12px;overflow:hidden;background:none;min-height:405px;display:flex;align-items:center;justify-content:center}
 .detail-thumb{width:100%;height:100%;display:flex;align-items:center;justify-content:center;padding:0}
@@ -807,11 +817,11 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
 .detail-copy{flex:1;min-width:0;display:flex;flex-direction:column;gap:14px}
 .dt-sec-title{font-size:16px;font-weight:600;color:var(--muted);margin:3px 0 0}
 .detail-chips{display:flex;flex-wrap:wrap;gap:11px}
-.dchip{padding:8px 19px;border-radius:999px;font-size:17px;background:var(--glass-chip);-webkit-backdrop-filter:blur(10px) saturate(1.7);backdrop-filter:blur(10px) saturate(1.7);border:1px solid rgba(0,0,0,.1);color:#374151;transition:all .15s;font-weight:500}
+.dchip{padding:8px 19px;border-radius:999px;font-size:17px;background:var(--glass-chip);-webkit-backdrop-filter:blur(10px) saturate(1.7);backdrop-filter:blur(10px) saturate(1.7);border:1px solid rgba(0,0,0,.1);color:var(--opposite);transition:all .15s;font-weight:500}
 .dchip:hover{transform:translateY(-1px);border-color:var(--accent)}
-.dchip.active{background:var(--grad) var(--c1);color:#fff;border:none;padding:9px 20px;box-shadow:0 4px 14px rgba(0,0,0,.2)}
+.dchip.active{background:var(--grad) var(--c1);color:var(--on-grad);border:none;padding:9px 20px;box-shadow:0 4px 14px rgba(0,0,0,.2)}
 .detail-preview{margin-top:3px}
-.detail-preview textarea{width:100%;min-height:97px;resize:vertical;padding:14px 16px;border-radius:10px;border:1px solid rgba(0,0,0,.12);background:#fafafa;color:#374151;font-size:17px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.6;word-break:break-all}
+.detail-preview textarea{width:100%;min-height:97px;resize:vertical;padding:14px 16px;border-radius:10px;border:1px solid rgba(0,0,0,.12);background:#fafafa;color:var(--text-fixed);font-size:17px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.6;word-break:break-all}
 .detail-preview textarea:focus{border-color:var(--accent);outline:none}
 .detail-copy-btn{align-self:flex-start;margin-top:3px}
 .detail-actions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px}
@@ -837,6 +847,39 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
 @media (prefers-reduced-motion: reduce){
   *,*:before,*:after{animation:none!important;transition:none!important}
   .sidebar,.logo,.primary,.lang-toggle,.lang-toggle svg,.lt-seg-opt,.lt-seg-opt::after{animation:none}
+}
+/* ===== 文字颜色体系收尾：固定浅底控件恒用深色文字 =====
+   这些控件底色为不透明/高不透明度的白，若跟随「文字颜色 = 白色」会变成白底白字不可读。
+   注意：集中规则放在样式表末尾，用于兜住未显式声明 color 的同类控件 */
+.login-card input,.add-row input,.add-row2 input,.add-row2 select,.add-row textarea,.toolbar input,
+textarea.auto-grow,.group input[type=text],.group input[type=number],.group input[type=url],.origin-field input,
+.mini,.pg-jump,.batch-result .br-retry,.name-edit,.fsel,.readonly-box,.fchip-menu,.ap-field input[type=url],
+.detail-name input,.detail-folder select,.detail-preview textarea{color:var(--text-fixed)}
+/* 悬浮壁纸编辑器：白玻璃底(0.82)，整块恒用深色文字（含内部 --muted 派生，避免半透明白字压在白底上） */
+.wp-hover{color:var(--text-fixed);--muted:color-mix(in srgb,var(--text-fixed) 62%,transparent)}
+/* ===== 拖拽跨页热区：左右各约 5% 视口宽、50% 高（垂直居中），光标停留 1.5s 翻页 =====
+   宽高由 JS 按视口计算写入；首/末页由 JS 置 display:none 控制不展示对应侧 */
+.page-zone{
+  position:fixed;top:25%;z-index:2380;display:flex;align-items:center;justify-content:center;
+  border:2px dashed color-mix(in srgb,var(--accent) 55%,transparent);border-radius:16px;
+  background:color-mix(in srgb,var(--accent) 9%,transparent);pointer-events:none;
+  opacity:.72;transition:opacity .18s ease,background .18s ease,border-color .18s ease
+}
+.page-zone-left{left:8px}
+/* 亮度滑条：百分比数值靠右（亮度项多一个数值节点） */
+.ap-slider-top #ap-bright-val{margin-left:auto}
+.page-zone-right{right:8px}
+.page-zone span{
+  writing-mode:vertical-rl;text-orientation:upright;font-size:12px;font-weight:600;line-height:1.25;
+  color:var(--text);text-align:center;padding:0 2px;user-select:none
+}
+.page-zone.hot{
+  opacity:1;border-color:var(--accent);background:color-mix(in srgb,var(--accent) 22%,transparent);
+  animation:zoneFill 1.5s linear forwards
+}
+@keyframes zoneFill{
+  from{box-shadow:inset 0 0 0 0 color-mix(in srgb,var(--accent) 40%,transparent)}
+  to{box-shadow:inset 0 0 0 14px transparent}
 }
 </style>
 </head>
@@ -1048,10 +1091,6 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       <p class="ap-label" data-i18n="set.wp.pool"></p>
       <div class="ap-bg-nav">
         <div id="ap-bg-list" class="ap-bg-list" role="group" aria-label="wallpaper pool"></div>
-        <div class="ap-bg-arrows">
-          <button id="ap-bg-prev" class="ap-bg-arrow" type="button" aria-label="prev wallpaper">&lsaquo;</button>
-          <button id="ap-bg-next" class="ap-bg-arrow" type="button" aria-label="next wallpaper">&rsaquo;</button>
-        </div>
       </div>
       <label class="ap-field"><span data-i18n="set.wp.mode"></span>
         <span class="wp-mode-row" id="wp-mode">
@@ -1066,11 +1105,16 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       </label>
     </div>
 
-    <label class="ap-slider">
-      <span class="ap-slider-top"><span data-i18n="set.ap.bright"></span>
-        <button type="button" id="ap-bright-auto" class="ap-reset" data-i18n="set.ap.auto"></button>
+    <label class="ap-field"><span data-i18n="set.ap.textColor"></span>
+      <span class="wp-mode-row" id="ap-text-color">
+        <button type="button" class="wp-mode-btn" data-text-color="black" data-i18n="set.ap.textBlack"></button>
+        <button type="button" class="wp-mode-btn" data-text-color="white" data-i18n="set.ap.textWhite"></button>
       </span>
-      <input type="range" id="ap-bright" min="0" max="88" step="1" />
+    </label>
+
+    <label class="ap-slider">
+      <span class="ap-slider-top"><span data-i18n="set.ap.bright"></span><small id="ap-bright-val"></small></span>
+      <input type="range" id="ap-bright" min="0" max="200" step="1" />
     </label>
     <label class="ap-slider">
       <span class="ap-slider-top"><span data-i18n="set.ap.blur"></span><small id="ap-blur-val">24</small></span>
@@ -1151,7 +1195,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     <p class="wp-preset-label" data-i18n="wp.preset.label"></p>
     <div class="wp-presets">
       <label class="ap-slider"><span class="ap-slider-top"><span data-i18n="set.ap.bright"></span><small id="wp-scrim-val"></small></span>
-        <input type="range" id="wp-scrim" min="0" max="88" step="1" /></label>
+        <input type="range" id="wp-scrim" min="0" max="200" step="1" /></label>
       <label class="ap-slider"><span class="ap-slider-top"><span data-i18n="set.ap.blur"></span><small id="wp-blur-val"></small></span>
         <input type="range" id="wp-blur" min="0" max="40" step="1" /></label>
       <label class="ap-slider"><span class="ap-slider-top"><span data-i18n="set.ap.sat"></span><small id="wp-sat-val"></small></span>
@@ -1429,6 +1473,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "list.count": "{n} 条",
       "list.sortHint": "按住卡片空白处拖动可排序",
       "drag.escCancel": "按下 ESC 取消拖拽",
+      "drag.pageHint": "将光标拖至此处翻页",
       "search.ph": "搜索名称 / ID / 地址…",
       "search.clear": "清空搜索",
       "view.toggle": "展示样式",
@@ -1582,7 +1627,6 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "set.wp.cssRow": "纯色背景",
       "set.wp.custom": "自定义壁纸 URL（留空则只用壁纸池）",
       "set.ap.bright": "背景亮度",
-      "set.ap.auto": "自动",
       "set.ap.blur": "磨砂强度",
       "set.ap.sat": "饱和度",
       "set.ap.lum": "玻璃提亮",
@@ -1590,8 +1634,10 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "set.ap.motion": "动效",
       "set.ap.noRefract": "当前浏览器不支持边缘折射，已使用纯 CSS 玻璃。",
       "set.ap.badUrl": "自定义地址需要是完整的 http(s) 图片链接。",
-      "set.ap.noSample": "壁纸未能加载或不允许取样，已保留当前亮度。",
       "set.ap.cardBody": "信息区底色",
+      "set.ap.textColor": "文字颜色",
+      "set.ap.textBlack": "黑色文字",
+      "set.ap.textWhite": "白色文字",
       "wp.bg.white": "纯白", "wp.bg.sky": "天蓝", "wp.bg.pink": "樱粉",
       "wp.bg.dawn": "晨光", "wp.bg.aurora": "极光", "wp.bg.dusk": "暮色",
       "wp.gradAngle": "渐变方向",
@@ -1693,6 +1739,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "list.count": "{n} items",
       "list.sortHint": "Drag a card's empty area to reorder",
       "drag.escCancel": "Press ESC to cancel",
+      "drag.pageHint": "Drop the cursor here to turn the page",
       "search.ph": "Search name / ID / URL…",
       "search.clear": "Clear search",
       "view.toggle": "Display style",
@@ -1846,7 +1893,6 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "set.wp.cssRow": "Solid backgrounds",
       "set.wp.custom": "Custom wallpaper URL (leave empty to use the wallpaper pool only)",
       "set.ap.bright": "Background brightness",
-      "set.ap.auto": "Auto",
       "set.ap.blur": "Frost strength",
       "set.ap.sat": "Saturation",
       "set.ap.lum": "Glass brightness",
@@ -1854,8 +1900,10 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "set.ap.motion": "Motion",
       "set.ap.noRefract": "This browser does not support edge refraction; using pure CSS glass.",
       "set.ap.badUrl": "A custom wallpaper needs a full http(s) image URL.",
-      "set.ap.noSample": "Wallpaper failed to load or cannot be sampled; keeping the current brightness.",
       "set.ap.cardBody": "Info area tint",
+      "set.ap.textColor": "Text color",
+      "set.ap.textBlack": "Black text",
+      "set.ap.textWhite": "White text",
       "wp.bg.white": "White", "wp.bg.sky": "Sky", "wp.bg.pink": "Sakura",
       "wp.bg.dawn": "Daybreak", "wp.bg.aurora": "Aurora", "wp.bg.dusk": "Dusk",
       "wp.gradAngle": "Gradient angle",
@@ -2338,6 +2386,94 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
   /* 拖拽排序：仅从卡片的非交互区域发起；拖拽时卡片缩小淡化跟随鼠标，实时让位 + 虚线占位预览，放下时飞回槽位 */
   var dnd = null;
   var flipTimer = null;
+  // ===== 拖拽跨页热区：左右各约 5% 视口宽、50% 高（垂直居中），光标停留 1.5s 翻页 =====
+  var ZONE_W_RATIO = 0.05, ZONE_H_RATIO = 0.5, ZONE_HOLD_MS = 1500;
+  var zoneL = null, zoneR = null, zoneTimer = null, zoneSide = "";
+  function dragTotalPages() { return Math.max(1, Math.ceil((gridState.vis || []).length / perPageCount())); }
+  function createPageZones() {
+    if (zoneL) return;
+    var hint = t("drag.pageHint");
+    var mk = function (side) {
+      var el = document.createElement("div");
+      el.className = "page-zone page-zone-" + side;
+      var sp = document.createElement("span");
+      sp.textContent = hint;
+      el.appendChild(sp);
+      el.style.width = Math.round(window.innerWidth * ZONE_W_RATIO) + "px";
+      el.style.height = Math.round(window.innerHeight * ZONE_H_RATIO) + "px";
+      document.body.appendChild(el);
+      return el;
+    };
+    zoneL = mk("left"); zoneR = mk("right");
+    zoneSide = ""; clearZoneTimer(); updateZoneUI();
+  }
+  function zoneAvailable(side) {
+    if (side === "left") return pager.page > 1;
+    if (side === "right") return pager.page < dragTotalPages();
+    return false;
+  }
+  function zoneAt(x, y) {
+    var vw = window.innerWidth, vh = window.innerHeight;
+    var w = Math.max(48, vw * ZONE_W_RATIO);
+    var pad = vh * (1 - ZONE_H_RATIO) / 2;
+    if (y < pad || y > vh - pad) return "";
+    if (x <= w) return "left";
+    if (x >= vw - w) return "right";
+    return "";
+  }
+  function clearZoneTimer() { if (zoneTimer) { clearTimeout(zoneTimer); zoneTimer = null; } }
+  function updateZoneUI() {
+    if (!zoneL || !zoneR) return;
+    zoneL.style.display = zoneAvailable("left") ? "" : "none";  // 首页不展示左框
+    zoneR.style.display = zoneAvailable("right") ? "" : "none"; // 末页不展示右框
+    zoneL.classList.toggle("hot", zoneSide === "left");
+    zoneR.classList.toggle("hot", zoneSide === "right");
+  }
+  // 拖拽移动时调用：命中热区起 1.5s 计时，离开/翻页即重置；翻页后仍在框内会再次计时（支持连续翻页）
+  function updatePageZone(x, y) {
+    if (!dnd || !dnd.active) return;
+    var side = zoneAt(x, y);
+    if (side && !zoneAvailable(side)) side = "";
+    if (side !== zoneSide) { clearZoneTimer(); zoneSide = side; updateZoneUI(); }
+    if (side && !zoneTimer) {
+      zoneTimer = setTimeout(function () { zoneTimer = null; flipPageForDrag(zoneSide); }, ZONE_HOLD_MS);
+    }
+  }
+  function flipPageForDrag(side) {
+    if (!dnd || !dnd.active || !side || !zoneAvailable(side)) return;
+    var next = pager.page + (side === "right" ? 1 : -1);
+    if (next < 1 || next > dragTotalPages()) { updateZoneUI(); return; }
+    pager.page = next;
+    // renderGrid 会清空网格（占位随之销毁）。onDone 时卡片已就位，再重插占位到页首/页末并刷新槽位缓存；
+    // 同时立即补插占位作为兜底，避免渲染异步窗口内 movePlaceholderTo 因 ph 不在 DOM 而抛错
+    renderGrid(lastImages, { onDone: function () { rebuildDragAfterFlip(side); } });
+    if (!dnd.ph.parentNode) $("grid").appendChild(dnd.ph);
+    dnd.lastIndex = -1;
+    dnd.origIndex = -1; // 跨页后原位索引失效：取消走「回源页重建」路径
+    dnd.flipped = true;
+    window.scrollTo(0, 0);
+    updateZoneUI();
+  }
+  // 翻页渲染完成后：把占位重插到新页页首（右翻）/页末（左翻），刷新槽位缓存与热区可用性
+  function rebuildDragAfterFlip(side) {
+    if (!dnd || !dnd.active) return;
+    var grid = $("grid");
+    if (dnd.ph.parentNode) grid.removeChild(dnd.ph);
+    var nodes = gridImageNodes();
+    if (side === "left" && nodes.length) grid.appendChild(dnd.ph);
+    else if (nodes.length) grid.insertBefore(dnd.ph, nodes[0]);
+    else grid.appendChild(dnd.ph);
+    refreshSlotLayout(); // 必须在卡片渲染完成后刷新：否则判定基于过期布局导致落点漂移
+    dnd.lastIndex = -1;
+    updateZoneUI();
+  }
+  function destroyPageZones() {
+    clearZoneTimer();
+    zoneSide = "";
+    if (zoneL && zoneL.parentNode) zoneL.parentNode.removeChild(zoneL);
+    if (zoneR && zoneR.parentNode) zoneR.parentNode.removeChild(zoneR);
+    zoneL = zoneR = null;
+  }
   function dragBlocked(el) {
     return !!el.closest("button, a, input, select, textarea, label, .zoom, .copy, .del, .detail, .tgl, .switch, .fsel, .img-name, .pen");
   }
@@ -2352,10 +2488,16 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     var after = k >= 0 && k + 1 < newVisible.length ? newVisible[k + 1] : null;
     var rest = fullIds.filter(function (id) { return id !== dragId; });
     if (after === null) {
-      // 末尾落点：把拖拽卡片放到"最后一张已渲染卡片"之后（其后尚未渲染的全序卡片保持在后），避免误插到全序末端
-      var lastRendered = newVisible[newVisible.length - 1];
+      // 末尾落点：锚点取「可见序列中最后一张非拖拽卡」——
+      // 松手时拖拽卡已插回 grid 成为可见序列末项，若拿它当锚会退化成"插入全序末端"（跨页尤其错）
+      var lastRendered = null;
+      for (var vi = newVisible.length - 1; vi >= 0; vi--) {
+        if (newVisible[vi] !== dragId) { lastRendered = newVisible[vi]; break; }
+      }
+      if (lastRendered === null) return rest.concat([dragId]);
       var li = rest.indexOf(lastRendered);
-      var target = li >= 0 && li + 1 < rest.length ? rest[li + 1] : null;
+      if (li < 0) return rest.concat([dragId]);
+      var target = li + 1 < rest.length ? rest[li + 1] : null;
       if (target === null) return rest.concat([dragId]);
       return rest.slice(0, li + 1).concat([dragId], rest.slice(li + 1));
     }
@@ -2464,7 +2606,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     var from = new Map();
     for (var i = 0; i < slots.length; i++) from.set(slots[i].el, slots[i]);
     // 移动 ph 到槽位 s：先从 grid 移除，再按槽位号插入（ph 成为第 s 个槽位元素，占据该物理槽位）
-    grid.removeChild(d.ph);
+    if (d.ph.parentNode === grid) grid.removeChild(d.ph);
     var cards = gridImageNodes();
     var anchor = s < cards.length ? cards[s] : null;
     if (anchor) grid.insertBefore(d.ph, anchor); else grid.appendChild(d.ph);
@@ -2482,8 +2624,8 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     var grid = $("grid");
     var ghost = d.card.getBoundingClientRect();
     // 落位：卡片直接插到 ph 前面（成为该槽位元素）后移除 ph —— 占位在哪卡片就落哪，严格一致
-    grid.insertBefore(d.card, d.ph);
-    grid.removeChild(d.ph);
+    if (d.ph.parentNode === grid) { grid.insertBefore(d.card, d.ph); grid.removeChild(d.ph); }
+    else grid.appendChild(d.card);
     d.card.style.position = "";
     d.card.style.left = "";
     d.card.style.top = "";
@@ -2628,6 +2770,9 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       if (idx0 < nodes2.length) grid.insertBefore(ph, nodes2[idx0]); else grid.appendChild(ph);
       dnd.lastIndex = idx0;
       dnd.origIndex = idx0;
+      dnd.origPage = pager.page; // 拖拽起始页：跨页取消时回到该页
+      dnd.flipped = false;
+      createPageZones();
       // 初始化槽位布局缓存（ph 已入列，此刻无 FLIP transform，读到的是干净布局位置）
       refreshSlotLayout();
     } else {
@@ -2638,6 +2783,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     dnd.card.style.transform = "translate(" + (e.clientX - dnd.startX) + "px," + (e.clientY - dnd.startY) + "px) scale(.92)";
     var p = dropIndexAt(e.clientX, e.clientY);
     if (p !== null && p !== dnd.lastIndex) movePlaceholderTo(dnd, p);
+    updatePageZone(e.clientX, e.clientY); // 左右边缘热区：停留 1.5s 翻页（跨页排序）
   }, { passive: false });
   function endCardDrag(e) {
     if (!dnd) return;
@@ -2659,7 +2805,10 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       gridCards[gi].style.transform = "";
     }
     var p = d.lastIndex;
-    finishDrag(d, p !== null && p !== d.origIndex);
+    // 顺序变化判定：槽位变化，或期间发生过翻页（跨页落位必然改变全序）
+    var moved = (p !== null && p !== d.origIndex) || pager.page !== d.origPage;
+    destroyPageZones();
+    finishDrag(d, moved);
   }
   window.addEventListener("pointerup", endCardDrag);
   window.addEventListener("pointercancel", endCardDrag);
@@ -2685,6 +2834,19 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     if (!d.active) { document.body.classList.remove("no-select"); return; } // 未激活：卡片仍在 grid，无占位，恢复即可
     // 激活中取消：no-select 保持到松开左键（防 ESC 后拖动选字），并提示已取消
     noSelectHold = true;
+    destroyPageZones();
+    if (pager.page !== d.origPage) {
+      // 跨页取消：顺序未提交，丢掉 ghost/占位回到源页重建即恢复原序
+      if (d.ph && d.ph.parentNode) d.ph.parentNode.removeChild(d.ph);
+      if (d.card.parentNode) d.card.parentNode.removeChild(d.card);
+      d.card.classList.remove("dragging", "drag-pickup");
+      d.card.style.cssText = "";
+      pager.page = d.origPage;
+      dnd = null; // 重建前先清空：否则源卡会被当作拖拽中而被跳过
+      renderGrid(lastImages);
+      toast(t("op.sortCancelled"), "accent");
+      return;
+    }
     toast(t("op.sortCancelled"), "accent");
     // 占位先移回原位槽位，再让卡片落回（commit=false，不提交排序）
     movePlaceholderTo(d, d.origIndex);
@@ -2709,6 +2871,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       // 取消壁纸池拖拽：源按钮已从网格移除，重建即恢复原序
       var w = wpDnd;
       wpDnd = null;
+      releaseWpDragActive();
       if (w.ph && w.ph.parentNode) w.ph.parentNode.removeChild(w.ph);
       if (w.active) {
         noSelectHold = true; // no-select 保持到松开左键
@@ -2868,6 +3031,8 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     var vis = gridState.vis;
     if (!vis || start >= end) { if (!cardQueue.length) finishCardQueue(); return; }
     for (var i = start; i < end; i++) {
+      // 跨页拖拽期间：源卡是 body 上的 fixed ghost，网格内跳过它的影子卡（占位替代其槽位）
+      if (dnd && dnd.active && vis[i].id === dnd.id) continue;
       cardQueue.push({ card: buildCard(vis[i], i, noAnim) });
     }
     if (!cardQueueTimer) cardQueueTimer = setTimeout(pumpCardQueue, 16);
@@ -5538,40 +5703,36 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
 
   // ===== 外观面板：控件布局参照 we-pkg-web 的 dock，适配本站图片池与浅色主题 =====
   var UI_KEY = "mdn_ui_v1", WP_SS_KEY = "mdn_wp_session_v1";
-  var UI_DEF = { blur: 24, scrim: 18, scrimMode: "auto", sat: 175, bright: 105, refract: true, motion: true, customUrl: "", cardBodyAlpha: 8 };
+  var UI_DEF = { blur: 24, scrim: 120, sat: 175, bright: 105, refract: true, motion: true, customUrl: "", cardBodyAlpha: 8, textColor: "black" };
   var ui = (function () {
     var base = {}, raw = null, o = null;
     try { raw = localStorage.getItem(UI_KEY); } catch (e) {}
     try { o = raw ? JSON.parse(raw) : null; } catch (e2) { o = null; }
     if (o) { for (var k in UI_DEF) if (o[k] !== undefined) base[k] = o[k]; }
     for (var k2 in UI_DEF) if (base[k2] === undefined) base[k2] = UI_DEF[k2];
+    // 亮度刻度迁移（旧：0–88 白遮罩 → 新：0–200，100 = 无遮罩原图）：仅折算一次，写回后由 lumaVer 标记跳过
+    if (o && o.lumaVer !== 2 && typeof o.scrim === "number") base.scrim = legacyScrimToLuma(o.scrim);
+    base.lumaVer = 2;
     return base;
   })();
   function saveUi() { try { localStorage.setItem(UI_KEY, JSON.stringify(ui)); } catch (e) {} }
   function apNote(msg) { var n = $("ap-note"); if (n) n.textContent = msg || ""; }
 
   // 亮度自动：本站是浅色主题 + 深色正文 #1f2937，故用「白遮罩提亮」而不是参考站的黑遮罩压暗
-  var SAMPLE_EDGE = 32, SCRIM_MAX = 88, TEXT_LUM = 0.0215, TARGET_CONTRAST = 5.4;
-  var TARGET_LUM = TARGET_CONTRAST * (TEXT_LUM + 0.05) - 0.05;
-  function measureLum(src) {
-    try {
-      var cv = document.createElement("canvas");
-      cv.width = SAMPLE_EDGE; cv.height = SAMPLE_EDGE;
-      var ctx = cv.getContext("2d", { willReadFrequently: true });
-      if (!ctx) return null;
-      ctx.drawImage(src, 0, 0, SAMPLE_EDGE, SAMPLE_EDGE);
-      var data = ctx.getImageData(0, 0, SAMPLE_EDGE, SAMPLE_EDGE).data;
-      var lin = function (c) { var s = c / 255; return s <= 0.04045 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4); };
-      var sum = 0, n = 0;
-      for (var i = 0; i < data.length; i += 4) { sum += 0.2126 * lin(data[i]) + 0.7152 * lin(data[i + 1]) + 0.0722 * lin(data[i + 2]); n++; }
-      return n ? sum / n : null;
-    } catch (e) { return null; } // 图床未给 CORS 时 canvas 被污染
+  var SCRIM_MAX = 88, SHADE_MAX = 0.72; // 白遮罩/黑遮罩强度上限（亮度刻度换算用）
+  // 亮度刻度：0–200，100 = 不加遮罩的原图；>100 叠加白遮罩提亮，<100 叠加黑遮罩压暗
+  function lumaToMask(luma) {
+    var v = Math.max(0, Math.min(200, typeof luma === "number" ? luma : 100));
+    if (v >= 100) return { scrim: (v - 100) / 100 * (SCRIM_MAX / 100), shade: 0 };
+    return { scrim: 0, shade: (100 - v) / 100 * SHADE_MAX };
   }
-  function scrimForLum(l) {
-    if (l === null) return null;
-    if (l >= TARGET_LUM) return 0;
-    return Math.min(SCRIM_MAX, Math.round((TARGET_LUM - l) / (1 - l) * 100));
+  // 旧刻度（0–88 白遮罩）→ 新刻度：一次性迁移用（18 → 120、88 → 200、0 → 100）
+  function legacyScrimToLuma(v) {
+    var s = Math.max(0, Math.min(SCRIM_MAX, typeof v === "number" ? v : 0));
+    return Math.round(100 + s / SCRIM_MAX * 100);
   }
+  // 说明：壁纸亮度改为纯手动 —— 自动测光只能约束「壁纸本底」亮度，而文字实际位于卡片/玻璃/信息区
+  // 等叠加层之上，难以稳定给出可读结果，故移除自动按钮与测光逻辑（亮度仅由用户滑条控制）
   // Chromium 对 backdrop-filter 引用的 var() 变量更新不做合成层失效（表现为拖滑条无效果，
   // 开关其它设置触发全站重算才生效）。根治：不依赖变量更新 backdrop-filter，而是把完整
   // 声明直接写进各玻璃元素的 inline style——inline 属性变化必然触发重新解析与 backdrop 重算。
@@ -5612,8 +5773,14 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     s.setProperty("--lg-blur", ui.blur + "px");
     s.setProperty("--lg-sat", ui.sat + "%");
     s.setProperty("--lg-bright", (ui.bright / 100).toFixed(2));
-    s.setProperty("--lg-scrim", (ui.scrim / 100).toFixed(3));
+    var mask = lumaToMask(ui.scrim); // 100 为中点：>100 白遮罩提亮、<100 黑遮罩压暗
+    s.setProperty("--lg-scrim", mask.scrim.toFixed(3));
+    s.setProperty("--lg-shade", mask.shade.toFixed(3));
     s.setProperty("--card-body-alpha", (ui.cardBodyAlpha / 100).toFixed(2));
+    // 文字颜色：非法值一律兜底 black（旧数据无该字段时 UI_DEF 已兜底）
+    var tc = ui.textColor === "white" ? "white" : "black";
+    ui.textColor = tc;
+    document.documentElement.setAttribute("data-text", tc);
     document.body.classList.toggle("motion-off", !ui.motion);
     queueGlassPaint();
   }
@@ -5641,7 +5808,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     return out;
   }
   // 拖拽落位：持久化新顺序。预置池 → K_POOL_ORDER；自定义条目同步回 mdn_wp_custom 数组顺序；
-  // window.__WP__.pool 同步重排，保证 stepWp 上下张、pickWpItem 等与新网格顺序一致
+  // window.__WP__.pool 同步重排，保证 pickWpItem 选择与壁纸池渲染和新网格顺序一致
   function savePoolOrder(urlArr) {
     wlsSet(K_POOL_ORDER, JSON.stringify(urlArr));
     var pos = {}, i;
@@ -5664,6 +5831,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
   // 壁纸池独立缓存：面板未展开时不构建不加载（首次打开才懒加载）；图片数 ≤ wpThumbKeep 长效保存，> x 关闭即卸载
   var wpPoolBuilt = false, wpPoolDirty = false;
   var wpBgIO = null; // 壁纸池缩略图懒加载观察器（root = 网格，覆盖内部滚动）
+  var wpLoaded = {}; // 已加载缩略图 url 记号：拖拽落位重建时直接复用，避免全部重新加载闪烁
   function wpDockOpen() { var d = $("ap-dock"); return !!(d && d.classList.contains("open")); }
   function wpImgCount() {
     var all = wpOptions(), n = 0;
@@ -5714,30 +5882,32 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
   function observeWpThumbs() {
     var box = $("ap-bg-list");
     if (!box) return;
-    if (!("IntersectionObserver" in window)) { // 降级：立即加载全部
-      var imgs = box.querySelectorAll("img[data-src]");
-      for (var i = 0; i < imgs.length; i++) loadWpThumb(imgs[i]);
-      return;
-    }
-    if (!wpBgIO) {
+    var nodes = box.querySelectorAll("img[data-src]");
+    var useIO = "IntersectionObserver" in window;
+    if (useIO && !wpBgIO) {
       wpBgIO = new IntersectionObserver(function (entries) {
         for (var k = 0; k < entries.length; k++) {
           if (entries[k].isIntersecting) loadWpThumb(entries[k].target);
         }
       }, { root: box, rootMargin: "80px 0px" });
     }
-    var nodes = box.querySelectorAll("img[data-src]");
-    for (var j = 0; j < nodes.length; j++) wpBgIO.observe(nodes[j]);
+    for (var j = 0; j < nodes.length; j++) {
+      // 拖拽落位会整表重建：已加载过的缩略图直接复用 src（命中浏览器缓存），避免全网格重新加载闪烁
+      if (wpLoaded[nodes[j].getAttribute("data-src")] || !useIO) loadWpThumb(nodes[j]); // 无 IO 时降级为立即加载
+      else wpBgIO.observe(nodes[j]);
+    }
   }
   function loadWpThumb(im) {
     var u = im.getAttribute("data-src");
     if (!u || im.getAttribute("src")) return;
     im.setAttribute("src", u);
+    wpLoaded[u] = 1; // 记号：拖拽重建时可直接复用
     if (wpBgIO) wpBgIO.unobserve(im);
   }
   // 面板关闭卸载：只清 src 不重建 DOM（保住拖拽顺序与 aria-pressed 选中态），重新观察等待下次展开
   function unloadWpThumbs() {
     if (!wpBgIO || !wpPoolBuilt) return;
+    wpLoaded = {}; // 卸载后下次展开需重新加载，记号同步失效
     var imgs = $("ap-bg-list").querySelectorAll("img[src]");
     for (var i = 0; i < imgs.length; i++) {
       imgs[i].classList.add("wp-thumb-off"); // 先隐藏再清 src：避免中间态闪现浏览器破图占位
@@ -5749,6 +5919,9 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
   // ===== 壁纸池拖拽排序（pointer 事件，模式对照文件夹拖拽；仅图片壁纸，CSS 条目在独立行不参与）=====
   var wpDnd = null; // 壁纸池拖拽状态
   var wpDragActive = false; // 抑制拖拽结束后误触点击选择
+  // 该标志只需被紧随 pointerup 的 click 消费一次；若松手时落在网格空白（或 ESC 后鼠标已移开）则
+  // click 不会派发到按钮上，标志会一直为真并吞掉下一次正常点击 → 下一轮事件循环兜底清除
+  function releaseWpDragActive() { setTimeout(function () { wpDragActive = false; }, 0); }
   $("ap-bg-list").addEventListener("pointerdown", function (e) {
     if (wpDnd) return;
     if (e.pointerType === "mouse" && e.button !== 0) return;
@@ -5769,6 +5942,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       for (var i = 0; i < box.children.length; i++) if (box.children[i] === wpDnd.el) { srcIdx = i; break; }
       wpDnd.origIdx = srcIdx === -1 ? 0 : srcIdx;
       box.removeChild(wpDnd.el); // 源按钮移出网格，其余自动补位（对照文件夹源 chip 移除）
+      hideHoverEditor(); // 拖拽开始即收起悬浮编辑器：源按钮已移除，编辑器悬在网格上会指向失效节点
       document.body.classList.add("no-select");
     }
     e.preventDefault();
@@ -5815,6 +5989,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     if (!wpDnd) return;
     var d = wpDnd;
     wpDnd = null;
+    releaseWpDragActive(); // 兜底：本次抑制优先由紧随的 click 消费，未消费则下一帧清除
     document.body.classList.remove("no-select");
     if (!d.active) return; // 未激活（未超过阈值）：源按钮从未移除，无需处理
     // 落位：占位在网格 children 中的索引 → 图片条目 url 新序（源按钮已被移除，其余按现序）
@@ -5841,34 +6016,20 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
   window.addEventListener("pointerup", endWpDrag);
   window.addEventListener("pointercancel", endWpDrag);
 
-  // 换壁纸后取样亮度（自动模式下反解遮罩）；CSS 背景跳过测光用预定义 scrim；token 防连点竞态
-  var wpToken = 0;
-  function sampleAndApply(item) {
-    if (item && item.css) {
-      ui.scrim = typeof item.scrim === "number" ? item.scrim : 0;
-      var sl0 = $("ap-bright");
-      if (sl0) sl0.value = String(ui.scrim);
+  // 亮度滑条 UI 同步（滑条位置 + 百分比数值）
+  function syncLumaUI() {
+    var b = $("ap-bright");
+    if (b) b.value = String(ui.scrim);
+    var v = $("ap-bright-val");
+    if (v) v.textContent = ui.scrim + "%";
+  }
+  // 换壁纸时的亮度处理：仅 CSS 预置背景带固定亮度值（直接采用）；图片壁纸保持用户手动设置的亮度
+  function applyWpLuma(item) {
+    if (item && item.css && typeof item.scrim === "number") {
+      ui.scrim = Math.max(0, Math.min(200, item.scrim));
+      syncLumaUI();
       applyUi(); saveUi();
-      return;
     }
-    var url = item && item.url ? item.url : item;
-    var mine = ++wpToken;
-    var probe = new Image();
-    probe.crossOrigin = "anonymous";
-    probe.onload = function () {
-      if (mine !== wpToken) return;
-      var l = measureLum(probe);
-      if (l === null) { apNote(t("set.ap.noSample")); return; }
-      if (ui.scrimMode !== "auto") return;
-      var v = scrimForLum(l);
-      if (v === null) return;
-      ui.scrim = v;
-      var sl = $("ap-bright");
-      if (sl) sl.value = String(v);
-      applyUi(); saveUi();
-    };
-    probe.onerror = function () { if (mine === wpToken) apNote(t("set.ap.noSample")); };
-    probe.src = url;
   }
   // ===== 随机集合：随机模式下点击壁纸 = 加入/移出随机轮换（固定模式点击仍立即切换） =====
   function loadRandSet() {
@@ -5904,7 +6065,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
         applyGradAngle(p.gradAngle);
         syncSlidersFromUi(); applyUi(); saveUi();
       } else {
-        sampleAndApply(it);
+        applyWpLuma(it); // 无绑定预设：仅 CSS 背景采用其预置亮度，图片壁纸保持当前手动亮度
       }
       if (fromUser) { try { sessionStorage.setItem(WP_SS_KEY, it.url); } catch (e) {} }
       renderWpMode(); markActiveWp();
@@ -5954,25 +6115,36 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     saveWpItem(hoverItem);
     ensureApplied(hoverItem);
     var p = hoverItem.preset;
-    Object.assign(ui, { scrim: p.scrim, blur: p.blur, sat: p.sat, bright: p.bright });
+    Object.assign(ui, { scrim: p.scrim, blur: p.blur, sat: p.sat, bright: p.bright, textColor: p.textColor === "white" ? "white" : "black" });
     applyGradAngle(p.gradAngle);
     syncSlidersFromUi(); applyUi(); saveUi();
-    markActiveWp();
+    markActiveWp(); syncTextColorUI();
   }
   function fillHoverValues() {
     var p = hoverPreset();
     $("wh-c1").value = hoverItem.colors[0]; $("wh-c2").value = hoverItem.colors[1]; $("wh-c3").value = hoverItem.colors[2];
     $("wh-scrim").value = p.scrim; $("wh-blur").value = p.blur; $("wh-sat").value = p.sat; $("wh-lum").value = p.bright; $("wh-grad").value = p.gradAngle;
-    $("wh-scrim-v").textContent = p.scrim; $("wh-blur-v").textContent = p.blur;
+    $("wh-scrim-v").textContent = p.scrim + "%"; $("wh-blur-v").textContent = p.blur;
     $("wh-sat-v").textContent = p.sat + "%"; $("wh-lum-v").textContent = p.bright + "%"; $("wh-grad-v").textContent = p.gradAngle + "°";
     $("wh-name").textContent = hoverItem.i18n ? t(hoverItem.i18n) : (hoverItem.name || hoverItem.url);
     $("wh-remove").style.display = isCustomWp(hoverItem) ? "" : "none";
+    setTextColorButtons("#wh-text-color", p.textColor === "white" ? "white" : "black");
+    setTextColorButtons("#ap-text-color", ui.textColor === "white" ? "white" : "black");
+  }
+  // 文字颜色按钮组 active 同步（外观面板用全局值，悬浮编辑器用当前预设值）
+  function setTextColorButtons(sel, val) {
+    var btns = document.querySelectorAll(sel + " [data-text-color]");
+    for (var i = 0; i < btns.length; i++) btns[i].classList.toggle("active", btns[i].getAttribute("data-text-color") === val);
+  }
+  function syncTextColorUI() {
+    setTextColorButtons("#ap-text-color", ui.textColor === "white" ? "white" : "black");
+    if (hoverItem) setTextColorButtons("#wh-text-color", hoverPreset().textColor === "white" ? "white" : "black");
   }
   function hoverPreset() {
     if (!hoverItem.preset || typeof hoverItem.preset !== "object") {
-      hoverItem.preset = { scrim: ui.scrim, blur: ui.blur, sat: ui.sat, bright: ui.bright, gradAngle: ui.gradAngle != null ? ui.gradAngle : 135 };
+      hoverItem.preset = { scrim: ui.scrim, blur: ui.blur, sat: ui.sat, bright: ui.bright, gradAngle: ui.gradAngle != null ? ui.gradAngle : 135, textColor: ui.textColor === "white" ? "white" : "black", lumaVer: 2 };
     }
-    return hoverItem.preset;
+    return migratePreset(hoverItem.preset); // 打开旧预设时顺带完成亮度折算
   }
   function openHoverEditor(it, btn) {
     if (it.css) return; // CSS 背景预设固定，无编辑器
@@ -5986,7 +6158,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       itemPreset: getPresetFor(it) ? JSON.parse(JSON.stringify(getPresetFor(it))) : null,
       wpUrl: wp ? wp.url : "",
       curColors: curItem ? curItem.colors.slice() : null,
-      ui4: { scrim: ui.scrim, blur: ui.blur, sat: ui.sat, bright: ui.bright },
+      ui4: { scrim: ui.scrim, blur: ui.blur, sat: ui.sat, bright: ui.bright, textColor: ui.textColor },
       grad: getComputedStyle(document.documentElement).getPropertyValue("--grad-angle").trim() || "135deg"
     };
     fillHoverValues();
@@ -6035,7 +6207,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     Object.assign(ui, snap.ui4);
     document.documentElement.style.setProperty("--grad-angle", snap.grad);
     syncSlidersFromUi(); applyUi(); saveUi();
-    renderWpMode(); markActiveWp();
+    renderWpMode(); markActiveWp(); syncTextColorUI();
     toast(t("wp.restored"));
   }
   function removeHoverWp() {
@@ -6082,11 +6254,16 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       '<label><input type="color" id="wh-c2" /><span data-i18n="wp.color2"></span></label>' +
       '<label><input type="color" id="wh-c3" /><span data-i18n="wp.color3"></span></label>' +
       "</div>" +
-      '<label class="ap-slider"><span class="ap-slider-top"><span data-i18n="set.ap.bright"></span><small id="wh-scrim-v"></small></span><input type="range" id="wh-scrim" min="0" max="88" step="1" /></label>' +
+      '<label class="ap-slider"><span class="ap-slider-top"><span data-i18n="set.ap.bright"></span><small id="wh-scrim-v"></small></span><input type="range" id="wh-scrim" min="0" max="200" step="1" /></label>' +
       '<label class="ap-slider"><span class="ap-slider-top"><span data-i18n="set.ap.blur"></span><small id="wh-blur-v"></small></span><input type="range" id="wh-blur" min="0" max="40" step="1" /></label>' +
       '<label class="ap-slider"><span class="ap-slider-top"><span data-i18n="set.ap.sat"></span><small id="wh-sat-v"></small></span><input type="range" id="wh-sat" min="100" max="260" step="5" /></label>' +
       '<label class="ap-slider"><span class="ap-slider-top"><span data-i18n="set.ap.lum"></span><small id="wh-lum-v"></small></span><input type="range" id="wh-lum" min="80" max="140" step="1" /></label>' +
       '<label class="ap-slider"><span class="ap-slider-top"><span data-i18n="wp.gradAngle"></span><small id="wh-grad-v"></small></span><input type="range" id="wh-grad" min="0" max="360" step="5" /></label>' +
+      '<div class="wh-text-row" id="wh-text-color">' +
+      '<span class="wh-text-label" data-i18n="set.ap.textColor"></span>' +
+      '<button type="button" class="wp-mode-btn" data-text-color="black" data-i18n="set.ap.textBlack"></button>' +
+      '<button type="button" class="wp-mode-btn" data-text-color="white" data-i18n="set.ap.textWhite"></button>' +
+      "</div>" +
       '<button type="button" id="wh-remove" data-i18n="wp.remove"></button>' +
       '<p class="wh-hint" data-i18n="wp.escHintLine"></p>';
     document.body.appendChild(hoverEl);
@@ -6100,7 +6277,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
         commitHoverChange();
       });
     });
-    [["wh-scrim", "scrim", "wh-scrim-v", function (v) { return v; }],
+    [["wh-scrim", "scrim", "wh-scrim-v", function (v) { return v + "%"; }],
      ["wh-blur", "blur", "wh-blur-v", function (v) { return v; }],
      ["wh-sat", "sat", "wh-sat-v", function (v) { return v + "%"; }],
      ["wh-lum", "bright", "wh-lum-v", function (v) { return v + "%"; }],
@@ -6112,17 +6289,16 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
         commitHoverChange();
       });
     });
+    $("wh-text-color").addEventListener("click", function (e) {
+      var b = e.target.closest ? e.target.closest("[data-text-color]") : null;
+      if (!b || !hoverItem) return;
+      hoverPreset().textColor = b.getAttribute("data-text-color") === "white" ? "white" : "black";
+      commitHoverChange();
+    });
     $("wh-remove").addEventListener("click", removeHoverWp);
     return hoverEl;
   }
-  function stepWp(delta) {
-    var all = wpOptions();
-    if (!all.length) return;
-    var cur = (window.__WP__ && window.__WP__.url) || "";
-    var at = -1;
-    for (var i = 0; i < all.length; i++) if (all[i].url === cur) { at = i; break; }
-    pickWpItem(all[((at + delta) % all.length + all.length) % all.length], true);
-  }
+  // 壁纸池 ‹/› 切换功能已移除：壁纸仅通过点击网格条目选择
   function renderWpMode() {
     var row = $("wp-mode");
     if (!row) return;
@@ -6148,34 +6324,37 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
   // 外观面板全部控件绑定（交互照抄 we-pkg-web 的 dock）
   function initAppearance(ctl) {
     var panel = $("ap-dock"), toggle = $("ap-toggle"), body = $("ap-body");
-    var bright = $("ap-bright"), brightAuto = $("ap-bright-auto");
+    var bright = $("ap-bright");
     var blur = $("ap-blur"), blurVal = $("ap-blur-val");
     var sat = $("ap-sat"), satVal = $("ap-sat-val");
     var lum = $("ap-lum"), lumVal = $("ap-lum-val");
     var bodyA = $("ap-body-alpha"), bodyAv = $("ap-body-val");
     var refract = $("ap-refract"), motion = $("ap-motion"), custom = $("ap-custom");
 
-    bright.value = String(ui.scrim);
-    brightAuto.disabled = ui.scrimMode === "auto";
+    syncLumaUI();
     blur.value = String(ui.blur); blurVal.textContent = String(ui.blur);
     sat.value = String(ui.sat); satVal.textContent = ui.sat + "%";
     lum.value = String(ui.bright); lumVal.textContent = ui.bright + "%";
     bodyA.value = String(ui.cardBodyAlpha); bodyAv.textContent = ui.cardBodyAlpha + "%";
     motion.checked = !!ui.motion;
+    var tcRow = $("ap-text-color");
+    if (tcRow) {
+      tcRow.addEventListener("click", function (e) {
+        var b = e.target.closest ? e.target.closest("[data-text-color]") : null;
+        if (!b) return;
+        ui.textColor = b.getAttribute("data-text-color") === "white" ? "white" : "black";
+        saveUi(); applyUi(); syncTextColorUI();
+      });
+    }
+    syncTextColorUI();
     custom.value = ui.customUrl || "";
 
     bright.addEventListener("input", function () {
-      ui.scrimMode = "manual";
-      ui.scrim = Math.max(0, Math.min(SCRIM_MAX, parseInt(this.value, 10) || 0));
-      brightAuto.disabled = false;
+      var v = parseInt(this.value, 10);
+      if (isNaN(v)) v = 100;                    // ⚠ 不可写成 "|| 100" 形式：0% 是合法值，会被 falsy 兜底吞成 100%
+      ui.scrim = Math.max(0, Math.min(200, v)); // 0–200：100 = 无遮罩原图
+      syncLumaUI();
       applyUi(); saveUi();
-    });
-    brightAuto.addEventListener("click", function () {
-      ui.scrimMode = "auto";
-      brightAuto.disabled = true;
-      var cur = window.__WP__ && window.__WP__.url;
-      if (cur) sampleAndApply(cur);
-      saveUi();
     });
     blur.addEventListener("input", function () {
       ui.blur = Math.max(0, Math.min(40, parseInt(this.value, 10) || 0));
@@ -6209,8 +6388,6 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     });
     custom.addEventListener("change", commitCustom);
     custom.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); commitCustom(); } });
-    $("ap-bg-prev").addEventListener("click", function () { stepWp(-1); });
-    $("ap-bg-next").addEventListener("click", function () { stepWp(1); });
     $("wp-mode").addEventListener("click", function (e) {
       var b = e.target.closest(".wp-mode-btn");
       if (!b) return;
@@ -6268,7 +6445,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     if (wp0 && wp0.url) {
       var it0 = null, pool0 = wp0.pool || [];
       for (var pi = 0; pi < pool0.length; pi++) if (pool0[pi].url === wp0.url) { it0 = pool0[pi]; break; }
-      sampleAndApply(it0); // 首屏壁纸的自动亮度（CSS 背景直接用预定义 scrim）
+      applyWpLuma(it0); // 首屏壁纸：CSS 背景采用预定义亮度，图片壁纸保持用户设置
     }
   }
   // ===== 详情页「设为壁纸」：canvas 自动取色建议 + 手动三色确认 =====
@@ -6363,14 +6540,22 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     try { m = JSON.parse(localStorage.getItem(K_WP_PRESET) || "{}"); } catch (e) { m = null; }
     return m && typeof m === "object" ? m : {};
   }
+  // 旧预设亮度折算（旧：0–88 白遮罩 → 新：0–200）：lumaVer 标记后不再重复折算
+  function migratePreset(p) {
+    if (!p) return p;
+    if (p.lumaVer !== 2 && typeof p.scrim === "number") p.scrim = legacyScrimToLuma(p.scrim);
+    p.lumaVer = 2;
+    return p;
+  }
   function getPresetFor(it) {
     if (!it) return null;
-    if (it.preset && typeof it.preset === "object") return it.preset;
-    return loadPresetMap()[it.url] || null;
+    if (it.preset && typeof it.preset === "object") return migratePreset(it.preset);
+    return migratePreset(loadPresetMap()[it.url] || null);
   }
   function savePresetFor(it, preset) {
     if (!it || !it.url) return;
     if ((it.url || "").indexOf("css:") === 0) return; // CSS 预置背景预设固定，不持久化
+    if (preset) preset.lumaVer = 2; // 标记为已折算的新刻度
     var isCustom = false;
     var custom = [];
     try { custom = JSON.parse(localStorage.getItem("mdn_wp_custom") || "[]") || []; } catch (e) { custom = []; }
@@ -6386,14 +6571,14 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
   }
   // 把外观面板滑条 UI 同步到当前 ui 值（预设应用后调用）
   function syncSlidersFromUi() {
-    var b = $("ap-bright"); if (b) b.value = String(ui.scrim);
+    syncLumaUI();
     var bl = $("ap-blur"); if (bl) { bl.value = String(ui.blur); var bv = $("ap-blur-val"); if (bv) bv.textContent = String(ui.blur); }
     var sa = $("ap-sat"); if (sa) { sa.value = String(ui.sat); var sv = $("ap-sat-val"); if (sv) sv.textContent = ui.sat + "%"; }
     var lu = $("ap-lum"); if (lu) { lu.value = String(ui.bright); var lv = $("ap-lum-val"); if (lv) lv.textContent = ui.bright + "%"; }
     var ba = $("ap-body-alpha"); if (ba) { ba.value = String(ui.cardBodyAlpha); var bav = $("ap-body-val"); if (bav) bav.textContent = ui.cardBodyAlpha + "%"; }
   }
   function syncWpSliderLabels() {
-    $("wp-scrim-val").textContent = $("wp-scrim").value;
+    $("wp-scrim-val").textContent = $("wp-scrim").value + "%";
     $("wp-blur-val").textContent = $("wp-blur").value;
     $("wp-sat-val").textContent = $("wp-sat").value + "%";
     $("wp-lum-val").textContent = $("wp-lum").value + "%";
@@ -6443,7 +6628,9 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     $("wp-modal").classList.add("hidden");
     if (!wpTarget) return;
     var colors = [$("wp-c1").value, $("wp-c2").value, $("wp-c3").value];
-    var preset = { scrim: Math.max(0, Math.min(88, +$("wp-scrim").value || 0)), blur: Math.max(0, Math.min(40, +$("wp-blur").value || 0)), sat: Math.max(100, Math.min(260, +$("wp-sat").value || 175)), bright: Math.max(80, Math.min(140, +$("wp-lum").value || 105)), gradAngle: Math.max(0, Math.min(360, +$("wp-grad").value || 135)) };
+    var wpScrimInit = parseInt($("wp-scrim").value, 10);
+    if (isNaN(wpScrimInit)) wpScrimInit = 100; // ⚠ 不可写成 "|| 100" 形式：0% 是合法值
+    var preset = { scrim: Math.max(0, Math.min(200, wpScrimInit)), blur: Math.max(0, Math.min(40, +$("wp-blur").value || 0)), sat: Math.max(100, Math.min(260, +$("wp-sat").value || 175)), bright: Math.max(80, Math.min(140, +$("wp-lum").value || 105)), gradAngle: Math.max(0, Math.min(360, +$("wp-grad").value || 135)), textColor: ui.textColor === "white" ? "white" : "black", lumaVer: 2 };
     var custom = [];
     try { custom = JSON.parse(localStorage.getItem("mdn_wp_custom") || "[]") || []; } catch (e) { custom = []; }
     if (!Array.isArray(custom)) custom = [];
