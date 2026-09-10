@@ -735,7 +735,8 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 .ap-bg-nav{display:flex;align-items:stretch;gap:8px}
 .ap-bg-list{flex:1;display:grid;grid-template-columns:repeat(auto-fill,44px);grid-auto-rows:44px;justify-content:space-evenly;gap:11px 7px;max-height:196px;overflow-y:auto;scrollbar-gutter:stable;padding:4px} /* 列宽行高双锁死：滚动条出现/条目增多都不改变格子尺寸 */
 .ap-bg-list button{position:relative;width:44px;height:44px;padding:0;cursor:pointer;overflow:hidden;border-radius:11px;border:1px solid rgba(0,0,0,.12);background:rgba(255,255,255,.35)}
-.ap-bg-list img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none} /* 事件穿透到按钮：img 原生拖拽会劫持 pointer 手势 */
+.ap-bg-list img{width:100%;height:100%;object-fit:cover;display:block;pointer-events:none;transition:opacity .18s ease} /* 事件穿透到按钮：img 原生拖拽会劫持 pointer 手势 */
+.ap-bg-list img.wp-thumb-off{opacity:0} /* 待加载/已卸载：隐藏，避免无 src 时闪现浏览器破图占位 */
 /* 壁纸池拖拽占位：方形虚线框 + phPulse 脉冲（对照 fchip-ph） */
 .ap-bg-ph{width:44px;height:44px;border:2px dashed color-mix(in srgb,var(--accent) 62%,transparent);border-radius:11px;background:color-mix(in srgb,var(--accent) 12%,transparent);animation:phPulse 1.3s ease-in-out infinite;pointer-events:none}
 .ap-bg-css{width:100%;height:100%} /* 纯 CSS 背景预览色块（background 由 JS 写入） */
@@ -995,16 +996,10 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
               <label><input type="radio" name="downloadNameSource" id="downloadNameSourceCustom" value="custom" /><span data-i18n="set.downloadNameSource.custom"></span></label>
             </span>
           </label>
-          <label><span data-i18n="set.thumbSource"></span><small data-i18n="set.thumbSource.hint"></small>
+          <label><span data-i18n="set.displaySource"></span><small data-i18n="set.displaySource.hint"></small>
             <span class="mode-radio-row">
-              <label><input type="radio" name="thumbSource" id="thumbSourceUpstream" value="upstream" /><span data-i18n="set.thumbSource.upstream"></span></label>
-              <label><input type="radio" name="thumbSource" id="thumbSourceSite" value="site" /><span data-i18n="set.thumbSource.site"></span></label>
-            </span>
-          </label>
-          <label><span data-i18n="set.previewSource"></span><small data-i18n="set.previewSource.hint"></small>
-            <span class="mode-radio-row">
-              <label><input type="radio" name="previewSource" id="previewSourceUpstream" value="upstream" /><span data-i18n="set.previewSource.upstream"></span></label>
-              <label><input type="radio" name="previewSource" id="previewSourceSite" value="site" /><span data-i18n="set.previewSource.site"></span></label>
+              <label><input type="radio" name="displaySource" id="displaySourceUpstream" value="upstream" /><span data-i18n="set.displaySource.upstream"></span></label>
+              <label><input type="radio" name="displaySource" id="displaySourceSite" value="site" /><span data-i18n="set.displaySource.site"></span></label>
             </span>
           </label>
         </div>
@@ -1026,7 +1021,8 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
 
         <div class="card group">
           <h3 data-i18n="set.group.ui"></h3>
-          <label><span data-i18n="set.thumbCache"></span><input id="thumbCache" type="number" min="8" max="1000" step="4" data-i18n-ph="set.thumbCache.ph" /><small data-i18n="set.thumbCache.hint"></small></label>
+          <label><span data-i18n="set.thumbCache"></span><input id="thumbCache" type="number" min="1" max="20" step="1" data-i18n-ph="set.thumbCache.ph" /><small data-i18n="set.thumbCache.hint"></small></label>
+          <label><span data-i18n="set.wpThumbKeep"></span><input id="wpThumbKeep" type="number" min="0" max="30" step="1" data-i18n-ph="set.wpThumbKeep.ph" /><small data-i18n="set.wpThumbKeep.hint"></small></label>
         </div>
 
 
@@ -1244,13 +1240,16 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
   var addPendingFolder = "";
   var lastPreviewHost = "";
   var rateMeta = null;
-  var appSettings = {}; // 全局设置缓存（含 thumbSource/previewSource），缩略图与灯箱渲染时读取
+  var appSettings = {}; // 全局设置缓存（含 displaySource 统一网页展示图源），缩略图与灯箱渲染时读取
   var detailModalImg = null; // 详情弹窗当前媒体对象
   var detailSrc = "site"; // 详情弹窗复制源：site=网站链接 / upstream=上游链接
   var detailFmt = "url"; // 详情弹窗复制格式：url / html / markdown / bbcode
-  var THUMB_CACHE_KEY = "media_dns_thumb_cache";
-  var thumbCacheMax = parseInt(localStorage.getItem(THUMB_CACHE_KEY), 10);
-  if (!thumbCacheMax || thumbCacheMax < 8) { thumbCacheMax = 50; localStorage.setItem(THUMB_CACHE_KEY, "50"); }
+  var THUMB_PAGES_KEY = "media_dns_thumb_pages"; // 缩略图缓存页数（旧张数键 media_dns_thumb_cache 已弃用，不再读写）
+  var WP_THUMB_KEEP_KEY = "mdn_wp_thumb_keep"; // 壁纸池长效保留阈值
+  function clampThumbPages(v) { return v >= 1 && v <= 20 ? v : 4; } // 不在 1-20 一律兜底 4 页（默认值）
+  function clampWpKeep(v) { return v >= 0 && v <= 30 ? v : 12; } // 不在 0-30 一律兜底 12；0 = 每次关闭都重新加载
+  var thumbCachePages = clampThumbPages(parseInt(localStorage.getItem(THUMB_PAGES_KEY), 10));
+  var wpThumbKeep = clampWpKeep(parseInt(localStorage.getItem(WP_THUMB_KEEP_KEY), 10));
   var VIEW_MODE_KEY = "mdn_view_mode";
   var viewMode = localStorage.getItem(VIEW_MODE_KEY) === "list" ? "list" : "thumb"; // thumb=图片展示 / list=列表展示
   var sizeCache = {}; // 列表模式文件大小缓存（id → 格式化字符串）
@@ -1259,7 +1258,88 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
   var renderDoneCb = null; // 渲染队列处理完成后回调（切样式动画等需等待渲染就位）
   var thumbObserver2 = null;
   var thumbObsTargets = [];
-  var thumbLoaded = 0;
+  // ===== 图源池：url → Image 强引用。卡片缩略图 / 详情页 / 灯箱大图（含列表样式预加载）共用同一份
+  // 下载与解码数据；cachePages 按「样式 × 页」记账 url，跨样式合计不超「缓存页数 × 每页张数」。
+  // 同一 url 可同时存在于多个页记录中（如在另一样式/另一页也被缓存）：只有当所有引用它的页都被淘汰后，
+  // 该 url 才彻底出池；这样共有图会跟随最后一个引用页一起淘汰，不会被永久豁免 =====
+  var imgPool = new Map(); // url → { img: HTMLImageElement, ready: bool, lastUse: number }
+  var cachePages = { thumb: [], list: [] }; // 样式 → [{ page: 页码, urls: [url...], lastUse: 时间戳 }]
+  // autoLoad：预加载场景（列表预加载/详情/灯箱）传 true 立即加载；卡片路径传 false 只占位记账，
+  // 待 DOM 缩略图加载成功后再由 reveal 补录加载（此时浏览器缓存已命中，零网络，且不绕过并发队列）
+  function poolGet(url, autoLoad) {
+    var e = imgPool.get(url);
+    if (e) {
+      e.lastUse = Date.now();
+      if (autoLoad && !e.img.getAttribute("src")) e.img.src = url;
+      return e;
+    }
+    var im = new Image();
+    im.decoding = "async";
+    if (autoLoad) im.src = url;
+    e = { img: im, ready: false, lastUse: Date.now() };
+    im.onload = function () { e.ready = true; };
+    im.onerror = function () { imgPool.delete(url); }; // 加载失败出池，不占用缓存记账名额
+    imgPool.set(url, e);
+    return e;
+  }
+  function currentViewGroup() { return viewMode === "list" ? "list" : "thumb"; }
+  // 取（或建）某样式下指定页的记账记录
+  function cachePageRec(group, page, create) {
+    var arr = cachePages[group] || (cachePages[group] = []);
+    for (var i = 0; i < arr.length; i++) if (arr[i].page === page) return arr[i];
+    if (!create) return null;
+    var rec = { page: page, urls: [], lastUse: Date.now() };
+    arr.push(rec);
+    return rec;
+  }
+  function cacheGroupAdd(url) { // 记入「当前样式 + 当前页」（同 url 可同时存在于多个页记录）
+    var rec = cachePageRec(currentViewGroup(), pager.page, true);
+    rec.lastUse = Date.now();
+    if (rec.urls.indexOf(url) === -1) rec.urls.push(url);
+  }
+  function cachePageTouch() { // 标记当前样式当前页最近被访问（翻页/渲染时调用，保证 LRU 准确）
+    var rec = cachePageRec(currentViewGroup(), pager.page, false);
+    if (rec) rec.lastUse = Date.now();
+  }
+  function urlInAnyPage(url) {
+    var g, i, j;
+    for (g in cachePages) {
+      var arr = cachePages[g];
+      for (i = 0; i < arr.length; i++) if (arr[i].urls.indexOf(url) !== -1) return true;
+    }
+    return false;
+  }
+  function dropUrlFromPages(url) { // 从所有页记录中解除该 url 引用，并清掉空页
+    var g, i, k;
+    for (g in cachePages) {
+      var arr = cachePages[g];
+      for (i = arr.length - 1; i >= 0; i--) {
+        k = arr[i].urls.indexOf(url);
+        if (k !== -1) arr[i].urls.splice(k, 1);
+        if (!arr[i].urls.length) arr.splice(i, 1);
+      }
+    }
+  }
+  function cacheGroupRemove(url) { // 解除所有页引用；若无任何页再引用则出池
+    dropUrlFromPages(url);
+    if (!urlInAnyPage(url)) imgPool.delete(url);
+  }
+  function poolClearAll() { imgPool.clear(); cachePages = { thumb: [], list: [] }; }
+  // 缓存诊断（控制台执行 __mediaCache() 查看实况）：不参与正常逻辑，仅观测
+  var evictLog = { runs: 0, removed: 0 };
+  window.__mediaCache = function () {
+    function pagesOf(g) {
+      return (cachePages[g] || []).map(function (r) { return { page: r.page, n: r.urls.length }; });
+    }
+    return {
+      pages: thumbCachePages,                       // 页数上限（图片/列表两样式页组合计）
+      groupCount: poolPageCount(),                  // 当前已缓存页组总数
+      perPage: perPageCount(),                      // 当前样式每页张数
+      pool: imgPool.size,                           // 池内实际条目数（去重后）
+      grouped: { thumb: pagesOf("thumb"), list: pagesOf("list") }, // 按样式×页分组的各组张数
+      evictions: { runs: evictLog.runs, removed: evictLog.removed }
+    };
+  };
 
   /* 卡片本体分批渲染：每帧插入一小批，配合递增动画延迟逐个浮现（与缩略图加载一致的体感） */
   var CARD_BATCH = 5;
@@ -1458,14 +1538,10 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "set.downloadNameSource.hint": "另存/下载媒体时文件名取自上游文件名，或取自网站自定义名（自动补上游扩展名）。自定义名请勿带后缀，否则会变成「名字.你写的后缀.上游后缀」。仅「缓存代理+DNS」模式生效（仅DNS为302直跳上游，无法控制保存名）。",
       "set.downloadNameSource.upstream": "上游文件名",
       "set.downloadNameSource.custom": "网站自定义名",
-      "set.thumbSource": "缩略图媒体源",
-      "set.thumbSource.hint": "管理面板中媒体卡片的缩略图/封面取自上游媒体源，或本网站代理后的网站媒体源；媒体详情页缩略图同样由此控制。仅「缓存代理+DNS」模式的媒体支持网站源（「仅DNS」为302直跳，始终用上游）。视频封面因跨域截帧限制，缓存代理模式下始终走网站代理链接。",
-      "set.thumbSource.upstream": "上游媒体源",
-      "set.thumbSource.site": "网站媒体源",
-      "set.previewSource": "预览媒体源",
-      "set.previewSource.hint": "点击预览按钮后，灯箱中播放/显示的媒体取自上游媒体源，或本网站代理后的网站媒体源。仅「缓存代理+DNS」模式的媒体支持网站源（「仅DNS」为302直跳，始终用上游）。",
-      "set.previewSource.upstream": "上游媒体源",
-      "set.previewSource.site": "网站媒体源",
+      "set.displaySource": "网页展示图源",
+      "set.displaySource.hint": "媒体卡片缩略图、详情页、预览页的图片/封面统一取自上游媒体源，或本网站代理后的网站媒体源；三处共用同一份图片缓存。仅「缓存代理+DNS」模式的媒体支持网站源（「仅DNS」为302直跳，始终用上游）。视频封面因跨域截帧限制，缓存代理模式下始终走网站代理链接。",
+      "set.displaySource.upstream": "上游媒体源",
+      "set.displaySource.site": "网站媒体源",
       "set.group.origin": "上游（图床）",
       "set.allowedOrigins": "允许代理的域名（SSRF 白名单，逗号加空格分隔）",
       "set.allowedOrigins.ph": "如 img.example.com, img2.example.com",
@@ -1538,9 +1614,12 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "wp.preset.hint": "预设随壁纸保存；之后在外观面板调滑条为临时调整，切换壁纸时仍会按预设生效。",
       "wp.applied": "已设为壁纸",
       "wp.err": "该媒体缺少可用链接",
-      "set.thumbCache": "缩略图缓存上限（个）",
-      "set.thumbCache.ph": "如 50",
-      "set.thumbCache.hint": "超过上限时自动释放距离当前位置最远、且超过最小释放距离的缩略图，滑到附近时重新加载。仅存在本浏览器。",
+      "set.thumbCache": "缩略图缓存页数（页）",
+      "set.thumbCache.ph": "如 4",
+      "set.thumbCache.hint": "可设置 1–20 页（超出则指向默认值'4'）。图源池上限按页数计：图片样式与列表样式已缓存的页组合计不超过该值（网格 24 张/页、列表 20 张/页），可控制网页自身持有并保活的图片内存（标签页内存中网页可控的那部分）。缓存按页组记，超出时以整页为单位释放：先释放另一样式的页，再释放当前样式的非当前页；某张图若仍被其它未释放的页引用则保留，直到引用它的页全部被释放才彻底释放。注意：该设置只约束网页可控的图源池，实际的加载速度与内存占用还受浏览器自身的 HTTP 缓存与图片解码缓存影响（那部分由浏览器管理，网页无法控制）。仅存在本浏览器。",
+      "set.wpThumbKeep": "壁纸池长效保留（张）",
+      "set.wpThumbKeep.ph": "如 12",
+      "set.wpThumbKeep.hint": "可设置 0–30 张（超出则指向默认值'12'）。壁纸池图片数不超过该值时，缩略图加载后长效保留；超过则关闭面板即卸载，下次展开重新加载。0 表示每次关闭都重新加载。注意：该设置只约束网页可控的壁纸池内存，实际加载速度与内存占用还受浏览器自身缓存影响（那部分由浏览器管理）。仅存在本浏览器。",
       "pager.info": "第 {page} / {total} 页",
       "pager.invalid": "请输入 1 ~ {max} 的页码"
     },
@@ -1723,14 +1802,10 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "set.downloadNameSource.hint": "When saving/downloading media, use the upstream file name, or the name set on this site (upstream extension appended automatically). Do NOT include an extension in the custom name, or the file becomes “name.your_ext.upstream_ext”. Only applies in “Cache proxy + DNS” mode (DNS-only is a 302 redirect and can't control the saved name).",
       "set.downloadNameSource.upstream": "Upstream file name",
       "set.downloadNameSource.custom": "Name set on this site",
-      "set.thumbSource": "Thumbnail media source",
-      "set.thumbSource.hint": "Thumbnails/covers on the media grid and in the media detail view load from the upstream source, or from this site's proxied link. Only applies in “Cache proxy + DNS” mode (DNS-only is a 302 redirect and always uses upstream). Video covers always use the proxied link in cache-proxy mode because cross-origin frame capture requires CORS.",
-      "set.thumbSource.upstream": "Upstream source",
-      "set.thumbSource.site": "Site source",
-      "set.previewSource": "Preview media source",
-      "set.previewSource.hint": "Media played/shown in the lightbox loads from the upstream source, or from this site's proxied link. Only applies in “Cache proxy + DNS” mode (DNS-only is a 302 redirect and always uses upstream).",
-      "set.previewSource.upstream": "Upstream source",
-      "set.previewSource.site": "Site source",
+      "set.displaySource": "Display media source",
+      "set.displaySource.hint": "Grid thumbnails, detail view and lightbox all load images/covers from the upstream source, or this site's proxied link; all three share one image cache. Only applies in “Cache proxy + DNS” mode (DNS-only is a 302 redirect and always uses upstream). Video covers always use the proxied link in cache-proxy mode because cross-origin frame capture requires CORS.",
+      "set.displaySource.upstream": "Upstream source",
+      "set.displaySource.site": "Site source",
       "set.group.origin": "Upstream (image host)",
       "set.allowedOrigins": "Allowed proxy domains (SSRF whitelist, Separated by commas and spaces)",
       "set.allowedOrigins.ph": "e.g. img.example.com, img2.example.com",
@@ -1803,9 +1878,12 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       "wp.preset.hint": "The preset is saved with this wallpaper. Slider tweaks afterwards are temporary; switching wallpapers re-applies the preset.",
       "wp.applied": "Wallpaper set",
       "wp.err": "No usable link on this media",
-      "set.thumbCache": "Thumbnail cache cap",
-      "set.thumbCache.ph": "e.g. 50",
-      "set.thumbCache.hint": "When the cap is exceeded, thumbnails farthest from the viewport (beyond a minimum eviction distance) are released and reload when scrolled back. Stored in this browser only.",
+      "set.thumbCache": "Thumbnail cache pages",
+      "set.thumbCache.ph": "e.g. 4",
+      "set.thumbCache.hint": "Range 1–20 pages (out-of-range values fall back to the default '4'). The image pool cap is counted in pages: cached page groups of both the grid and list styles combined stay within this value (grid 24/page, list 20/page), bounding the images held alive by this page (the part of tab memory the page can control). Cache is tracked as page groups; when exceeded, eviction releases whole pages: the other style's pages first, then the current style's non-current pages; an image still referenced by any un-released page is kept, and is only fully dropped after every page referencing it has been released. Note: this only bounds the page-controlled image pool; actual loading speed and memory use also depend on the browser's own HTTP cache and image decode cache, which the page cannot control. Stored in this browser only.",
+      "set.wpThumbKeep": "Wallpaper pool keep (count)",
+      "set.wpThumbKeep.ph": "e.g. 12",
+      "set.wpThumbKeep.hint": "Range 0–30 (out-of-range values fall back to the default '12'). When the wallpaper pool has no more images than this, loaded thumbnails stay in memory; otherwise they unload on close and reload on next open. 0 means always reload on close. Note: this only bounds the page-controlled wallpaper pool memory; actual loading speed and memory use are also affected by the browser's own cache, which the page cannot control. Stored in this browser only.",
       "pager.info": "Page {page} / {total}",
       "pager.invalid": "Enter a page number between 1 and {max}"
     }
@@ -1997,12 +2075,12 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     var tp = img.type || guessTypeClient(img.url);
     if (tp === "video") {
       // 用代理链接（带 CORS）加载视频，进入视口后截帧生成封面缩略图
-      var src = videoThumbSrc(img, appSettings.thumbSource);
+      var src = videoThumbSrc(img, appSettings.displaySource);
       return '<video class="tv-thumb" data-src="' + esc(src) + '" data-alt="' + esc(img.id) + '" muted playsinline crossorigin="anonymous" preload="metadata"></video>';
     }
     if (tp === "audio")
       return '<div class="thumb-fallback"><span class="tf-icon">♪</span><span class="tf-id">' + esc(t("type.audio")) + "</span></div>";
-    return '<img data-src="' + esc(mediaSrc(img, appSettings.thumbSource)) + '" class="thumb-img thumb-pending" draggable="false" alt="' + esc(img.id) + '" />';
+    return '<img data-src="' + esc(mediaSrc(img, appSettings.displaySource)) + '" class="thumb-img thumb-pending" decoding="async" draggable="false" alt="' + esc(img.id) + '" />';
   }
   var thumbObserver = null;
   function observeVideoThumb(v) {
@@ -2117,13 +2195,15 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       img.removeAttribute("src");
       img.classList.remove("thumb-pending");
       img.dataset.loaded = "1";
+      cacheGroupRemove(src); // 失败的 url 不占用缓存记账
       replaceThumbWithFallback(img);
       done();
       return;
     }
     img.setAttribute("src", src);
     img.dataset.loaded = "1";
-    thumbLoaded++;
+    poolGet(src, false); // 占位记账（不发起加载，避免绕过并发队列）；DOM 加载成功后由 reveal 补录
+    cacheGroupAdd(src); // 记入当前样式组（跨样式合计上限的记账单位）
     thumbObsUnobserve(img);
     scheduleCacheManage();
     var finished = false;
@@ -2132,6 +2212,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       finished = true;
       img.dataset.tries = "0"; // 成功后重置失败计数
       img.classList.remove("thumb-pending");
+      poolGet(src, true); // 补录：池 Image 从浏览器缓存加载（零网络），此后详情/灯箱/另一样式直接复用
       done();
     }
     function retryOrFail() {
@@ -2142,6 +2223,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
         img.classList.remove("thumb-pending");
         img.removeAttribute("src");
         img.dataset.loaded = "1";
+        cacheGroupRemove(src);
         replaceThumbWithFallback(img);
         done();
         return;
@@ -2150,7 +2232,6 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       img.removeAttribute("src");
       img.classList.add("thumb-pending");
       delete img.dataset.loaded;
-      thumbLoaded--;
       done();
       setTimeout(function () {
         if (img.isConnected) loadThumbImg(img);
@@ -2198,36 +2279,59 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     }
   }
   function scheduleCacheManage() {
-    if (thumbCacheMax <= 0) return;
     if (thumbManageTimer) return;
     thumbManageTimer = setTimeout(function () { thumbManageTimer = null; manageThumbCache(); }, 300);
   }
+  // 淘汰：图片/列表两组记账合计（跨样式去重）不超「缓存页数 × 每页张数」。
+  // 顺序：先丢非当前样式组（无 DOM 元素，仅池与记账），再丢当前样式组（同步清理 DOM 缩略图）；
+  // 两样式都存在的 url 跳过不丢；组内按 lastUse 最久未用优先。
+  function poolPageCount() { // 图片/列表两样式已缓存的页组总数（池上限的判断标准）
+    var n = 0, g;
+    for (g in cachePages) n += (cachePages[g] || []).length;
+    return n;
+  }
   function manageThumbCache() {
-    if (thumbLoaded <= thumbCacheMax) return;
-    var vh = window.innerHeight;
-    var sy = window.pageYOffset || document.documentElement.scrollTop;
-    var vc = sy + vh / 2;
-    var minDist = Math.max(vh * 2, 1400);
-    var imgs = $("grid").querySelectorAll("img.thumb-img[data-loaded]");
-    var cand = [];
-    for (var i = 0; i < imgs.length; i++) {
-      var r = imgs[i].getBoundingClientRect();
-      var center = r.top + r.height / 2 + sy;
-      var d = Math.abs(center - vc);
-      if (d > minDist) cand.push({ img: imgs[i], d: d });
-    }
-    if (!cand.length) return;
-    cand.sort(function (a, b) { return b.d - a.d; });
-    for (var i = 0; i < cand.length && thumbLoaded > thumbCacheMax; i++) {
-      cand[i].img.removeAttribute("src");
-      cand[i].img.classList.add("thumb-pending");
-      delete cand[i].img.dataset.loaded;
-      delete cand[i].img.dataset.loading;
-      thumbLoaded--;
-      if (thumbObserver2) {
-        try { thumbObserver2.observe(cand[i].img); } catch (e) {}
-        thumbObsTargets.push(cand[i].img);
+    if (poolPageCount() <= thumbCachePages) return;
+    evictLog.runs++;
+    var cur = currentViewGroup(), other = cur === "thumb" ? "list" : "thumb";
+    evictPagesOf(other, false); // ① 先释放非当前样式的页
+    if (poolPageCount() > thumbCachePages) evictPagesOf(cur, true); // ② 再释放当前样式的非当前页（跳过当前页）
+  }
+  function evictDomThumb(u) { // 同步清理 DOM 中对应缩略图，交由 IO 重新接管
+    var domImgs = $("grid").querySelectorAll("img.thumb-img[data-loaded]");
+    for (var j = 0; j < domImgs.length; j++) {
+      if (domImgs[j].getAttribute("data-src") === u) {
+        domImgs[j].removeAttribute("src");
+        domImgs[j].classList.add("thumb-pending");
+        delete domImgs[j].dataset.loaded;
+        delete domImgs[j].dataset.loading;
+        if (thumbObserver2) { try { thumbObserver2.observe(domImgs[j]); } catch (e) {} }
       }
+    }
+  }
+  // 页级释放（释放粒度为「页」，按页最近使用时间由旧到新；淘汰到页组总数 ≤ 设置页数）。
+  // 对页内每张图：只解除「本页」的引用；若仍被其它未释放的页引用则保留在池中，
+  // 直到所有引用它的页都被释放才彻底出池（共有图不会被永久豁免）。
+  function evictPagesOf(group, skipCurrentPage) {
+    var arr = cachePages[group];
+    if (!arr || !arr.length) return;
+    var pages = arr.slice().sort(function (a, b) { return a.lastUse - b.lastUse; });
+    for (var i = 0; i < pages.length && poolPageCount() > thumbCachePages; i++) {
+      var rec = pages[i];
+      if (skipCurrentPage && rec.page === pager.page) continue;
+      var urls = rec.urls.slice();
+      for (var j = 0; j < urls.length; j++) {
+        var u = urls[j];
+        var k = rec.urls.indexOf(u);
+        if (k !== -1) rec.urls.splice(k, 1); // 只解除本页引用
+        if (!urlInAnyPage(u)) { // 无任何页再引用：彻底出池
+          imgPool.delete(u);
+          evictLog.removed++;
+          evictDomThumb(u);
+        }
+      }
+      var idx = arr.indexOf(rec);
+      if (idx !== -1) arr.splice(idx, 1);
     }
   }
 
@@ -2678,8 +2782,8 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     var html = "";
     for (var i = 0; i < 6; i++) html += '<div class="skeleton"></div>';
     grid.innerHTML = html;
-    thumbLoaded = 0;
     thumbObsTargets = [];
+    // 不清图源池：刷新后 url 大多不变，池内已加载的图可直接复用（淘汰规则自动控制总量）
   }
 
   function computeGridMetrics() {
@@ -2755,9 +2859,10 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     if (cardQueueTimer) { clearTimeout(cardQueueTimer); cardQueueTimer = null; }
     cardQueue = [];
     grid.innerHTML = "";
-    thumbLoaded = 0;
     thumbQueue = [];
     thumbInFlight = 0;
+    // 不清图源池：翻页/切样式/筛选只是重新过滤与渲染，url 本身仍有效，
+    // 池与分组记账继续由「缓存页数 × 每页张数」的淘汰规则管理（跨页/跨样式复用的基础）
   }
   function enqueueCardRange(start, end, noAnim) {
     var vis = gridState.vis;
@@ -2817,6 +2922,23 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     enqueueCardRange(start, end, opts.noAnim);
     renderPager(vis.length);
     ensureInfoLoads();
+    cachePageTouch(); // 标记当前样式当前页最近被访问，保证页级 LRU 准确
+    preloadListPage();
+  }
+  // 列表模式预加载：列表卡片无缩略图，但把当前页图片提前拉入图源池，为详情页/预览页做准备（共用一份内存）
+  function preloadListPage() {
+    if (viewMode !== "list") return;
+    var vis = gridState.vis || [];
+    var start = (pager.page - 1) * perPageCount();
+    var end = Math.min(vis.length, start + perPageCount());
+    for (var i = start; i < end; i++) {
+      var it = vis[i];
+      if ((it.type || guessTypeClient(it.url)) !== "image") continue; // 视频/音频实际播放独立缓存，封面由卡片/详情路径处理
+      var u = mediaSrc(it, appSettings.displaySource);
+      poolGet(u, true); // 预加载：立即拉入图源池
+      cacheGroupAdd(u);
+    }
+    scheduleCacheManage();
   }
 
   // ===== 展示样式切换 =====
@@ -2827,11 +2949,11 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       opts[i].classList.toggle("active", opts[i].getAttribute("data-view") === viewMode);
     }
   }
-  // 切 list：停止进行中的缩略图加载（list 模式无需缩略图）
+  // 切 list：停止进行中的缩略图加载（list 模式无需缩略图）。
+  // 注意：不清图源池与分组记账——图片样式下的缓存暂存，供列表样式复用与切回时秒显
   function clearThumbLoads() {
     thumbQueue = [];
     thumbInFlight = 0;
-    thumbLoaded = 0;
   }
   // ===== 切样式「堆叠摊开」动画：列表↔图片时卡片先堆叠到行首/首行，再逐张推平 =====
   function playDeckAnimation() {
@@ -3375,7 +3497,8 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       var thumb = c.querySelector(".thumb");
       if (thumb) thumb.outerHTML = thumbWrapHtml(im);
     }
-    thumbLoaded = 0;
+    poolClearAll(); // 图源已切换：旧源 url 全部失效，清池后按新源重新加载
+    thumbQueue = [];
     thumbQueue = [];
     thumbInFlight = 0;
     setupVideoThumbs();
@@ -4370,6 +4493,25 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     if (e.key === "Enter") { e.preventDefault(); submitOriginDomain(); }
   });
 
+  // ===== 视频/音频播放独立缓存：打开播放界面（灯箱/详情页）才加载实际媒体；开始播放下一个
+  // 即释放上一个；关闭播放界面后短时保留（60s），期间重开同一媒体秒开。图片走图源池不走此机制 =====
+  var playingMedia = null;
+  var playbackReleaseTimer = null;
+  function releasePlayingMedia() {
+    if (playbackReleaseTimer) { clearTimeout(playbackReleaseTimer); playbackReleaseTimer = null; }
+    if (!playingMedia) return;
+    try { playingMedia.el.pause(); playingMedia.el.removeAttribute("src"); playingMedia.el.load(); } catch (e) {}
+    playingMedia = null;
+  }
+  function holdPlayingMedia(el) {
+    releasePlayingMedia(); // 开始播放下一个即释放上一个
+    playingMedia = { el: el };
+  }
+  function schedulePlaybackRelease() {
+    if (!playingMedia) return;
+    if (playbackReleaseTimer) clearTimeout(playbackReleaseTimer);
+    playbackReleaseTimer = setTimeout(function () { playbackReleaseTimer = null; releasePlayingMedia(); }, 60000);
+  }
   function openLightbox(info) {
     var url = info.url;
     var siteUrl = info.shortUrl || url;
@@ -4379,8 +4521,10 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     if (info.type === "video") { el = document.createElement("video"); el.controls = true; }
     else if (info.type === "audio") { el = document.createElement("audio"); el.controls = true; }
     else { el = document.createElement("img"); el.alt = ""; }
-    // 预览媒体源：site 仅对缓存代理模式生效，否则回退上游
-    el.src = mediaSrc(info, appSettings.previewSource);
+    // 网页展示图源：site 仅对缓存代理模式生效，否则回退上游
+    el.src = mediaSrc(info, appSettings.displaySource);
+    if (info.type === "video" || info.type === "audio") holdPlayingMedia(el); // 播放独立缓存：切换即释放上一个
+    else poolGet(el.src, true); // 灯箱大图进图源池，与卡片/详情共用一份内存
     box.appendChild(el);
     $("lightbox-open").href = url; // 「在新标签打开原图」始终指向上游原始链接
     $("lightbox-open-site").href = siteUrl; // 「在新标签打开网站外链」
@@ -4389,6 +4533,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
   function closeLightbox() {
     $("lightbox").classList.add("hidden");
     $("lightbox-media").innerHTML = "";
+    schedulePlaybackRelease(); // 关闭后短时保留（60s），期间重开同一媒体秒开
   }
   $("lightbox").addEventListener("click", function (e) {
     if (e.target === $("lightbox") || e.target.classList.contains("close")) closeLightbox();
@@ -4396,6 +4541,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
   function closeDetailModal() {
     $("detail-modal").classList.add("hidden");
     $("detail-thumb").innerHTML = "";
+    schedulePlaybackRelease(); // 关闭后短时保留（60s），期间重开同一媒体秒开
     detailModalImg = null;
   }
   $("detail-modal").addEventListener("click", function (e) {
@@ -4463,11 +4609,12 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     box.innerHTML = "";
     var tp = img.type || guessTypeClient(img.url);
     if (tp === "audio") {
-      // 音频详情：♪ 占位符（横排）+ 可播放的音频控件，媒体源跟随「缩略图媒体源」设置
+      // 音频详情：♪ 占位符（横排）+ 可播放的音频控件，媒体源跟随「网页展示图源」设置
       var a = document.createElement("audio");
       a.controls = true;
       a.preload = "metadata";
-      a.src = mediaSrc(img, appSettings.thumbSource);
+      a.src = mediaSrc(img, appSettings.displaySource);
+      holdPlayingMedia(a); // 播放独立缓存：切换即释放上一个
       attachDetailSrcFallback(a, img, a.src);
       var wrap = document.createElement("div");
       wrap.className = "detail-audio-wrap";
@@ -4478,16 +4625,18 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     }
     var el = tp === "video" ? document.createElement("video") : document.createElement("img");
     if (tp === "video") {
-      // 详情页视频：可播放（带控件），媒体源仍遵循「缩略图媒体源」设置
+      // 详情页视频：可播放（带控件），媒体源跟随「网页展示图源」设置
       el.controls = true;
       el.playsInline = true;
       el.preload = "metadata";
-      el.src = videoThumbSrc(img, appSettings.thumbSource);
+      el.src = videoThumbSrc(img, appSettings.displaySource);
+      holdPlayingMedia(el); // 播放独立缓存：切换即释放上一个
       el.addEventListener("loadedmetadata", function () { setDetailDim(el.videoWidth, el.videoHeight); });
     } else {
       el.alt = img.id;
       el.onload = function () { setDetailDim(el.naturalWidth, el.naturalHeight); };
-      el.src = mediaSrc(img, appSettings.thumbSource);
+      el.src = mediaSrc(img, appSettings.displaySource);
+      poolGet(el.src, true); // 详情页大图进图源池，与卡片/灯箱共用一份内存
     }
     attachDetailSrcFallback(el, img, el.src);
     box.appendChild(el);
@@ -4938,13 +5087,14 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       else { $("defaultModeRedirect").checked = true; }
       if (s.downloadNameSource === "custom") { $("downloadNameSourceCustom").checked = true; }
       else { $("downloadNameSourceUpstream").checked = true; }
-      if (s.thumbSource === "site") { $("thumbSourceSite").checked = true; }
-      else { $("thumbSourceUpstream").checked = true; }
-      if (s.previewSource === "site") { $("previewSourceSite").checked = true; }
-      else { $("previewSourceUpstream").checked = true; }
+      // 统一「网页展示图源」：后端仍存 thumbSource/previewSource 两字段（同值），读取取其一
+      var ds = s.thumbSource === "site" || s.previewSource === "site" ? "site" : "upstream";
+      if (ds === "site") { $("displaySourceSite").checked = true; }
+      else { $("displaySourceUpstream").checked = true; }
       $("originReferer").value = s.originReferer || "";
       $("originUserAgent").value = s.originUserAgent || "";
-      if ($("thumbCache")) $("thumbCache").value = thumbCacheMax;
+      if ($("thumbCache")) $("thumbCache").value = thumbCachePages;
+      if ($("wpThumbKeep")) $("wpThumbKeep").value = wpThumbKeep;
       if (data.meta) {
         rateMeta = data.meta;
         renderRateLimits();
@@ -4996,21 +5146,22 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     body.requireSignature = $("requireSignature").checked;
     body.defaultMode = $("defaultModeProxy").checked ? "proxy" : "redirect";
     body.downloadNameSource = $("downloadNameSourceCustom").checked ? "custom" : "upstream";
-    body.thumbSource = $("thumbSourceSite").checked ? "site" : "upstream";
-    body.previewSource = $("previewSourceSite").checked ? "site" : "upstream";
+    body.thumbSource = body.previewSource = $("displaySourceSite").checked ? "site" : "upstream"; // 统一「网页展示图源」，后端两字段同值兼容
     body.originReferer = $("originReferer").value.trim();
     body.originUserAgent = $("originUserAgent").value.trim();
     var tc = parseInt($("thumbCache") ? $("thumbCache").value : "", 10);
-    thumbCacheMax = tc >= 0 ? tc : 0;
-    localStorage.setItem(THUMB_CACHE_KEY, String(thumbCacheMax));
+    thumbCachePages = clampThumbPages(tc);
+    localStorage.setItem(THUMB_PAGES_KEY, String(thumbCachePages));
+    var wk = parseInt($("wpThumbKeep") ? $("wpThumbKeep").value : "", 10);
+    wpThumbKeep = clampWpKeep(wk);
+    localStorage.setItem(WP_THUMB_KEEP_KEY, String(wpThumbKeep));
     scheduleCacheManage();
     var btn = this;
     setBusy(btn, true, t("set.busy"));
     api("/api/settings", { method: "PUT", body: JSON.stringify(body) })
       .then(function () {
         // 同步全局设置缓存并按新媒体源刷新已渲染缩略图，无需整页重建
-        appSettings.thumbSource = body.thumbSource;
-        appSettings.previewSource = body.previewSource;
+        appSettings.displaySource = body.thumbSource; // 与 body.previewSource 同值
         refreshThumbs();
         toast(t("op.saveOk"), "success");
       })
@@ -5510,9 +5661,20 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
     var btns = document.querySelectorAll("#ap-bg-list button,#ap-css-row button");
     for (var i = 0; i < btns.length; i++) btns[i].setAttribute("aria-pressed", String(btns[i].getAttribute("data-url") === cur));
   }
+  // 壁纸池独立缓存：面板未展开时不构建不加载（首次打开才懒加载）；图片数 ≤ wpThumbKeep 长效保存，> x 关闭即卸载
+  var wpPoolBuilt = false, wpPoolDirty = false;
+  var wpBgIO = null; // 壁纸池缩略图懒加载观察器（root = 网格，覆盖内部滚动）
+  function wpDockOpen() { var d = $("ap-dock"); return !!(d && d.classList.contains("open")); }
+  function wpImgCount() {
+    var all = wpOptions(), n = 0;
+    for (var i = 0; i < all.length; i++) if (!all[i].css) n++;
+    return n;
+  }
   function buildBgList() {
     var box = $("ap-bg-list"), cssBox = $("ap-css-row");
     if (!box || !cssBox) return;
+    if (!wpDockOpen()) { wpPoolDirty = true; return; } // 面板未展开：不构建不加载，仅标脏（首次展开才懒加载）
+    wpPoolBuilt = true; wpPoolDirty = false;
     box.innerHTML = ""; cssBox.innerHTML = "";
     var mode = (window.__WP__ && window.__WP__.mode) || "random";
     var rand = loadRandSet();
@@ -5531,7 +5693,10 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
           b.appendChild(d);
         } else {
           var im = document.createElement("img");
-          im.src = it.url; im.alt = ""; im.loading = "lazy"; im.draggable = false; // 禁用原生图片拖拽，手势由按钮接管
+          im.alt = ""; im.decoding = "async"; im.draggable = false; // 禁用原生图片拖拽，手势由按钮接管
+          im.className = "wp-thumb-off"; // 待加载隐藏：加载完成淡入，避免闪现破图占位
+          im.setAttribute("data-src", it.url); // 懒加载：进入网格视口才真正加载
+          im.addEventListener("load", function () { this.classList.remove("wp-thumb-off"); });
           im.addEventListener("error", function () { b.style.opacity = ".3"; });
           b.appendChild(im);
         }
@@ -5544,6 +5709,41 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       })(all[i]);
     }
     markActiveWp();
+    observeWpThumbs();
+  }
+  function observeWpThumbs() {
+    var box = $("ap-bg-list");
+    if (!box) return;
+    if (!("IntersectionObserver" in window)) { // 降级：立即加载全部
+      var imgs = box.querySelectorAll("img[data-src]");
+      for (var i = 0; i < imgs.length; i++) loadWpThumb(imgs[i]);
+      return;
+    }
+    if (!wpBgIO) {
+      wpBgIO = new IntersectionObserver(function (entries) {
+        for (var k = 0; k < entries.length; k++) {
+          if (entries[k].isIntersecting) loadWpThumb(entries[k].target);
+        }
+      }, { root: box, rootMargin: "80px 0px" });
+    }
+    var nodes = box.querySelectorAll("img[data-src]");
+    for (var j = 0; j < nodes.length; j++) wpBgIO.observe(nodes[j]);
+  }
+  function loadWpThumb(im) {
+    var u = im.getAttribute("data-src");
+    if (!u || im.getAttribute("src")) return;
+    im.setAttribute("src", u);
+    if (wpBgIO) wpBgIO.unobserve(im);
+  }
+  // 面板关闭卸载：只清 src 不重建 DOM（保住拖拽顺序与 aria-pressed 选中态），重新观察等待下次展开
+  function unloadWpThumbs() {
+    if (!wpBgIO || !wpPoolBuilt) return;
+    var imgs = $("ap-bg-list").querySelectorAll("img[src]");
+    for (var i = 0; i < imgs.length; i++) {
+      imgs[i].classList.add("wp-thumb-off"); // 先隐藏再清 src：避免中间态闪现浏览器破图占位
+      imgs[i].removeAttribute("src");
+      wpBgIO.observe(imgs[i]);
+    }
   }
 
   // ===== 壁纸池拖拽排序（pointer 事件，模式对照文件夹拖拽；仅图片壁纸，CSS 条目在独立行不参与）=====
@@ -6025,10 +6225,14 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
       body.hidden = !open;
       toggle.setAttribute("aria-expanded", String(open));
       panel.classList.toggle("open", open);
+      if (open) {
+        if (!wpPoolBuilt || wpPoolDirty) buildBgList(); // 首次展开才构建并懒加载；期间数据有变则重建
+      } else if (wpThumbKeep === 0 || wpImgCount() > wpThumbKeep) {
+        unloadWpThumbs(); // 超过长效阈值（或阈值 0）：关闭即卸载，下次展开重新加载
+      }
       if (open && ctl) ctl.refresh(); // 展开后新露出的玻璃元素立即补上折射
     });
 
-    buildBgList();
     renderWpMode();
     ensureHoverDom();
     // 渲染完成 / 弹窗打开等时机 dispatch 的 "lg-refresh"：立即全量重算玻璃（绕过 reconcile 签名跳过）
