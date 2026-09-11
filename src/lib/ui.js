@@ -98,6 +98,7 @@ export function renderUI() {
      --on-grad=主题渐变底按钮内文字（跟随设置）；--opposite=互斥组未选中对立色；--text-fixed=固定浅底控件文字（恒深色） */
   --text:#111827;--muted:color-mix(in srgb,var(--text) 62%,transparent);
   --on-grad:var(--text);--opposite:#ffffff;--text-fixed:#1f2937;
+  --pz-tint:rgba(255,255,255,.34); /* 拖拽翻页框底色遮罩：跟随文字色反向叠加（黑字→白遮罩 / 白字→黑遮罩） */
   /* 玻璃材质：白覆盖越低越通透，靠 saturate 提色而非白膜提亮（数值均可调） */
   --glass-chip:rgba(255,255,255,.55);   /* 小控件：轻微通透 */
   --glass-line:rgba(255,255,255,.65);
@@ -154,8 +155,8 @@ export function renderUI() {
 }
 .glass>*,.card>*,.login-card>*,.modal-box>*,.origin-box>*,.detail-box>*{position:relative;z-index:1}
 /* 文字颜色设置：html[data-text] 切换主文字色与对立色（--muted/--on-grad 派生自 --text，自动跟随） */
-html[data-text="black"]{--text:#111827;--opposite:#ffffff}
-html[data-text="white"]{--text:#ffffff;--opposite:#111827}
+html[data-text="black"]{--text:#111827;--opposite:#ffffff;--pz-tint:rgba(255,255,255,.34)}
+html[data-text="white"]{--text:#ffffff;--opposite:#111827;--pz-tint:rgba(0,0,0,.40)}
 html,body{height:100%}
 /* 背景层：.bg(壁纸) + .bg-scrim(白系遮罩)，对齐参考站的两层负 z 结构。
    ⚠ 内容层（.app / .login-screen）不要加 z-index：会创建 stacking context 把 backdrop 采样范围
@@ -857,29 +858,40 @@ textarea.auto-grow,.group input[type=text],.group input[type=number],.group inpu
 .detail-name input,.detail-folder select,.detail-preview textarea{color:var(--text-fixed)}
 /* 悬浮壁纸编辑器：白玻璃底(0.82)，整块恒用深色文字（含内部 --muted 派生，避免半透明白字压在白底上） */
 .wp-hover{color:var(--text-fixed);--muted:color-mix(in srgb,var(--text-fixed) 62%,transparent)}
-/* ===== 拖拽跨页热区：左右各约 5% 视口宽、50% 高（垂直居中），光标停留 1.5s 翻页 =====
-   宽高由 JS 按视口计算写入；首/末页由 JS 置 display:none 控制不展示对应侧 */
+/* ===== 拖拽跨页热区：左右各约 5% 视口宽，高 = 50% 视口 + 50px（垂直居中）
+   框内自上而下分 1–3 个区域（分别翻 1/2/3 页，页数不足时只显示够用的区域）；
+   宽高与 top 由 JS 按视口计算写入；首/末页由 JS 置 display:none 控制不展示对应侧 ===== */
 .page-zone{
-  position:fixed;top:25%;z-index:2380;display:flex;align-items:center;justify-content:center;
-  border:2px dashed color-mix(in srgb,var(--accent) 55%,transparent);border-radius:16px;
-  background:color-mix(in srgb,var(--accent) 9%,transparent);pointer-events:none;
-  opacity:.72;transition:opacity .18s ease,background .18s ease,border-color .18s ease
+  position:fixed;z-index:2380;display:flex;flex-direction:column;align-items:stretch;
+  border:3px dashed color-mix(in srgb,var(--accent) 80%,transparent);border-radius:16px;
+  /* --pz-tint 与文字色反向叠加：框底更实、框内文字对比更足（白字→黑遮罩 / 黑字→白遮罩） */
+  background:linear-gradient(var(--pz-tint),var(--pz-tint)),color-mix(in srgb,var(--accent) 18%,transparent);
+  pointer-events:none;overflow:hidden;
+  opacity:1;transition:background .18s ease,border-color .18s ease
 }
 .page-zone-left{left:8px}
 /* 亮度滑条：百分比数值靠右（亮度项多一个数值节点） */
 .ap-slider-top #ap-bright-val{margin-left:auto}
 .page-zone-right{right:8px}
-.page-zone span{
-  writing-mode:vertical-rl;text-orientation:upright;font-size:12px;font-weight:600;line-height:1.25;
-  color:var(--text);text-align:center;padding:0 2px;user-select:none
+.pz-cell{
+  flex:1;min-height:0;display:flex;flex-direction:row;align-items:center;justify-content:center;gap:8px;
+  transition:background .15s ease
 }
+.pz-cell + .pz-cell{border-top:2px dashed color-mix(in srgb,var(--accent) 50%,transparent)}
+/* 竖排文字：span 为纵向 flex，逐字块级堆叠 → 字距完全由 line-height 决定（紧贴，无额外空隙） */
+.pz-cell span{display:flex;flex-direction:column;align-items:center;justify-content:center;user-select:none;color:var(--text);line-height:1.2}
+.pz-cell span i{font-style:normal;display:block;line-height:1.2}
+.pz-cell .pz-n{font-size:17px;font-weight:700}
+.pz-cell .pz-s{font-size:14px;font-weight:500;opacity:.78}
+.pz-cell.hot{background:color-mix(in srgb,var(--accent) 32%,transparent)}
 .page-zone.hot{
-  opacity:1;border-color:var(--accent);background:color-mix(in srgb,var(--accent) 22%,transparent);
-  animation:zoneFill 1.5s linear forwards
+  border-color:var(--accent);
+  background:linear-gradient(var(--pz-tint),var(--pz-tint)),color-mix(in srgb,var(--accent) 30%,transparent);
+  animation:zoneFill 1s linear forwards
 }
 @keyframes zoneFill{
-  from{box-shadow:inset 0 0 0 0 color-mix(in srgb,var(--accent) 40%,transparent)}
-  to{box-shadow:inset 0 0 0 14px transparent}
+  from{box-shadow:inset 0 0 0 0 color-mix(in srgb,var(--accent) 45%,transparent)}
+  to{box-shadow:inset 0 0 0 16px transparent}
 }
 </style>
 </head>
@@ -1473,7 +1485,8 @@ textarea.auto-grow,.group input[type=text],.group input[type=number],.group inpu
       "list.count": "{n} 条",
       "list.sortHint": "按住卡片空白处拖动可排序",
       "drag.escCancel": "按下 ESC 取消拖拽",
-      "drag.pageHint": "将光标拖至此处翻页",
+      "drag.turnN": "翻{n}页",
+      "drag.holdHint": "停留1秒",
       "search.ph": "搜索名称 / ID / 地址…",
       "search.clear": "清空搜索",
       "view.toggle": "展示样式",
@@ -1739,7 +1752,8 @@ textarea.auto-grow,.group input[type=text],.group input[type=number],.group inpu
       "list.count": "{n} items",
       "list.sortHint": "Drag a card's empty area to reorder",
       "drag.escCancel": "Press ESC to cancel",
-      "drag.pageHint": "Drop the cursor here to turn the page",
+      "drag.turnN": "Turn {n}",
+      "drag.holdHint": "Hold 1s",
       "search.ph": "Search name / ID / URL…",
       "search.clear": "Clear search",
       "view.toggle": "Display style",
@@ -2386,63 +2400,104 @@ textarea.auto-grow,.group input[type=text],.group input[type=number],.group inpu
   /* 拖拽排序：仅从卡片的非交互区域发起；拖拽时卡片缩小淡化跟随鼠标，实时让位 + 虚线占位预览，放下时飞回槽位 */
   var dnd = null;
   var flipTimer = null;
-  // ===== 拖拽跨页热区：左右各约 5% 视口宽、50% 高（垂直居中），光标停留 1.5s 翻页 =====
-  var ZONE_W_RATIO = 0.05, ZONE_H_RATIO = 0.5, ZONE_HOLD_MS = 1500;
-  var zoneL = null, zoneR = null, zoneTimer = null, zoneSide = "";
+  // ===== 拖拽跨页热区：左右各约 5% 视口宽，高 = 50% 视口 + 50px（垂直居中）
+  // 每个热区自上而下分 1–3 个区域，分别翻 1/2/3 页；剩余页数不足时只保留翻得到的区域；
+  // 光标在某区域内停留 1s 即按该区域页数翻页 =====
+  var ZONE_W_RATIO = 0.05, ZONE_H_RATIO = 0.5, ZONE_H_EXTRA = 50, ZONE_HOLD_MS = 1000, ZONE_MAX_PAGES = 3;
+  var zoneL = null, zoneR = null, zoneTimer = null, zoneSide = "", zonePages = 0, zoneKey = "";
   function dragTotalPages() { return Math.max(1, Math.ceil((gridState.vis || []).length / perPageCount())); }
+  // 该方向最多还能翻几页（首页左侧为 0、末页右侧为 0）
+  function maxPagesFor(side) {
+    return side === "left" ? pager.page - 1 : dragTotalPages() - pager.page;
+  }
+  function zoneBounds() {
+    var vh = window.innerHeight;
+    var h = Math.round(vh * ZONE_H_RATIO) + ZONE_H_EXTRA;
+    return { h: h, top: Math.round((vh - h) / 2) };
+  }
+  // 竖排文字：逐字拆成块级元素竖直堆叠 —— 竖排 writing-mode 下字距由字体 advance 决定、无法收紧，
+  // 拆成块后间距完全由 line-height 控制（见 .pz-cell span i）
+  function verticalChars(str) {
+    var out = "";
+    for (var k = 0; k < str.length; k++) out += "<i>" + esc(str.charAt(k)) + "</i>";
+    return out;
+  }
   function createPageZones() {
     if (zoneL) return;
-    var hint = t("drag.pageHint");
+    var rows = "";
+    for (var i = 1; i <= ZONE_MAX_PAGES; i++) {
+      rows += '<div class="pz-cell" data-pages="' + i + '">' +
+        '<span class="pz-n">' + verticalChars(t("drag.turnN", { n: i })) + "</span>" +
+        '<span class="pz-s">' + verticalChars(t("drag.holdHint")) + "</span>" +
+        "</div>";
+    }
     var mk = function (side) {
       var el = document.createElement("div");
       el.className = "page-zone page-zone-" + side;
-      var sp = document.createElement("span");
-      sp.textContent = hint;
-      el.appendChild(sp);
-      el.style.width = Math.round(window.innerWidth * ZONE_W_RATIO) + "px";
-      el.style.height = Math.round(window.innerHeight * ZONE_H_RATIO) + "px";
+      el.innerHTML = rows;
+      var b = zoneBounds();
+      el.style.width = Math.max(48, Math.round(window.innerWidth * ZONE_W_RATIO)) + "px"; // 与 zoneAt 判定宽度一致
+      el.style.height = b.h + "px";
+      el.style.top = b.top + "px";
       document.body.appendChild(el);
       return el;
     };
     zoneL = mk("left"); zoneR = mk("right");
-    zoneSide = ""; clearZoneTimer(); updateZoneUI();
+    zoneSide = ""; zonePages = 0; zoneKey = ""; clearZoneTimer(); updateZoneUI();
   }
-  function zoneAvailable(side) {
-    if (side === "left") return pager.page > 1;
-    if (side === "right") return pager.page < dragTotalPages();
-    return false;
-  }
+  // 命中判定：返回 { side, pages }（pages = 该侧自上而下第几个区域），未命中返回 null
   function zoneAt(x, y) {
-    var vw = window.innerWidth, vh = window.innerHeight;
+    var vw = window.innerWidth;
     var w = Math.max(48, vw * ZONE_W_RATIO);
-    var pad = vh * (1 - ZONE_H_RATIO) / 2;
-    if (y < pad || y > vh - pad) return "";
-    if (x <= w) return "left";
-    if (x >= vw - w) return "right";
-    return "";
+    var b = zoneBounds();
+    if (y < b.top || y > b.top + b.h) return null;
+    var side = x <= w ? "left" : (x >= vw - w ? "right" : "");
+    if (!side) return null;
+    var n = Math.min(ZONE_MAX_PAGES, maxPagesFor(side));
+    if (n < 1) return null; // 该方向无页可翻（整框已隐藏）
+    var idx = Math.floor((y - b.top) / (b.h / n));
+    if (idx < 0) idx = 0;
+    if (idx > n - 1) idx = n - 1;
+    return { side: side, pages: idx + 1 };
   }
   function clearZoneTimer() { if (zoneTimer) { clearTimeout(zoneTimer); zoneTimer = null; } }
   function updateZoneUI() {
     if (!zoneL || !zoneR) return;
-    zoneL.style.display = zoneAvailable("left") ? "" : "none";  // 首页不展示左框
-    zoneR.style.display = zoneAvailable("right") ? "" : "none"; // 末页不展示右框
-    zoneL.classList.toggle("hot", zoneSide === "left");
-    zoneR.classList.toggle("hot", zoneSide === "right");
+    [["left", zoneL], ["right", zoneR]].forEach(function (pair) {
+      var side = pair[0], el = pair[1];
+      var n = Math.min(ZONE_MAX_PAGES, maxPagesFor(side));
+      if (n < 1) { el.style.display = "none"; return; } // 首页不展示左框 / 末页不展示右框
+      el.style.display = "";
+      var cells = el.querySelectorAll(".pz-cell");
+      for (var i = 0; i < cells.length; i++) {
+        cells[i].classList.toggle("hidden", i >= n); // 页数不够：只显示翻得到的区域
+        cells[i].classList.toggle("hot", i < n && zoneSide === side && zonePages === (i + 1));
+      }
+      el.classList.toggle("hot", zoneSide === side);
+    });
   }
-  // 拖拽移动时调用：命中热区起 1.5s 计时，离开/翻页即重置；翻页后仍在框内会再次计时（支持连续翻页）
+  // 拖拽移动时调用：命中某区域起 1s 计时，切换区域/离开即重置；翻页后仍在框内会再次计时（支持连续翻页）
   function updatePageZone(x, y) {
     if (!dnd || !dnd.active) return;
-    var side = zoneAt(x, y);
-    if (side && !zoneAvailable(side)) side = "";
-    if (side !== zoneSide) { clearZoneTimer(); zoneSide = side; updateZoneUI(); }
-    if (side && !zoneTimer) {
-      zoneTimer = setTimeout(function () { zoneTimer = null; flipPageForDrag(zoneSide); }, ZONE_HOLD_MS);
+    var hit = zoneAt(x, y);
+    var key = hit ? hit.side + ":" + hit.pages : "";
+    if (key !== zoneKey) {
+      clearZoneTimer();
+      zoneKey = key;
+      zoneSide = hit ? hit.side : "";
+      zonePages = hit ? hit.pages : 0;
+      updateZoneUI();
+    }
+    if (hit && !zoneTimer) {
+      zoneTimer = setTimeout(function () { zoneTimer = null; flipPageForDrag(zoneSide, zonePages); }, ZONE_HOLD_MS);
     }
   }
-  function flipPageForDrag(side) {
-    if (!dnd || !dnd.active || !side || !zoneAvailable(side)) return;
-    var next = pager.page + (side === "right" ? 1 : -1);
-    if (next < 1 || next > dragTotalPages()) { updateZoneUI(); return; }
+  function flipPageForDrag(side, pages) {
+    if (!dnd || !dnd.active || !side) return;
+    var total = dragTotalPages();
+    var step = Math.max(1, Math.min(ZONE_MAX_PAGES, pages || 1));
+    var next = Math.max(1, Math.min(total, pager.page + (side === "right" ? step : -step)));
+    if (next === pager.page) { updateZoneUI(); return; }
     pager.page = next;
     // renderGrid 会清空网格（占位随之销毁）。onDone 时卡片已就位，再重插占位到页首/页末并刷新槽位缓存；
     // 同时立即补插占位作为兜底，避免渲染异步窗口内 movePlaceholderTo 因 ph 不在 DOM 而抛错
@@ -2452,6 +2507,7 @@ textarea.auto-grow,.group input[type=text],.group input[type=number],.group inpu
     dnd.origIndex = -1; // 跨页后原位索引失效：取消走「回源页重建」路径
     dnd.flipped = true;
     window.scrollTo(0, 0);
+    zoneKey = ""; zonePages = 0; // 翻页后重新判定（分区可用数量与命中区域都可能变化）
     updateZoneUI();
   }
   // 翻页渲染完成后：把占位重插到新页页首（右翻）/页末（左翻），刷新槽位缓存与热区可用性
@@ -2469,7 +2525,7 @@ textarea.auto-grow,.group input[type=text],.group input[type=number],.group inpu
   }
   function destroyPageZones() {
     clearZoneTimer();
-    zoneSide = "";
+    zoneSide = ""; zonePages = 0; zoneKey = "";
     if (zoneL && zoneL.parentNode) zoneL.parentNode.removeChild(zoneL);
     if (zoneR && zoneR.parentNode) zoneR.parentNode.removeChild(zoneR);
     zoneL = zoneR = null;
