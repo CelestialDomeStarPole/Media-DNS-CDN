@@ -494,9 +494,10 @@ body.no-select{user-select:none;-webkit-user-select:none}
 .thumb video{width:100%;height:100%;object-fit:contain;display:block;background:rgba(255,255,255,.7)}
 .thumb .zoom{position:absolute;right:8px;bottom:8px;background:rgba(15,23,42,.72);color:#fff;font-size:12px;padding:5px 10px;border-radius:6px;transition:background .15s}
 .thumb .zoom:hover{background:rgba(15,23,42,.92)}
-.thumb-fallback{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:8px;text-align:center;color:var(--muted)}
-.thumb-fallback .tf-icon{font-size:22px}
-.thumb-fallback .tf-id{font-size:11px;word-break:break-all;max-width:92%}
+/* 缩略图区底色恒为白色系（不随「文字颜色」设置变化），故内部兜底符号/文字必须用固定深色 */
+.thumb-fallback{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:8px;text-align:center;color:var(--text-fixed)}
+.thumb-fallback .tf-icon{font-size:44px;line-height:1}
+.thumb-fallback .tf-id{font-size:15px;line-height:1.15;word-break:break-all;max-width:92%}
 .card-body{padding:12px;display:flex;flex-direction:column;gap:7px;flex:1}
 /* ===== 壁纸模式：信息区白色玻璃衬底 + 深色文字（通透但可读，纯色底零滤镜开销）===== */
 .img-card:not(.view-list) .card-body{background:rgba(255,255,255,var(--card-body-alpha,.08))} /* 信息区底色，外观面板可调 */
