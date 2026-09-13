@@ -98,6 +98,8 @@ export function renderUI() {
      --on-grad=主题渐变底按钮内文字（跟随设置）；--opposite=互斥组未选中对立色；--text-fixed=固定浅底控件文字（恒深色） */
   --text:#111827;--muted:color-mix(in srgb,var(--text) 62%,transparent);
   --on-grad:var(--text);--opposite:#ffffff;--text-fixed:#1f2937;
+  --text-soft:color-mix(in srgb,var(--text) 70%,transparent); /* 小文字（元信息/说明/状态）：比 --muted(62%) 略深，仍弱于主体文字 */
+  --soft-weight:500;                                          /* 小文字字重：比默认 400 略粗，仍弱于主体文字 600-700 */
   --pz-tint:rgba(255,255,255,.34); /* 拖拽翻页框底色遮罩：跟随文字色反向叠加（黑字→白遮罩 / 白字→黑遮罩） */
   /* 玻璃材质：白覆盖越低越通透，靠 saturate 提色而非白膜提亮（数值均可调） */
   --glass-chip:rgba(255,255,255,.55);   /* 小控件：轻微通透 */
@@ -858,7 +860,29 @@ textarea.auto-grow,.group input[type=text],.group input[type=number],.group inpu
 .mini,.pg-jump,.batch-result .br-retry,.name-edit,.fsel,.readonly-box,.fchip-menu,.ap-field input[type=url],
 .detail-name input,.detail-folder select,.detail-preview textarea{color:var(--text-fixed)}
 /* 悬浮壁纸编辑器：白玻璃底(0.82)，整块恒用深色文字（含内部 --muted 派生，避免半透明白字压在白底上） */
-.wp-hover{color:var(--text-fixed);--muted:color-mix(in srgb,var(--text-fixed) 62%,transparent)}
+.wp-hover{color:var(--text-fixed);--muted:color-mix(in srgb,var(--text-fixed) 62%,transparent);--text-soft:color-mix(in srgb,var(--text-fixed) 76%,transparent)}
+/* ===== 小文字加深加粗（白名单，选择器加 html 前缀以稳定覆盖既有规则）=====
+   媒体卡片元信息 / 设置说明 / 工具栏状态类：比 --muted 略深略粗，仍明显弱于主体文字（--text + 600-700）。
+   不受影响：按钮（侧栏退出、批量开关）、图标（铅笔 ✎、× 、面板箭头）、语义色（警告黄/错误红/成功绿）、
+   固定浅底控件（走 --text-fixed）、主体文字与值（走 --text） */
+html .img-card .img-id,html .img-card .img-id .t,html .img-card.view-list .lst-id,
+html .img-id,html .img-url,html .img-card .img-url,
+html .img-card .muted,html .img-card .lst-time,html .img-card .lst-size,
+html .img-card.view-list .lst-time,html .img-card.view-list .lst-size,
+html .group label small,html .origin-hint,html .od-hint,html .od-item-badge,
+html .login-card .sub,html .login-card .hint,
+html .count,html .sort-hint,html .pg-info,html .pg-gap,html .empty,html .mode-option em,
+html .ap-slider-top small,html .ap-note,
+html .wp-hover .wh-hint,html .wh-text-row .wh-text-label,
+html .detail-folder,html .detail-meta .meta-row{
+  color:var(--text-soft);font-weight:var(--soft-weight)
+}
+/* 同类中原本已是 600 字重的小标题：只加深颜色，不降字重 */
+html .ap-label,html .wp-preset-label,html .wp-hover .wh-title,html .dt-sec-title{color:var(--text-soft)}
+/* OneDrive 列表表头：底色为近不透明的白，必须用固定深色派生值（跟随时会在白字模式下隐身） */
+html .od-items-head{color:color-mix(in srgb,var(--text-fixed) 78%,transparent);font-weight:var(--soft-weight)}
+/* 缩略图兜底类型文字：底色固定为白，颜色走 --text-fixed 不动，仅略加粗以统一观感 */
+html .thumb-fallback .tf-id{font-weight:var(--soft-weight)}
 /* ===== 拖拽跨页热区：左右各约 5% 视口宽，高 = 50% 视口 + 50px（垂直居中）
    框内自上而下分 1–3 个区域（分别翻 1/2/3 页，页数不足时只显示够用的区域）；
    宽高与 top 由 JS 按视口计算写入；首/末页由 JS 置 display:none 控制不展示对应侧 ===== */
