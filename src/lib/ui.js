@@ -785,7 +785,7 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:none!important;animation:none!important}
 /* 解析按钮与「设为壁纸」按钮用主题渐变（.secondary 的玻璃底 + 渐变覆盖，保留 hover/禁用态） */
 #od-resolve-btn,.detail-wp-btn{background:var(--grad) var(--c1);background-size:100% 100%;background-repeat:no-repeat;color:var(--on-grad);border:none;font-weight:600;transition:transform .12s ease,box-shadow .15s ease}
-#od-resolve-btn:hover,.detail-wp-btn:hover{box-shadow:0 8px 20px color-mix(in srgb,var(--accent) 40%,transparent)} /* 上移位移改由 .lifted 控制（防抖） */
+#od-resolve-btn:hover,.detail-wp-btn:hover{box-shadow:0 8px 20px color-mix(in srgb,var(--accent) 40%,transparent);color:var(--on-grad)}
 #od-resolve-btn:disabled,.detail-wp-btn:disabled{opacity:.6;background:var(--glass-chip);color:var(--text);box-shadow:none}
 .detail-wp-btn{flex:none}
 
@@ -885,12 +885,7 @@ html .ap-label,html .wp-preset-label,html .wp-hover .wh-title,html .dt-sec-title
 html .od-items-head{color:color-mix(in srgb,var(--text-fixed) 78%,transparent);font-weight:var(--soft-weight)}
 /* 缩略图兜底类型文字：底色固定为白，颜色走 --text-fixed 不动，仅略加粗以统一观感 */
 html .thumb-fallback .tf-id{font-weight:var(--soft-weight)}
-/* ===== hover 上移抖动修复（与媒体卡片同源的 JS 判定区方案）=====
-   这些元素原先在 :hover 里 translateY(-1px) 上移：鼠标停在元素下边缘时，上移后该点落到元素外，
-   :hover 失效 → 元素落回 → 又命中 → 无限循环（抽搐）。
-   ⚠ 已放弃「CSS 伪元素向下扩展热区」的做法（在部分容器/浏览器下判定不稳定，且热区会溢出按钮本身）。
-   现与媒体卡片一致：位移改由 JS 切换 .lifted 类控制，命中区由 JS 判定（元素矩形向下扩展 LIFT_H + LIFT_PAD），
-   不产生任何溢出的热区。 */
+/* ===== hover 上移抖动修复（与媒体卡片同源的 JS 判定区方案）===== */
 .fchip.lifted,.mini.lifted,.secondary.lifted,.pg-btn.lifted,.pg-num.lifted,.primary.lifted,
 .origin-ok.lifted,#od-resolve-btn.lifted,.detail-wp-btn.lifted,.dchip.lifted{transform:translateY(-1px)}
 .detail-close.lifted{transform:translateY(-1px) rotate(90deg)}
