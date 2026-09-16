@@ -257,7 +257,9 @@ a{color:var(--accent)}
   background:var(--grad) var(--c1);background-size:100% 100%;background-repeat:no-repeat;
   box-shadow:0 6px 18px rgba(0,0,0,.2);transition:transform .15s ease,box-shadow .15s ease
 }
-.lang-toggle:hover{transform:translateY(-1px) scale(1.05);box-shadow:0 10px 26px rgba(0,0,0,.3)}
+/* ⚠ 语言按钮带 contain:layout paint（内部渐变伪元素需裁剪），无法用「向下扩展命中区」补偿上移抖动，
+   故 hover 只放大不位移：放大只会扩大命中区，不会出现"上移→脱离鼠标→落回"的循环 */
+.lang-toggle:hover{transform:scale(1.05);box-shadow:0 10px 26px rgba(0,0,0,.3)}
 .lang-toggle .lt-globe{width:22px;height:22px;perspective:120px;color:#fff;filter:drop-shadow(0 1px 2px rgba(0,0,0,.25))}
 .lang-toggle svg{display:block;width:22px;height:22px;animation:globeSpin 7s linear infinite}
 .lang-toggle:hover svg{animation-duration:2s}
@@ -335,7 +337,7 @@ a{color:var(--accent)}
 .pager{display:flex;align-items:center;justify-content:center;gap:6px;margin:18px 0 6px;flex-wrap:wrap}
 .pager.hidden{display:none}
 .pg-btn,.pg-num{min-width:34px;height:34px;padding:0 8px;border-radius:9px;border:1px solid rgba(0,0,0,.12);background:var(--glass-chip);color:var(--text);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s}
-.pg-btn:hover:not(:disabled),.pg-num:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-1px)}
+.pg-btn:hover:not(:disabled),.pg-num:hover{border-color:var(--accent);color:var(--accent)} /* 上移位移改由 .lifted 控制（防抖） */
 .pg-btn:disabled{opacity:.4;cursor:default}
 .pg-num.active{background:var(--grad) var(--c1);color:var(--on-grad);border:none;cursor:text}
 .pg-num.active:hover{color:var(--on-grad);transform:none}
@@ -422,7 +424,7 @@ a{color:var(--accent)}
 .batch-result .br-retry:hover{border-color:var(--accent);color:var(--accent)}
 /* 次级按钮 */
 .secondary{padding:11px 18px;border-radius:10px;font-size:14px;font-weight:600;background:var(--glass-chip);-webkit-backdrop-filter:blur(10px) saturate(1.7);backdrop-filter:blur(10px) saturate(1.7);border:1px solid rgba(0,0,0,.14);color:var(--text);cursor:pointer;transition:all .15s ease;white-space:nowrap}
-.secondary:hover{border-color:var(--accent);color:var(--accent);transform:translateY(-1px)}
+.secondary:hover{border-color:var(--accent);color:var(--accent)} /* 上移位移改由 .lifted 控制（防抖） */
 .secondary:disabled{opacity:.6;cursor:default;transform:none}
 .preview{margin-top:16px;display:flex;gap:14px;align-items:center;border:1px dashed rgba(0,0,0,.18);border-radius:9px;padding:10px}
 .preview img{max-width:120px;max-height:90px;border-radius:6px;object-fit:contain;background:rgba(255,255,255,.7)}
@@ -433,7 +435,7 @@ a{color:var(--accent)}
 /* 文件夹栏 */
 .folder-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px}
 .fchip{padding:6px 14px;border-radius:999px;font-size:13px;background:var(--glass-chip);border:1px solid rgba(0,0,0,.1);color:var(--text);transition:all .15s}
-.fchip:hover{transform:translateY(-1px);border-color:var(--accent)}
+.fchip:hover{border-color:var(--accent)} /* 上移位移改由 .lifted 控制（防抖） */
 /* 渐变 active 态统一规范（对齐 .primary）：去掉透明边框（补偿 1px padding）+ 渐变下垫同色实底。
    垫底是为了让圆角边缘的半像素抗锯齿透出主题色而非父背景——这正是此前"两侧 1px 没被渐变覆盖"的成因
    （图片壁纸上尤其明显，纯 CSS 浅色背景时因色差小而不易察觉） */
@@ -569,7 +571,7 @@ body.no-select{user-select:none;-webkit-user-select:none}
 .fsel:focus{border-color:var(--accent)}
 .actions{display:flex;align-items:center;gap:8px;margin-top:2px}
 .mini{font-size:12px;padding:5px 11px;border-radius:7px;border:1px solid rgba(0,0,0,.12);background:rgba(255,255,255,.85);transition:background .15s,transform .1s}
-.mini:hover{background:#fff;transform:translateY(-1px)}
+.mini:hover{background:#fff} /* 上移位移改由 .lifted 控制（防抖） */
 .mini:active{transform:none}
 .mini.danger{color:#dc2626;border-color:#f3c1c1}
 .mini.danger:hover{background:#fef2f2}
@@ -626,7 +628,7 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
   box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 42%,transparent);
   transition:transform .12s ease,box-shadow .15s ease /* 渐变位移流动已移除 */
 }
-.primary:hover{transform:translateY(-1px);box-shadow:0 10px 26px color-mix(in srgb,var(--accent) 52%,transparent)}
+.primary:hover{box-shadow:0 10px 26px color-mix(in srgb,var(--accent) 52%,transparent)} /* 上移位移改由 .lifted 控制（防抖） */
 .primary:active{transform:translateY(0)}
 .primary:disabled{opacity:.6;cursor:default;box-shadow:none;transform:none}
 
@@ -678,7 +680,7 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 /* 主按钮沿用 .mini 尺寸（与删除确认弹窗按钮组一致）+ 水平三色渐变。
    hover 必须重申渐变背景：.mini:hover 有 background:#fff，同特异性下会覆盖渐变导致白底白字 */
 .origin-ok{background:linear-gradient(90deg,var(--c1),var(--c2),var(--c3));color:var(--on-grad);border:none;box-shadow:0 6px 16px color-mix(in srgb,var(--accent) 32%,transparent);transition:filter .15s,box-shadow .15s,transform .1s,opacity .15s}
-.origin-ok:hover{background:linear-gradient(90deg,var(--c1),var(--c2),var(--c3));filter:brightness(1.1);box-shadow:0 9px 22px color-mix(in srgb,var(--accent) 44%,transparent);transform:translateY(-1px)}
+.origin-ok:hover{background:linear-gradient(90deg,var(--c1),var(--c2),var(--c3));filter:brightness(1.1);box-shadow:0 9px 22px color-mix(in srgb,var(--accent) 44%,transparent)} /* 上移位移改由 .lifted 控制（防抖） */
 .origin-ok:active{transform:translateY(0);filter:brightness(.95);box-shadow:0 4px 12px color-mix(in srgb,var(--accent) 30%,transparent)}
 .origin-ok:disabled{opacity:.6;filter:none;transform:none;box-shadow:none;cursor:default}
 
@@ -783,7 +785,7 @@ textarea.auto-grow:focus{border-color:var(--accent);box-shadow:0 0 0 3px color-m
 body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:none!important;animation:none!important}
 /* 解析按钮与「设为壁纸」按钮用主题渐变（.secondary 的玻璃底 + 渐变覆盖，保留 hover/禁用态） */
 #od-resolve-btn,.detail-wp-btn{background:var(--grad) var(--c1);background-size:100% 100%;background-repeat:no-repeat;color:var(--on-grad);border:none;font-weight:600;transition:transform .12s ease,box-shadow .15s ease}
-#od-resolve-btn:hover,.detail-wp-btn:hover{transform:translateY(-1px);box-shadow:0 8px 20px color-mix(in srgb,var(--accent) 40%,transparent)}
+#od-resolve-btn:hover,.detail-wp-btn:hover{box-shadow:0 8px 20px color-mix(in srgb,var(--accent) 40%,transparent)} /* 上移位移改由 .lifted 控制（防抖） */
 #od-resolve-btn:disabled,.detail-wp-btn:disabled{opacity:.6;background:var(--glass-chip);color:var(--text);box-shadow:none}
 .detail-wp-btn{flex:none}
 
@@ -794,7 +796,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
 .detail-head{display:flex;align-items:center;justify-content:space-between;padding:19px 24px 0}
 .detail-head h3{font-size:20px;font-weight:600;color:var(--text)}
 .detail-close{font-size:35px;line-height:1;color:var(--muted);cursor:pointer;transition:color .15s,transform .15s;background:none;border:none;padding:0 2px}
-.detail-close:hover{color:#dc2626;transform:rotate(90deg)}
+.detail-close:hover{color:#dc2626} /* 旋转位移改由 .lifted 控制（防抖） */
 .detail-body{display:flex;gap:24px;padding:19px 24px 24px}
 .detail-left{width:405px;flex:none;display:flex;flex-direction:column;gap:13px}
 .detail-info{display:flex;flex-direction:column;gap:5px;color:var(--text)}
@@ -822,7 +824,7 @@ body.motion-off *,body.motion-off *::before,body.motion-off *::after{transition:
 .dt-sec-title{font-size:16px;font-weight:600;color:var(--muted);margin:3px 0 0}
 .detail-chips{display:flex;flex-wrap:wrap;gap:11px}
 .dchip{padding:8px 19px;border-radius:999px;font-size:17px;background:var(--glass-chip);-webkit-backdrop-filter:blur(10px) saturate(1.7);backdrop-filter:blur(10px) saturate(1.7);border:1px solid rgba(0,0,0,.1);color:var(--opposite);transition:all .15s;font-weight:500}
-.dchip:hover{transform:translateY(-1px);border-color:var(--accent)}
+.dchip:hover{border-color:var(--accent)} /* 上移位移改由 .lifted 控制（防抖） */
 .dchip.active{background:var(--grad) var(--c1);color:var(--on-grad);border:none;padding:9px 20px;box-shadow:0 4px 14px rgba(0,0,0,.2)}
 .detail-preview{margin-top:3px}
 .detail-preview textarea{width:100%;min-height:97px;resize:vertical;padding:14px 16px;border-radius:10px;border:1px solid rgba(0,0,0,.12);background:#fafafa;color:var(--text-fixed);font-size:17px;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;line-height:1.6;word-break:break-all}
@@ -883,6 +885,15 @@ html .ap-label,html .wp-preset-label,html .wp-hover .wh-title,html .dt-sec-title
 html .od-items-head{color:color-mix(in srgb,var(--text-fixed) 78%,transparent);font-weight:var(--soft-weight)}
 /* 缩略图兜底类型文字：底色固定为白，颜色走 --text-fixed 不动，仅略加粗以统一观感 */
 html .thumb-fallback .tf-id{font-weight:var(--soft-weight)}
+/* ===== hover 上移抖动修复（与媒体卡片同源的 JS 判定区方案）=====
+   这些元素原先在 :hover 里 translateY(-1px) 上移：鼠标停在元素下边缘时，上移后该点落到元素外，
+   :hover 失效 → 元素落回 → 又命中 → 无限循环（抽搐）。
+   ⚠ 已放弃「CSS 伪元素向下扩展热区」的做法（在部分容器/浏览器下判定不稳定，且热区会溢出按钮本身）。
+   现与媒体卡片一致：位移改由 JS 切换 .lifted 类控制，命中区由 JS 判定（元素矩形向下扩展 LIFT_H + LIFT_PAD），
+   不产生任何溢出的热区。 */
+.fchip.lifted,.mini.lifted,.secondary.lifted,.pg-btn.lifted,.pg-num.lifted,.primary.lifted,
+.origin-ok.lifted,#od-resolve-btn.lifted,.detail-wp-btn.lifted,.dchip.lifted{transform:translateY(-1px)}
+.detail-close.lifted{transform:translateY(-1px) rotate(90deg)}
 /* ===== 拖拽跨页热区：左右各约 5% 视口宽，高 = 50% 视口 + 50px（垂直居中）
    框内自上而下分 1–3 个区域（分别翻 1/2/3 页，页数不足时只显示够用的区域）；
    宽高与 top 由 JS 按视口计算写入；首/末页由 JS 置 display:none 控制不展示对应侧 ===== */
@@ -2790,6 +2801,43 @@ html .thumb-fallback .tf-id{font-weight:var(--soft-weight)}
   });
   $("grid").addEventListener("pointerleave", function () {
     if (hoverCard) setHovered(hoverCard, false);
+  });
+  // ===== 通用 hover 上移抖动修复（与上方媒体卡片同源：位移与命中判定解耦）=====
+  // 这些元素的 CSS 位移已从 :hover 移出、改由 .lifted 类控制；命中区由 JS 判定 =
+  // 元素矩形「向下平移 LIFT_H（还原上移后的矩形）+ 底部缓冲 LIFT_PAD」。
+  // 这样鼠标停在按钮下边缘时不会因"上移→脱离→落回→再上移"而抽搐，也不会产生任何溢出的热区元素。
+  var LIFT_SEL = ".fchip,.mini,.secondary,.pg-btn,.pg-num,.primary,.origin-ok,#od-resolve-btn,.detail-wp-btn,.dchip,.detail-close";
+  var LIFT_H = 1;    // 与 CSS .lifted 的 translateY 位移一致
+  var LIFT_PAD = 4;  // 底部额外缓冲（覆盖 1px 位移并留余量，手感贴近边界）
+  var liftEl = null;
+  function liftHitZone(el, x, y) {
+    var r = el.getBoundingClientRect();
+    return x >= r.left && x <= r.right && y >= r.top + LIFT_H && y <= r.bottom + LIFT_H + LIFT_PAD;
+  }
+  function setLifted(el, on) {
+    if (!el) return;
+    el.classList.toggle("lifted", on);
+    if (on) liftEl = el;
+    else if (liftEl === el) liftEl = null;
+  }
+  document.addEventListener("pointerover", function (e) {
+    if (e.pointerType === "touch") return;
+    var el = e.target && e.target.closest ? e.target.closest(LIFT_SEL) : null;
+    if (el) setLifted(el, true);
+  });
+  document.addEventListener("pointerout", function (e) {
+    if (e.pointerType === "touch") return;
+    var el = e.target && e.target.closest ? e.target.closest(LIFT_SEL) : null;
+    if (!el) return;
+    var to = e.relatedTarget;
+    if (to && to.closest && to.closest(LIFT_SEL) === el) return; // 仍在同一元素内部移动
+    if (liftHitZone(el, e.clientX, e.clientY)) return;           // 仍在扩展判定区内：保持抬起（防抖关键）
+    setLifted(el, false);
+  });
+  document.addEventListener("pointermove", function (e) {
+    if (!liftEl) return;
+    if (!liftEl.isConnected) { liftEl = null; return; }          // 元素已被重建/移除（拖拽、列表重渲染等）
+    if (!liftHitZone(liftEl, e.clientX, e.clientY)) setLifted(liftEl, false);
   });
   $("grid").addEventListener("pointerdown", function (e) {
     if (dnd) return;
