@@ -889,6 +889,15 @@ html .thumb-fallback .tf-id{font-weight:var(--soft-weight)}
 .fchip.lifted,.mini.lifted,.secondary.lifted,.pg-btn.lifted,.pg-num.lifted,.primary.lifted,
 .origin-ok.lifted,#od-resolve-btn.lifted,.detail-wp-btn.lifted,.dchip.lifted{transform:translateY(-1px)}
 .detail-close.lifted{transform:translateY(-1px) rotate(90deg)}
+/* ===== 图片样式下的卡片顶部信息行（模式徽章 / 类型徽章 / 时间）窄卡片下的排版规则 ===== */
+.card-top .badge{white-space:nowrap;flex:none}
+.card-top .badge-proxy,.card-top .badge-dns{padding:2px 6px}
+.card-top .badge-type{padding:2px 5px}
+.card-top .muted{
+  font-size:.95em;white-space:normal;line-height:1.05;
+  max-height:2.1em;overflow:hidden;
+  text-align:left;min-width:0;overflow-wrap:anywhere
+}
 /* ===== 拖拽跨页热区：左右各约 5% 视口宽，高 = 50% 视口 + 50px（垂直居中）
    框内自上而下分 1–3 个区域（分别翻 1/2/3 页，页数不足时只显示够用的区域）；
    宽高与 top 由 JS 按视口计算写入；首/末页由 JS 置 display:none 控制不展示对应侧 ===== */
