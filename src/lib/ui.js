@@ -2579,6 +2579,8 @@ html .thumb-fallback .tf-id{font-weight:var(--soft-weight)}
     for (var i = 0; i < cards.length; i++) out.push(cards[i].dataset.id);
     return out;
   }
+  // 把被拖卡插回全序：锚点 = 可见序列中的后继卡（可见序列即"目标页最终样子"，被挤出的卡已在
+  // renderGrid 渲染时按方向跳过），插到它之前；落在可见末位则锚定"最后一张非拖拽卡"之后。
   function applyOrderToFull(fullIds, dragId, newVisible) {
     var k = newVisible.indexOf(dragId);
     var after = k >= 0 && k + 1 < newVisible.length ? newVisible[k + 1] : null;
@@ -2598,6 +2600,7 @@ html .thumb-fallback .tf-id{font-weight:var(--soft-weight)}
       return rest.slice(0, li + 1).concat([dragId], rest.slice(li + 1));
     }
     var ai = rest.indexOf(after);
+    if (ai < 0) return rest.concat([dragId]);
     return rest.slice(0, ai).concat([dragId], rest.slice(ai));
   }
   function reorderImageList(images, ids) {
@@ -2741,8 +2744,12 @@ html .thumb-fallback .tf-id{font-weight:var(--soft-weight)}
     if (!commit) return;
     var newVisible = gridVisibleIds();
     if (newVisible.join(",") === d.visibleBefore.join(",")) return;
+    // 统一用「插到可见后继之前」：被挤出的那张卡已在渲染时被跳过（见 renderGrid 的预留槽位规则），
+    // 因此可见序列即"目标页最终样子（除被拖卡外）"，锚点语义与预览完全一致
     var newFull = applyOrderToFull(d.fullBefore, d.id, newVisible);
     lastImages = reorderImageList(lastImages, newFull);
+    // 跨页落位：拖拽期间当前页为占位腾出过一格，这里重建把少渲染的那张卡片补回来（顺序已按 newFull 更新）
+    if (d.flipped) renderGrid(lastImages, { noAnim: true });
     // 拖拽期间该卡信息可能已异步填充（fillCardInfo 找到 body 上的 ghost）：
     // 1) 回到网格后重新接管缩略图/视频帧懒加载观察；
     // 2) 按当前筛选补齐隐藏（拖拽中为防 ghost 消失而跳过了隐藏）
@@ -3215,6 +3222,15 @@ html .thumb-fallback .tf-id{font-weight:var(--soft-weight)}
     computeGridMetrics();
     var start = (pager.page - 1) * per;
     var end = Math.min(vis.length, start + per);
+    if (dnd && dnd.active) {
+      var dragInPage = false;
+      for (var dq = start; dq < end; dq++) if (vis[dq].id === dnd.id) { dragInPage = true; break; }
+      if (!dragInPage && end - start >= per) {
+        // 向后页拖（页码变大）→ 目标页首卡会被推回源页末尾 → 跳过首张；
+        // 向前页拖 / 同页 → 目标页末卡会被推到下一页 → 跳过末张
+        if (pager.page > (dnd.origPage || pager.page)) start += 1; else end -= 1;
+      }
+    }
     resetGridNodes();
     renderDoneCb = opts.onDone || null;
     enqueueCardRange(start, end, opts.noAnim);
