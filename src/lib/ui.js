@@ -1286,6 +1286,7 @@ html .thumb-fallback .tf-id{font-weight:var(--soft-weight)}
       </div>
       <div class="detail-right">
         <div class="detail-meta">
+          <div class="meta-row"><span data-i18n="detail.index"></span><b id="detail-index">-</b></div>
           <div class="meta-row"><span data-i18n="detail.size"></span><b id="detail-size">-</b></div>
           <div class="meta-row"><span data-i18n="detail.fileType"></span><b id="detail-filetype">-</b></div>
           <div class="meta-row"><span data-i18n="detail.type"></span><b id="detail-type">-</b></div>
@@ -1571,6 +1572,7 @@ html .thumb-fallback .tf-id{font-weight:var(--soft-weight)}
       "detail.formatBBcode": "BBcode",
       "detail.copy": "复制",
       "detail.copyId": "点击复制 ID",
+      "detail.index": "序号",
       "detail.size": "大小",
       "detail.fileType": "文件类型",
       "detail.id": "ID",
@@ -1838,6 +1840,7 @@ html .thumb-fallback .tf-id{font-weight:var(--soft-weight)}
       "detail.formatBBcode": "BBcode",
       "detail.copy": "Copy",
       "detail.copyId": "Click to copy ID",
+      "detail.index": "Position",
       "detail.size": "Size",
       "detail.fileType": "File type",
       "detail.id": "ID",
@@ -5019,6 +5022,12 @@ html .thumb-fallback .tf-id{font-weight:var(--soft-weight)}
     renderDetailName();
     renderDetailFolder();
     $("detail-id").textContent = img.id;
+    // 序号 = 该媒体在当前全量排序（lastImages，即用户拖拽调整后的顺序）中的位置，从 1 开始
+    var detailPos = -1;
+    for (var dpi = 0; dpi < lastImages.length; dpi++) {
+      if (lastImages[dpi] && lastImages[dpi].id === img.id) { detailPos = dpi + 1; break; }
+    }
+    $("detail-index").textContent = detailPos > 0 ? String(detailPos) : "-";
     $("detail-time").textContent = fmtTime(img.createdAt);
     $("detail-size").textContent = "-";
     $("detail-dim").textContent = "-";
